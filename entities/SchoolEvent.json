@@ -1,0 +1,62 @@
+{
+  "name": "SchoolEvent",
+  "type": "object",
+  "properties": {
+    "school_name": {
+      "type": "string"
+    },
+    "school_email": {
+      "type": "string"
+    },
+    "school_logo": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "mercadillo",
+        "fiesta_trimestral",
+        "obra_teatro",
+        "jornada_puertas_abiertas",
+        "taller_familias",
+        "festival",
+        "excursion",
+        "charla",
+        "otro"
+      ],
+      "default": "otro"
+    },
+    "event_date": {
+      "type": "string"
+    },
+    "event_time": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "is_public": {
+      "type": "boolean",
+      "default": true
+    },
+    "likes_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "school_name",
+    "title",
+    "event_date",
+    "event_type"
+  ]
+}

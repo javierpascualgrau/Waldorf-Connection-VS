@@ -1,0 +1,24 @@
+{
+  "name": "Like",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "post",
+        "school_event"
+      ]
+    }
+  },
+  "required": [
+    "user_email",
+    "target_id",
+    "target_type"
+  ]
+}

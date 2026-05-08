@@ -1,0 +1,16 @@
+{
+  "name": "Follow",
+  "type": "object",
+  "properties": {
+    "follower_email": {
+      "type": "string"
+    },
+    "following_email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "follower_email",
+    "following_email"
+  ]
+}

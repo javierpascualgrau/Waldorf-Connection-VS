@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 30 20% 15%;
+    --card: 40 25% 98%;
+    --card-foreground: 30 20% 15%;
+    --popover: 40 25% 98%;
+    --popover-foreground: 30 20% 15%;
+    --primary: 142 28% 32%;
+    --primary-foreground: 40 30% 97%;
+    --secondary: 38 35% 90%;
+    --secondary-foreground: 30 20% 20%;
+    --muted: 38 20% 93%;
+    --muted-foreground: 30 15% 45%;
+    --accent: 25 45% 75%;
+    --accent-foreground: 30 20% 15%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 40 30% 97%;
+    --border: 38 25% 85%;
+    --input: 38 25% 85%;
+    --ring: 142 28% 32%;
+    --radius: 0.8rem;
+
+    --forest: 142 28% 32%;
+    --moss: 120 20% 55%;
+    --earth: 25 35% 45%;
+    --sand: 38 40% 80%;
+    --cream: 40 30% 97%;
+    --bark: 30 25% 25%;
+  }
+
+  .dark {
+    --background: 30 20% 10%;
+    --foreground: 40 25% 92%;
+    --card: 30 18% 13%;
+    --card-foreground: 40 25% 92%;
+    --popover: 30 18% 13%;
+    --popover-foreground: 40 25% 92%;
+    --primary: 142 28% 45%;
+    --primary-foreground: 30 20% 10%;
+    --secondary: 30 15% 20%;
+    --secondary-foreground: 40 25% 85%;
+    --muted: 30 15% 18%;
+    --muted-foreground: 38 15% 60%;
+    --accent: 25 35% 40%;
+    --accent-foreground: 40 25% 92%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 40 25% 92%;
+    --border: 30 15% 22%;
+    --input: 30 15% 22%;
+    --ring: 142 28% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-jost;
+  }
+  h1, h2, h3 {
+    @apply font-cormorant;
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "alumno",
+        "padre_madre",
+        "profesor",
+        "exalumno",
+        "colegio",
+        "simpatizante"
+      ],
+      "default": "simpatizante"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "school_name": {
+      "type": "string"
+    },
+    "interests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "website": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_email",
+    "display_name",
+    "role"
+  ]
+}
