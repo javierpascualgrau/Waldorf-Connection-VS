@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Heart, MapPin, Calendar, Clock } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -39,17 +39,19 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
   const handleLike = async () => {
     if (loading || !userEmail) return;
     setLoading(true);
-    if (liked) {
-      const existing = await base44.entities.Like.filter({ user_email: userEmail, target_id: event.id });
-      if (existing.length > 0) await base44.entities.Like.delete(existing[0].id);
-      await base44.entities.SchoolEvent.update(event.id, { likes_count: Math.max(0, likesCount - 1) });
-      setLikesCount(c => Math.max(0, c - 1));
-      setLiked(false);
+    
+    const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
+    
+    const { error } = await supabase
+      .from('school_events')
+      .update({ likes_count: newCount })
+      .eq('id', event.id);
+
+    if (!error) {
+      setLikesCount(newCount);
+      setLiked(!liked);
     } else {
-      await base44.entities.Like.create({ user_email: userEmail, target_id: event.id, target_type: 'school_event' });
-      await base44.entities.SchoolEvent.update(event.id, { likes_count: likesCount + 1 });
-      setLikesCount(c => c + 1);
-      setLiked(true);
+      console.error("Error al dar like al evento:", error);
     }
     setLoading(false);
   };
@@ -72,9 +74,9 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
             )}
           </div>
           <div>
-            <p className="text-sm font-medium">{event.school_name}</p>
+            <p className="text-sm font-medium">{event.school_name || 'Colegio Waldorf'}</p>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_TYPE_COLORS[event.event_type] || 'bg-muted text-muted-foreground'}`}>
-              {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+              {EVENT_TYPE_LABELS[event.event_type] || event.event_type || 'Evento'}
             </span>
           </div>
         </div>

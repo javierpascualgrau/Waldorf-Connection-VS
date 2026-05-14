@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import PostCard from '@/components/PostCard';
 import { Search, Users } from 'lucide-react';
 
@@ -36,14 +36,24 @@ export default function Comunidad() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const u = await base44.auth.me().catch(() => null);
-      setUser(u);
-      const postsData = await base44.entities.Post.list('-created_date', 50);
-      if (u) {
-        const likes = await base44.entities.Like.filter({ user_email: u.email });
-        setLikedIds(new Set(likes.map(l => l.target_id)));
+      
+      // 1. Obtenemos el usuario oficial desde Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+
+      // 2. Pedimos los posts ordenados por nuestra nueva columna created_date
+      const { data: postsData, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_date', { ascending: false });
+
+      if (error) {
+        console.error("Error cargando posts en comunidad:", error);
       }
-      setPosts(postsData);
+
+      // 3. Limpiamos likes temporalmente
+      setLikedIds(new Set());
+      setPosts(postsData || []);
       setLoading(false);
     };
     load();

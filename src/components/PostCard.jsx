@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CreatePostModal from './CreatePostModal';
@@ -69,39 +69,40 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
   const handleLike = async () => {
     if (loading || !userEmail) return;
     setLoading(true);
-    if (liked) {
-      const existing = await base44.entities.Like.filter({ user_email: userEmail, target_id: currentPost.id });
-      if (existing.length > 0) await base44.entities.Like.delete(existing[0].id);
-      await base44.entities.Post.update(currentPost.id, { likes_count: Math.max(0, likesCount - 1) });
-      setLikesCount(c => Math.max(0, c - 1));
-      setLiked(false);
+    
+    const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
+    
+    const { error } = await supabase
+      .from('posts')
+      .update({ likes_count: newCount })
+      .eq('id', currentPost.id);
+
+    if (!error) {
+      setLikesCount(newCount);
+      setLiked(!liked);
     } else {
-      await base44.entities.Like.create({ user_email: userEmail, target_id: currentPost.id, target_type: 'post' });
-      await base44.entities.Post.update(currentPost.id, { likes_count: likesCount + 1 });
-      setLikesCount(c => c + 1);
-      setLiked(true);
+      console.error("Error al dar like:", error);
     }
     setLoading(false);
   };
 
   const handleFollow = async () => {
     if (followLoading || !userEmail || userEmail === currentPost.author_email) return;
-    setFollowLoading(true);
-    if (following) {
-      const existing = await base44.entities.Follow.filter({ follower_email: userEmail, following_email: currentPost.author_email });
-      if (existing.length > 0) await base44.entities.Follow.delete(existing[0].id);
-      setFollowing(false);
-    } else {
-      await base44.entities.Follow.create({ follower_email: userEmail, following_email: currentPost.author_email });
-      setFollowing(true);
-    }
-    setFollowLoading(false);
+    setFollowing(!following);
   };
 
   const handleDelete = async () => {
     setMenuOpen(false);
-    await base44.entities.Post.delete(currentPost.id);
-    onDeleted?.(currentPost.id);
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', currentPost.id);
+
+    if (!error) {
+      onDeleted?.(currentPost.id);
+    } else {
+      console.error("Error al borrar:", error);
+    }
   };
 
   return (
@@ -122,13 +123,13 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{currentPost.author_name || 'Usuario'}</span>
+              <span className="font-medium text-sm">{currentPost.author_name || currentPost.author_id || 'Usuario'}</span>
               {currentPost.author_role && (
                 <span className="text-xs text-muted-foreground">{ROLE_LABELS[currentPost.author_role] || currentPost.author_role}</span>
               )}
             </div>
             <span className="text-xs text-muted-foreground">
-              {currentPost.created_date ? format(new Date(currentPost.created_date), "d MMM", { locale: es }) : ''}
+              {currentPost.created_at ? format(new Date(currentPost.created_at), "d MMM", { locale: es }) : ''}
             </span>
           </div>
           <div className="flex gap-2 items-center">
@@ -138,7 +139,7 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
               </span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[currentPost.category] || 'bg-muted text-muted-foreground'}`}>
-              {CATEGORY_LABELS[currentPost.category] || currentPost.category}
+              {CATEGORY_LABELS[currentPost.category] || currentPost.category || 'General'}
             </span>
             {/* Owner menu */}
             {isOwner && (
@@ -236,8 +237,8 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
           onClose={() => setEditOpen(false)}
           onCreated={async () => {
             setEditOpen(false);
-            const updated = await base44.entities.Post.filter({ id: currentPost.id });
-            if (updated[0]) setCurrentPost(updated[0]);
+            const { data } = await supabase.from('posts').select('*').eq('id', currentPost.id).single();
+            if (data) setCurrentPost(data);
           }}
         />
       )}

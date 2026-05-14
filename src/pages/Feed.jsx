@@ -21,18 +21,18 @@ export default function Feed() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
+  useEffect(() => {
     const load = async () => {
       setLoading(true);
 
-      // 1. Mantenemos el usuario (puedes usar un objeto falso si Base44 falla)
-      const u = await base44.auth.me().catch(() => null);
-      setUser(u);
+      // 1. Obtenemos el usuario oficial desde Supabase Auth
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
 
       // 2. Pedimos TODO a la vez a Supabase
       const [postsRes, eventsRes] = await Promise.all([
-        supabase.from('posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('school_events').select('*').order('created_at', { ascending: false })
+        supabase.from('posts').select('*').order('created_date', { ascending: false }),
+        supabase.from('school_events').select('*').order('created_date', { ascending: false })
       ]);
 
       if (postsRes.error) console.error("Error posts:", postsRes.error);
@@ -63,11 +63,10 @@ useEffect(() => {
       filteredEvents = [];
     }
 
-    // Merge and interleave posts and events
+    // Intercalar posts y eventos
     const feed = [];
     let pi = 0, ei = 0;
     while (pi < filteredPosts.length || ei < filteredEvents.length) {
-      if (pi < filteredPosts.length) feed.push({ type: 'post', data: filteredPosts[pi++] });
       if (pi < filteredPosts.length) feed.push({ type: 'post', data: filteredPosts[pi++] });
       if (ei < filteredEvents.length) feed.push({ type: 'event', data: filteredEvents[ei++] });
     }

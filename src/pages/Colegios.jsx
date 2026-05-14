@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import SchoolEventCard from '@/components/SchoolEventCard';
 import { Search, PlusCircle, School } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
@@ -25,14 +25,24 @@ export default function Colegios() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me().catch(() => null);
-    setUser(u);
-    const eventsData = await base44.entities.SchoolEvent.list('-event_date', 50);
-    if (u) {
-      const likes = await base44.entities.Like.filter({ user_email: u.email });
-      setLikedIds(new Set(likes.map(l => l.target_id)));
+    
+    // 1. Obtenemos el usuario oficial desde Supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+
+    // 2. Pedimos los eventos de los colegios ordenados por fecha de creación
+    const { data: eventsData, error } = await supabase
+      .from('school_events')
+      .select('*')
+      .order('created_date', { ascending: false });
+
+    if (error) {
+      console.error("Error cargando eventos de colegios:", error);
     }
-    setEvents(eventsData);
+
+    // 3. Limpiamos likes temporalmente hasta tener perfiles conectados
+    setLikedIds(new Set());
+    setEvents(eventsData || []);
     setLoading(false);
   };
 
