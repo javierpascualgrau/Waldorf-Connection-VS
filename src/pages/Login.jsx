@@ -1,115 +1,142 @@
 import { useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { LogIn, Mail, Lock, Sparkles } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Login() {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const { toast } = useToast();
 
-  const handleLogin = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    if (isSignUp) {
+      // Lógica de REGISTRO
+      if (password !== confirmPassword) {
+        toast({ title: "Las contraseñas no coinciden", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
-    if (error) setError("Credenciales incorrectas o usuario no encontrado.");
-    setLoading(false);
-  };
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: username } // Guardamos el nombre en los metadatos
+        }
+      });
 
-  const handleSignUp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
+      if (error) {
+        toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
+      } else {
+        // Creamos automáticamente su perfil en la tabla 'profiles'
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          display_name: username,
+          role: 'simpatizante'
+        });
+        toast({ title: "¡Cuenta creada!", description: "Ya puedes empezar a usar la red." });
+      }
     } else {
-      alert("¡Revisa tu email para confirmar el registro!");
+      // Lógica de LOGIN tradicional
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast({ title: "Error al entrar", description: "Credenciales incorrectas", variant: "destructive" });
+      }
     }
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-[400px] space-y-8 animate-fade-up">
-        {/* Logo/Brand */}
+      <div className="w-full max-w-md space-y-8 bg-card p-8 rounded-3xl border border-border shadow-xl">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Sparkles className="w-8 h-8 text-primary" />
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
+            <Sparkles className="text-primary w-6 h-6" />
           </div>
-          <h1 className="font-cormorant text-4xl font-semibold text-foreground">Waldorf Connect</h1>
-          <p className="text-muted-foreground mt-2">Bienvenido a tu comunidad</p>
+          <h1 className="font-cormorant text-4xl font-bold text-foreground italic">Waldorf Connect</h1>
+          <p className="text-muted-foreground mt-2 text-sm">
+            {isSignUp ? 'Crea tu cuenta en la comunidad' : 'Bienvenido de nuevo a casa'}
+          </p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-card border border-border p-6 rounded-3xl shadow-sm">
-          <form className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground ml-1 mb-1 block">Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-muted/50 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="tu@email.com"
-                  required
-                />
-              </div>
+        <form onSubmit={handleAuth} className="space-y-4">
+          {isSignUp && (
+            <div className="relative">
+              <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Tu nombre o Nickname"
+                className="w-full bg-muted/50 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
             </div>
+          )}
 
-            <div>
-              <label className="text-xs font-medium text-muted-foreground ml-1 mb-1 block">Contraseña</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-muted/50 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+            <input
+              type="email"
+              placeholder="Email"
+              className="w-full bg-muted/50 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+            <input
+              type="password"
+              placeholder="Contraseña"
+              className="w-full bg-muted/50 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {isSignUp && (
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+              <input
+                type="password"
+                placeholder="Confirma tu contraseña"
+                className="w-full bg-muted/50 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
             </div>
+          )}
 
-            {error && <p className="text-xs text-destructive text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
+          >
+            {loading ? 'Procesando...' : isSignUp ? 'Registrarse' : 'Entrar'}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </form>
 
-            <div className="pt-2 space-y-3">
-              <button
-                onClick={handleLogin}
-                disabled={loading}
-                className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-all shadow-sm shadow-primary/20 flex items-center justify-center gap-2"
-              >
-                {loading ? 'Cargando...' : <><LogIn className="w-4 h-4" /> Entrar</>}
-              </button>
-              
-              <button
-                onClick={handleSignUp}
-                disabled={loading}
-                className="w-full bg-transparent text-muted-foreground py-2 text-xs font-medium hover:text-foreground transition-colors"
-              >
-                ¿No tienes cuenta? Regístrate
-              </button>
-            </div>
-          </form>
+        <div className="text-center pt-2">
+          <button
+            onClick={() => setIsSignUp(!isSignUp)}
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate gratis'}
+          </button>
         </div>
-
-        <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest">
-          Educación · Comunidad · Espiritualidad
-        </p>
       </div>
     </div>
   );
