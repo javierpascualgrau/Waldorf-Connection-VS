@@ -1,6 +1,7 @@
+/* eslint-disable react/prop-types */
 import { useState, useRef } from 'react';
 import { X, MapPin, Calendar, ImagePlus, Loader2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 
 const CATEGORIES = [
   { value: 'taller', label: 'Taller' },
@@ -31,17 +32,33 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     setUploadingImage(true);
     setImagePreview(URL.createObjectURL(file));
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setImageUrl(file_url);
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('posts')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error("Error al subir la imagen:", uploadError);
+      setUploadingImage(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from('posts').getPublicUrl(fileName);
+    setImageUrl(data.publicUrl);
     setUploadingImage(false);
   };
 
   const handleSubmit = async () => {
     if (!content.trim()) return;
     setLoading(true);
-    const data = {
+
+    const postData = {
       content,
       category,
       location,
@@ -49,27 +66,40 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       is_service_offer: isService,
       image_url: imageUrl || null,
     };
+
     if (editPost) {
-      await base44.entities.Post.update(editPost.id, data);
+      const { error } = await supabase
+        .from('posts')
+        .update(postData)
+        .eq('id', editPost.id);
+        
+      if (error) console.error("Error al actualizar:", error);
     } else {
-      await base44.entities.Post.create({
-        ...data,
-        author_email: user?.email || '',
-        author_name: userProfile?.display_name || user?.full_name || 'Usuario',
-        author_role: userProfile?.role || 'simpatizante',
-        likes_count: 0,
-        comments_count: 0,
-      });
+      const { error } = await supabase
+        .from('posts')
+        .insert([{
+          ...postData,
+          author_email: user?.email || '',
+          author_name: userProfile?.display_name || user?.user_metadata?.display_name || 'Usuario',
+          author_role: userProfile?.role || 'simpatizante',
+          likes_count: 0,
+          comments_count: 0,
+          user_id: user?.id 
+        }]);
+
+      if (error) {
+        console.error("Error al guardar en base de datos:", error);
+      }
     }
+
     setLoading(false);
-    onCreated();
+    onCreated(); 
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
             {editPost ? 'Editar publicación' : 'Nueva publicación'}
@@ -79,7 +109,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </button>
         </div>
 
-        {/* Content */}
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}
@@ -87,7 +116,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           className="w-full bg-muted/50 rounded-2xl p-4 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
         />
 
-        {/* Image upload */}
         <div className="mt-3">
           {imagePreview ? (
             <div className="relative">
@@ -116,7 +144,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
         </div>
 
-        {/* Category */}
         <div className="mt-3">
           <label className="text-xs text-muted-foreground mb-1 block">Categoría</label>
           <select
@@ -130,7 +157,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </select>
         </div>
 
-        {/* Location and date */}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
             <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -152,7 +178,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </div>
         </div>
 
-        {/* Service toggle */}
         <div className="mt-3 flex items-center gap-3">
           <button
             onClick={() => setIsService(!isService)}
@@ -163,7 +188,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           <span className="text-sm text-muted-foreground">Ofrezco un servicio o taller</span>
         </div>
 
-        {/* Submit */}
         <button
           onClick={handleSubmit}
           disabled={loading || !content.trim() || uploadingImage}
