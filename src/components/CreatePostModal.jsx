@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, MapPin, Calendar, ImagePlus, Loader2 } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 
@@ -28,6 +28,12 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
+
+  // Esto nos dirá en la consola si el modal está recibiendo tus datos
+  useEffect(() => {
+    console.log("Datos del usuario en el Modal:", user);
+    console.log("Perfil del usuario en el Modal:", userProfile);
+  }, [user, userProfile]);
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -67,9 +73,10 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       image_url: imageUrl || null,
     };
 
-    // Lógica para el nombre: 1. Perfil, 2. Nombre de Auth, 3. Nickname del email, 4. "Miembro"
+    // Lógica de "detective" para encontrar tu nombre:
     const finalName = userProfile?.display_name || 
                      user?.user_metadata?.full_name || 
+                     user?.user_metadata?.display_name ||
                      user?.email?.split('@')[0] || 
                      'Miembro de la comunidad';
 
