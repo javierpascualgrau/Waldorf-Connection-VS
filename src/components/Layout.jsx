@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Home, School, Users, User, PlusCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient'; // ¡Cambiado a Supabase!
 import CreatePostModal from './CreatePostModal';
 import ProfileSearch from './ProfileSearch';
 
@@ -19,11 +19,26 @@ export default function Layout() {
   const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then(async (u) => {
-      setUser(u);
-      const profiles = await base44.entities.UserProfile.filter({ user_email: u.email });
-      if (profiles[0]) setUserProfile(profiles[0]);
-    }).catch(() => {});
+    const getSession = async () => {
+      // 1. Pedimos el usuario oficial a Supabase Auth
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (authUser) {
+        setUser(authUser);
+        
+        // 2. Intentamos buscar su perfil en la tabla de 'profiles'
+        // NOTA: Asegúrate de que tu tabla en Supabase se llame 'profiles'
+        const { data: profiles } = await supabase
+          .from('profiles') 
+          .select('*')
+          .eq('user_email', authUser.email)
+          .single();
+
+        if (profiles) setUserProfile(profiles);
+      }
+    };
+
+    getSession();
   }, []);
 
   return (
@@ -78,6 +93,7 @@ export default function Layout() {
         </div>
       </nav>
 
+      {/* El Modal ahora sí recibirá los datos reales */}
       {showCreateModal && (
         <CreatePostModal
           user={user}
