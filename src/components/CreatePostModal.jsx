@@ -68,6 +68,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     };
 
     if (editPost) {
+      // Editar publicación existente
       const { error } = await supabase
         .from('posts')
         .update(postData)
@@ -75,6 +76,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         
       if (error) console.error("Error al actualizar:", error);
     } else {
+      // Crear nueva publicación
       const { error } = await supabase
         .from('posts')
         .insert([{
@@ -84,11 +86,12 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           author_role: userProfile?.role || 'simpatizante',
           likes_count: 0,
           comments_count: 0,
-          user_id: user?.id 
+          author_id: user?.id 
         }]);
 
       if (error) {
         console.error("Error al guardar en base de datos:", error);
+        alert("Error al publicar: " + error.message);
       }
     }
 
@@ -100,6 +103,8 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
+        
+        {/* Cabecera */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
             {editPost ? 'Editar publicación' : 'Nueva publicación'}
@@ -109,6 +114,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </button>
         </div>
 
+        {/* Área de texto */}
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}
@@ -116,6 +122,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           className="w-full bg-muted/50 rounded-2xl p-4 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
         />
 
+        {/* Subida de imagen */}
         <div className="mt-3">
           {imagePreview ? (
             <div className="relative">
@@ -144,6 +151,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
         </div>
 
+        {/* Selector de Categoría */}
         <div className="mt-3">
           <label className="text-xs text-muted-foreground mb-1 block">Categoría</label>
           <select
@@ -157,6 +165,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </select>
         </div>
 
+        {/* Ubicación y Fecha */}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
             <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -178,6 +187,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </div>
         </div>
 
+        {/* Toggle de Servicio */}
         <div className="mt-3 flex items-center gap-3">
           <button
             onClick={() => setIsService(!isService)}
@@ -188,6 +198,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           <span className="text-sm text-muted-foreground">Ofrezco un servicio o taller</span>
         </div>
 
+        {/* Botón de envío */}
         <button
           onClick={handleSubmit}
           disabled={loading || !content.trim() || uploadingImage}
