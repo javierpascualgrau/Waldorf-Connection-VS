@@ -29,10 +29,11 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
 
-  // Esto nos dirá en la consola si el modal está recibiendo tus datos
+  // Esto nos dejará ver en la consola la estructura exacta de tu perfil para corregir cualquier fallo
   useEffect(() => {
-    console.log("Datos del usuario en el Modal:", user);
-    console.log("Perfil del usuario en el Modal:", userProfile);
+    console.log("--- DEPURACIÓN DE USUARIO ---");
+    console.log("Objeto user (Auth):", user);
+    console.log("Objeto userProfile (Tabla):", userProfile);
   }, [user, userProfile]);
 
   const handleImageChange = async (e) => {
@@ -73,8 +74,11 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       image_url: imageUrl || null,
     };
 
-    // Lógica de "detective" para encontrar tu nombre:
+    // Súper cadena de rescate para pillar el nombre real de tu perfil de Supabase
     const finalName = userProfile?.display_name || 
+                     userProfile?.full_name || 
+                     userProfile?.name || 
+                     userProfile?.nombre || 
                      user?.user_metadata?.full_name || 
                      user?.user_metadata?.display_name ||
                      user?.email?.split('@')[0] || 

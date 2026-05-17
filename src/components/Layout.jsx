@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Home, School, Users, User, PlusCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/api/supabaseClient'; // ¡Cambiado a Supabase!
+import { supabase } from '@/api/supabaseClient'; 
 import CreatePostModal from './CreatePostModal';
 import ProfileSearch from './ProfileSearch';
 
@@ -20,21 +20,45 @@ export default function Layout() {
 
   useEffect(() => {
     const getSession = async () => {
-      // 1. Pedimos el usuario oficial a Supabase Auth
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (authUser) {
         setUser(authUser);
         
-        // 2. Intentamos buscar su perfil en la tabla de 'profiles'
-        // NOTA: Asegúrate de que tu tabla en Supabase se llame 'profiles'
-        const { data: profiles } = await supabase
-          .from('profiles') 
-          .select('*')
-          .eq('user_email', authUser.email)
-          .single();
+        let profileData = null;
 
-        if (profiles) setUserProfile(profiles);
+        // Estrategia 1: Buscar en tabla 'profiles' usando el ID único de Auth
+        const { data: profById } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        
+        profileData = profById;
+
+        // Estrategia 2: Si falla, buscar en tabla 'profiles' usando el campo 'user_email'
+        if (!profileData) {
+          const { data: profByEmail } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_email', authUser.email)
+            .maybeSingle();
+          profileData = profByEmail;
+        }
+
+        // Estrategia 3: Si falla, probar si la tabla se llama 'user_profiles'
+        if (!profileData) {
+          const { data: userProf } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+          profileData = userProf;
+        }
+
+        if (profileData) {
+          setUserProfile(profileData);
+        }
       }
     };
 
@@ -93,7 +117,6 @@ export default function Layout() {
         </div>
       </nav>
 
-      {/* El Modal ahora sí recibirá los datos reales */}
       {showCreateModal && (
         <CreatePostModal
           user={user}
