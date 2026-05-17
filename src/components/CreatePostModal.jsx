@@ -29,11 +29,11 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
 
-  // Esto nos dejará ver en la consola la estructura exacta de tu perfil para corregir cualquier fallo
   useEffect(() => {
-    console.log("--- DEPURACIÓN DE USUARIO ---");
-    console.log("Objeto user (Auth):", user);
-    console.log("Objeto userProfile (Tabla):", userProfile);
+    // Solo para depuración en la consola
+    console.log("--- DEPURACIÓN DE USUARIO EN MODAL ---");
+    console.log("Objeto user:", user);
+    console.log("Objeto userProfile:", userProfile);
   }, [user, userProfile]);
 
   const handleImageChange = async (e) => {
@@ -52,6 +52,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
 
     if (uploadError) {
       console.error("Error al subir la imagen:", uploadError);
+      alert("Hubo un error al subir la imagen.");
       setUploadingImage(false);
       return;
     }
@@ -74,24 +75,30 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       image_url: imageUrl || null,
     };
 
-    // Súper cadena de rescate para pillar el nombre real de tu perfil de Supabase
-    const finalName = userProfile?.display_name || 
-                     userProfile?.full_name || 
-                     userProfile?.name || 
-                     userProfile?.nombre || 
-                     user?.user_metadata?.full_name || 
-                     user?.user_metadata?.display_name ||
-                     user?.email?.split('@')[0] || 
-                     'Miembro de la comunidad';
-
     if (editPost) {
+      // INTENTO DE ACTUALIZAR
       const { error } = await supabase
         .from('posts')
         .update(postData)
         .eq('id', editPost.id);
         
-      if (error) console.error("Error al actualizar:", error);
+      if (error) {
+        console.error("Error al actualizar en Supabase:", error);
+        alert("Bloqueo de seguridad: Supabase no te ha dejado editar este post. Revisa las políticas (RLS).");
+        setLoading(false);
+        return; // Detenemos la ejecución aquí, no cerramos el modal
+      }
     } else {
+      // INTENTO DE CREAR NUEVO
+      const finalName = userProfile?.display_name || 
+                       userProfile?.full_name || 
+                       userProfile?.name || 
+                       userProfile?.nombre || 
+                       user?.user_metadata?.full_name || 
+                       user?.user_metadata?.display_name ||
+                       user?.email?.split('@')[0] || 
+                       'Miembro de la comunidad';
+
       const { error } = await supabase
         .from('posts')
         .insert([{
@@ -106,6 +113,9 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
 
       if (error) {
         console.error("Error al guardar en base de datos:", error);
+        alert("Error al publicar: " + error.message);
+        setLoading(false);
+        return;
       }
     }
 

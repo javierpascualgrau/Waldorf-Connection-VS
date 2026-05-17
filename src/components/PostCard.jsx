@@ -93,15 +93,24 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
 
   const handleDelete = async () => {
     setMenuOpen(false);
+    
+    // 1. Añadimos confirmación de seguridad
+    const confirmar = window.confirm("¿Estás seguro de que quieres eliminar esta publicación?");
+    if (!confirmar) return;
+
+    // 2. Intentamos borrar en Supabase
     const { error } = await supabase
       .from('posts')
       .delete()
       .eq('id', currentPost.id);
 
     if (!error) {
-      onDeleted?.(currentPost.id);
+      // 3. Si va bien, avisamos al Feed para que lo quite de la pantalla
+      if (onDeleted) onDeleted(currentPost.id);
     } else {
-      console.error("Error al borrar:", error);
+      // 4. Si falla, ahora SÍ nos enteramos de por qué
+      console.error("Error al borrar en Supabase:", error);
+      alert("Hubo un problema al borrar. Es posible que te falten permisos en la base de datos.");
     }
   };
 
