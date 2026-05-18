@@ -14,37 +14,44 @@ export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
-
-  const handlePostDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
   const [likedIds, setLikedIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const handlePostDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
 
       // 1. Obtenemos el usuario oficial desde Supabase Auth
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      setUser(authUser);
 
-      // 2. Pedimos TODO a la vez a Supabase
-      const [postsRes, eventsRes] = await Promise.all([
+      // 2. Pedimos posts, eventos y SEGUIMIENTOS a la vez a Supabase
+      const [postsRes, eventsRes, followsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
-        supabase.from('school_events').select('*').order('created_date', { ascending: false })
+        supabase.from('school_events').select('*').order('created_date', { ascending: false }),
+        authUser 
+          ? supabase.from('user_follows').select('following_email').eq('follower_email', authUser.email)
+          : Promise.resolve({ data: [], error: null })
       ]);
 
       if (postsRes.error) console.error("Error posts:", postsRes.error);
       if (eventsRes.error) console.error("Error eventos:", eventsRes.error);
+      if (followsRes.error) console.error("Error follows:", followsRes.error);
 
-      // 3. Actualizamos los estados
+      // 3. Procesamos los emails a los que sigues en un Set
+      if (followsRes.data) {
+        const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email));
+        setFollowingIds(emailsEnSeguimiento);
+      }
+
+      // 4. Actualizamos los estados principales
       setPosts(postsRes.data || []);
       setEvents(eventsRes.data || []);
-      
-      // 4. Limpiamos likes/follows por ahora
-      setLikedIds(new Set());
-      setFollowingIds(new Set());
+      setLikedIds(new Set()); 
       
       setLoading(false);
     };
@@ -63,7 +70,6 @@ export default function Feed() {
       filteredEvents = [];
     }
 
-    // Intercalar posts y eventos
     const feed = [];
     let pi = 0, ei = 0;
     while (pi < filteredPosts.length || ei < filteredEvents.length) {
@@ -107,7 +113,7 @@ export default function Feed() {
             <div key={i} className="bg-card rounded-2xl border border-border p-4 animate-pulse">
               <div className="flex gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-muted" />
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 space-y-2 pt-2">
                   <div className="h-3 bg-muted rounded w-1/3" />
                   <div className="h-2 bg-muted rounded w-1/5" />
                 </div>

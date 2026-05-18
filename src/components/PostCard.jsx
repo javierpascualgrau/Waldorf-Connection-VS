@@ -88,7 +88,37 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
 
   const handleFollow = async () => {
     if (followLoading || !userEmail || userEmail === currentPost.author_email) return;
-    setFollowing(!following);
+    setFollowLoading(true);
+
+    if (following) {
+      // SI YA LO SEGUÍAS: Borramos la fila en Supabase (Dejar de seguir)
+      const { error } = await supabase
+        .from('user_follows')
+        .delete()
+        .eq('follower_email', userEmail)
+        .eq('following_email', currentPost.author_email);
+
+      if (!error) {
+        setFollowing(false);
+      } else {
+        console.error("Error al dejar de seguir:", error);
+      }
+    } else {
+      // SI NO LO SEGUÍAS: Insertamos una nueva fila (Empezar a seguir)
+      const { error } = await supabase
+        .from('user_follows')
+        .insert([{ 
+          follower_email: userEmail, 
+          following_email: currentPost.author_email 
+        }]);
+
+      if (!error) {
+        setFollowing(true);
+      } else {
+        console.error("Error al seguir:", error);
+      }
+    }
+    setFollowLoading(false);
   };
 
   const handleDelete = async () => {
