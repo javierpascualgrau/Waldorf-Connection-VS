@@ -25,30 +25,25 @@ export default function Feed() {
     const load = async () => {
       setLoading(true);
 
-      // 1. Obtenemos el usuario oficial desde Supabase Auth
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      // 2. Pedimos posts, eventos y SEGUIMIENTOS a la vez a Supabase
+      const followerEmailClean = authUser?.email?.toLowerCase().trim() || '';
+
       const [postsRes, eventsRes, followsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }),
-        authUser 
-          ? supabase.from('user_follows').select('following_email').eq('follower_email', authUser.email)
+        followerEmailClean 
+          ? supabase.from('user_follows').select('following_email').eq('follower_email', followerEmailClean)
           : Promise.resolve({ data: [], error: null })
       ]);
 
-      if (postsRes.error) console.error("Error posts:", postsRes.error);
-      if (eventsRes.error) console.error("Error eventos:", eventsRes.error);
-      if (followsRes.error) console.error("Error follows:", followsRes.error);
-
-      // 3. Procesamos los emails a los que sigues en un Set
       if (followsRes.data) {
-        const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email));
+        // Guardamos todo en minúsculas en el Set de lectura
+        const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
         setFollowingIds(emailsEnSeguimiento);
       }
 
-      // 4. Actualizamos los estados principales
       setPosts(postsRes.data || []);
       setEvents(eventsRes.data || []);
       setLikedIds(new Set()); 
@@ -66,7 +61,7 @@ export default function Feed() {
       filteredPosts = [...posts].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
       filteredEvents = [...events].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
     } else if (tab === 'siguiendo') {
-      filteredPosts = posts.filter(p => followingIds.has(p.author_email));
+      filteredPosts = posts.filter(p => p.author_email && followingIds.has(p.author_email.toLowerCase().trim()));
       filteredEvents = [];
     }
 

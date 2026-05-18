@@ -44,7 +44,11 @@ const CATEGORY_COLORS = {
 
 export default function PostCard({ post, userEmail, likedIds, followingIds = new Set(), onDeleted }) {
   const isLiked = likedIds?.has(post.id);
-  const isFollowing = followingIds?.has(post.author_email);
+  
+  // Normalizamos a minúsculas para evitar fallos de coincidencia
+  const authorEmailClean = post.author_email?.toLowerCase().trim();
+  const isFollowing = followingIds?.has(authorEmailClean);
+
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
   const [following, setFollowing] = useState(isFollowing);
@@ -55,7 +59,7 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
-  const isOwner = userEmail && userEmail === post.author_email;
+  const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
   const initials = (currentPost.author_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   useEffect(() => {
@@ -87,35 +91,35 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
   };
 
   const handleFollow = async () => {
-    if (followLoading || !userEmail || userEmail === currentPost.author_email) return;
+    if (followLoading || !userEmail || !post.author_email || isOwner) return;
     setFollowLoading(true);
 
+    const follower = userEmail.toLowerCase().trim();
+    const followed = post.author_email.toLowerCase().trim();
+
     if (following) {
-      // SI YA LO SEGUÍAS: Borramos la fila en Supabase (Dejar de seguir)
       const { error } = await supabase
         .from('user_follows')
         .delete()
-        .eq('follower_email', userEmail)
-        .eq('following_email', currentPost.author_email);
+        .eq('follower_email', follower)
+        .eq('following_email', followed);
 
       if (!error) {
         setFollowing(false);
       } else {
         console.error("Error al dejar de seguir:", error);
+        alert("Error al dejar de seguir en Base de Datos: " + error.message);
       }
     } else {
-      // SI NO LO SEGUÍAS: Insertamos una nueva fila (Empezar a seguir)
       const { error } = await supabase
         .from('user_follows')
-        .insert([{ 
-          follower_email: userEmail, 
-          following_email: currentPost.author_email 
-        }]);
+        .insert([{ follower_email: follower, following_email: followed }]);
 
       if (!error) {
         setFollowing(true);
       } else {
         console.error("Error al seguir:", error);
+        alert("Error al guardar el seguimiento en Base de Datos: " + error.message);
       }
     }
     setFollowLoading(false);
@@ -123,24 +127,19 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
 
   const handleDelete = async () => {
     setMenuOpen(false);
-    
-    // 1. Añadimos confirmación de seguridad
     const confirmar = window.confirm("¿Estás seguro de que quieres eliminar esta publicación?");
     if (!confirmar) return;
 
-    // 2. Intentamos borrar en Supabase
     const { error } = await supabase
       .from('posts')
       .delete()
       .eq('id', currentPost.id);
 
     if (!error) {
-      // 3. Si va bien, avisamos al Feed para que lo quite de la pantalla
       if (onDeleted) onDeleted(currentPost.id);
     } else {
-      // 4. Si falla, ahora SÍ nos enteramos de por qué
       console.error("Error al borrar en Supabase:", error);
-      alert("Hubo un problema al borrar. Es posible que te falten permisos en la base de datos.");
+      alert("Hubo un problema al borrar.");
     }
   };
 
@@ -162,7 +161,7 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{currentPost.author_name || currentPost.author_id || 'Usuario'}</span>
+              <span className="font-medium text-sm">{currentPost.author_name || 'Usuario'}</span>
               {currentPost.author_role && (
                 <span className="text-xs text-muted-foreground">{ROLE_LABELS[currentPost.author_role] || currentPost.author_role}</span>
               )}
@@ -180,7 +179,6 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[currentPost.category] || 'bg-muted text-muted-foreground'}`}>
               {CATEGORY_LABELS[currentPost.category] || currentPost.category || 'General'}
             </span>
-            {/* Owner menu */}
             {isOwner && (
               <div className="relative" ref={menuRef}>
                 <button
