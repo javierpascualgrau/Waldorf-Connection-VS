@@ -30,7 +30,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const fileRef = useRef();
 
   useEffect(() => {
-    // Solo para depuración en la consola
     console.log("--- DEPURACIÓN DE USUARIO EN MODAL ---");
     console.log("Objeto user:", user);
     console.log("Objeto userProfile:", userProfile);
@@ -76,7 +75,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     };
 
     if (editPost) {
-      // INTENTO DE ACTUALIZAR
       const { error } = await supabase
         .from('posts')
         .update(postData)
@@ -84,12 +82,11 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         
       if (error) {
         console.error("Error al actualizar en Supabase:", error);
-        alert("Bloqueo de seguridad: Supabase no te ha dejado editar este post. Revisa las políticas (RLS).");
+        alert("Bloqueo de seguridad: Supabase no te ha dejado editar este post.");
         setLoading(false);
-        return; // Detenemos la ejecución aquí, no cerramos el modal
+        return;
       }
     } else {
-      // INTENTO DE CREAR NUEVO
       const finalName = userProfile?.display_name || 
                        userProfile?.full_name || 
                        userProfile?.name || 
@@ -99,6 +96,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
                        user?.email?.split('@')[0] || 
                        'Miembro de la comunidad';
 
+      // AQUÍ ENVIAMOS TU AVATAR A LA BASE DE DATOS
       const { error } = await supabase
         .from('posts')
         .insert([{
@@ -106,6 +104,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           author_email: user?.email || '',
           author_name: finalName,
           author_role: userProfile?.role || 'Comunidad',
+          author_avatar: userProfile?.avatar_url || null, // <-- Esta es la línea clave
           likes_count: 0,
           comments_count: 0,
           author_id: user?.id 
