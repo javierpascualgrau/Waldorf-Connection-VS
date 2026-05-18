@@ -35,10 +35,11 @@ export default function Login() {
       if (error) {
         toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
       } else {
-        // Creamos automáticamente su perfil en la tabla 'profiles'
+        // Creamos automáticamente su perfil en la tabla 'profiles' con el correo limpio
         await supabase.from('profiles').upsert({
           id: data.user.id,
           display_name: username,
+          user_email: email.toLowerCase().trim(), // 👈 ¡Línea mágica añadida aquí!
           role: 'simpatizante'
         });
         toast({ title: "¡Cuenta creada!", description: "Ya puedes empezar a usar la red." });
