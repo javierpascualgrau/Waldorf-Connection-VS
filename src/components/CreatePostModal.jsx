@@ -29,12 +29,6 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
 
-  useEffect(() => {
-    console.log("--- DEPURACIÓN DE USUARIO EN MODAL ---");
-    console.log("Objeto user:", user);
-    console.log("Objeto userProfile:", userProfile);
-  }, [user, userProfile]);
-
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -65,6 +59,27 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     if (!content.trim()) return;
     setLoading(true);
 
+    // 1. Buscamos el perfil en tiempo real justo antes de guardar para evitar datos obsoletos
+    let freshProfile = userProfile;
+    if (user?.id) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (data) freshProfile = data;
+    }
+
+    const finalName = freshProfile?.display_name || 
+                     freshProfile?.full_name || 
+                     freshProfile?.name || 
+                     freshProfile?.nombre || 
+                     user?.user_metadata?.full_name || 
+                     user?.user_metadata?.display_name ||
+                     user?.email?.split('@')[0] || 
+                     'Miembro de la comunidad';
+
+    // 2. Empaquetamos los datos incluyendo el avatar fresquito
     const postData = {
       content,
       category,
@@ -72,9 +87,13 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       event_date: eventDate || null,
       is_service_offer: isService,
       image_url: imageUrl || null,
+      author_name: finalName,
+      author_role: freshProfile?.role || 'Comunidad',
+      author_avatar: freshProfile?.avatar_url || null, // Sincronización total del avatar
     };
 
     if (editPost) {
+      // ACTUALIZAR POST EXISTENTE (Ahora también le inyectará tu foto)
       const { error } = await supabase
         .from('posts')
         .update(postData)
@@ -87,24 +106,12 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         return;
       }
     } else {
-      const finalName = userProfile?.display_name || 
-                       userProfile?.full_name || 
-                       userProfile?.name || 
-                       userProfile?.nombre || 
-                       user?.user_metadata?.full_name || 
-                       user?.user_metadata?.display_name ||
-                       user?.email?.split('@')[0] || 
-                       'Miembro de la comunidad';
-
-      // AQUÍ ENVIAMOS TU AVATAR A LA BASE DE DATOS
+      // CREAR POST NUEVO
       const { error } = await supabase
         .from('posts')
         .insert([{
           ...postData,
           author_email: user?.email || '',
-          author_name: finalName,
-          author_role: userProfile?.role || 'Comunidad',
-          author_avatar: userProfile?.avatar_url || null, // <-- Esta es la línea clave
           likes_count: 0,
           comments_count: 0,
           author_id: user?.id 
