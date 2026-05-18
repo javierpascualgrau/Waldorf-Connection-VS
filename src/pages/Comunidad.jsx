@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, Users, MapPin, UserPlus } from 'lucide-react';
-import ProfileSearch from './ProfileSearch'; // Importamos el buscador avanzado
+import ProfileSearch from '@/components/ProfileSearch'; // Corregido el acceso con el alias @/components
 
 const ROLES = [
   { value: 'todos', label: 'Todos' },
