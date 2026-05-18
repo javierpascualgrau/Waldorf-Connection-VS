@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { User as UserIcon, MapPin, Edit3, Check, X } from 'lucide-react';
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2 } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 
 const ROLES = [
@@ -20,13 +20,15 @@ const INTERESTS = [
 ];
 
 export default function Perfil() {
-  const { user } = useAuth(); // Obtenemos el usuario logueado de Supabase
+  const { user } = useAuth(); 
   const [profile, setProfile] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileRef = useRef();
 
   useEffect(() => {
     const loadData = async () => {
@@ -37,12 +39,11 @@ export default function Perfil() {
 
       setLoading(true);
       
-      // 1. Buscamos el perfil del usuario en la tabla 'profiles'
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profileData) {
         setProfile(profileData);
@@ -52,17 +53,17 @@ export default function Perfil() {
           role: profileData.role || 'simpatizante',
           location: profileData.location || '',
           interests: profileData.interests || [],
+          avatar_url: profileData.avatar_url || '',
         });
       } else {
-        // Si no hay perfil, pre-rellenamos el formulario con el email
         setForm({
           display_name: user.email.split('@')[0],
           role: 'simpatizante',
           interests: [],
+          avatar_url: '',
         });
       }
 
-      // 2. Buscamos sus publicaciones
       const { data: postsData } = await supabase
         .from('posts')
         .select('*')
@@ -76,10 +77,38 @@ export default function Perfil() {
     loadData();
   }, [user]);
 
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+
+    // Generamos un nombre único basado en el ID del usuario para evitar duplicados
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error("Error al subir el avatar:", uploadError);
+      alert("Error al subir la imagen: " + uploadError.message);
+      setUploadingAvatar(false);
+      return;
+    }
+
+    // Rescatamos la URL pública de la imagen
+    const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    
+    // Lo guardamos temporalmente en el formulario
+    setForm(f => ({ ...f, avatar_url: data.publicUrl }));
+    setUploadingAvatar(false);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     
-    // Usamos upsert para que cree el perfil si no existe o lo actualice si ya existe
     const { error } = await supabase
       .from('profiles')
       .upsert({
@@ -93,6 +122,7 @@ export default function Perfil() {
       setEditing(false);
     } else {
       console.error("Error al guardar perfil:", error);
+      alert("Error al guardar los cambios del perfil.");
     }
     setSaving(false);
   };
@@ -134,6 +164,7 @@ export default function Perfil() {
   const displayName = profile?.display_name || user.email.split('@')[0];
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
+  const currentAvatarUrl = editing ? form.avatar_url : profile?.avatar_url;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -141,9 +172,34 @@ export default function Perfil() {
       <div className="bg-card rounded-2xl border border-border p-5 mb-5 shadow-sm">
         <div className="flex items-start justify-between mb-4">
           <div className="flex gap-4 items-start">
-            <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <span className="font-cormorant text-2xl font-semibold text-primary">{initials}</span>
+            
+            {/* Foto de perfil Interactiva */}
+            <div className="relative group w-16 h-16 flex-shrink-0">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border border-border">
+                {currentAvatarUrl ? (
+                  <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="font-cormorant text-2xl font-semibold text-primary">{initials}</span>
+                )}
+              </div>
+              
+              {editing && (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Camera className="w-5 h-5" />
+                  )}
+                </button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
+
             <div>
               <h2 className="font-cormorant text-2xl font-semibold">{displayName}</h2>
               <span className="text-sm text-primary font-medium">{roleLabel}</span>
@@ -212,6 +268,7 @@ export default function Perfil() {
                 {INTERESTS.map(interest => (
                   <button
                     key={interest}
+                    type="button"
                     onClick={() => toggleInterest(interest)}
                     className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full transition-all border ${
                       (form.interests || []).includes(interest)
@@ -225,7 +282,7 @@ export default function Perfil() {
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={handleSave} disabled={saving}
+              <button onClick={handleSave} disabled={saving || uploadingAvatar}
                 className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 disabled:opacity-50">
                 <Check className="w-4 h-4" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
               </button>
