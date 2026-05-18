@@ -83,7 +83,6 @@ export default function Perfil() {
 
     setUploadingAvatar(true);
 
-    // Generamos un nombre único basado en el ID del usuario para evitar duplicados
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}-${Math.random()}.${fileExt}`;
 
@@ -98,10 +97,8 @@ export default function Perfil() {
       return;
     }
 
-    // Rescatamos la URL pública de la imagen
     const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
     
-    // Lo guardamos temporalmente en el formulario
     setForm(f => ({ ...f, avatar_url: data.publicUrl }));
     setUploadingAvatar(false);
   };
@@ -173,8 +170,8 @@ export default function Perfil() {
         <div className="flex items-start justify-between mb-4">
           <div className="flex gap-4 items-start">
             
-            {/* Foto de perfil Interactiva */}
-            <div className="relative group w-16 h-16 flex-shrink-0">
+            {/* Foto de perfil con botón flotante visible */}
+            <div className="relative w-16 h-16 flex-shrink-0">
               <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border border-border">
                 {currentAvatarUrl ? (
                   <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -183,17 +180,18 @@ export default function Perfil() {
                 )}
               </div>
               
+              {/* Botón flotante en la esquina inferior derecha (SÓLO en modo edición) */}
               {editing && (
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={uploadingAvatar}
-                  className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-1.5 rounded-full shadow-md hover:bg-primary/90 transition-colors cursor-pointer z-10 flex items-center justify-center border border-card"
                 >
                   {uploadingAvatar ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Camera className="w-5 h-5" />
+                    <Camera className="w-3.5 h-3.5" />
                   )}
                 </button>
               )}
