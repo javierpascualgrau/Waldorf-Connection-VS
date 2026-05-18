@@ -23,11 +23,11 @@ const ROLE_LABELS = {
 
 export default function Comunidad() {
   const [profiles, setProfiles] = useState([]);
-  const [followingEmails, setFollowingEmails] = useState(new Set()); // Guardamos a quién sigues
+  const [followingEmails, setFollowingEmails] = useState(new Set());
   const [user, setUser] = useState(null);
   const [roleFilter, setRoleFilter] = useState('todos');
   const [loading, setLoading] = useState(true);
-  const [followLoadingId, setFollowLoadingId] = useState(null); // Loader individual para cada botón
+  const [followLoadingId, setFollowLoadingId] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,7 +38,6 @@ export default function Comunidad() {
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      // 1. Pedimos perfiles y los seguimientos actuales en paralelo
       const [profilesRes, followsRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         myEmailClean
@@ -46,7 +45,6 @@ export default function Comunidad() {
           : Promise.resolve({ data: [], error: null })
       ]);
 
-      // 2. Procesamos los perfiles (quitando el tuyo propio)
       if (profilesRes.data) {
         const filteredData = authUser?.id 
           ? profilesRes.data.filter(p => p.id !== authUser.id)
@@ -54,7 +52,6 @@ export default function Comunidad() {
         setProfiles(filteredData);
       }
 
-      // 3. Llenamos el Set con la gente que ya sigues
       if (followsRes.data) {
         const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
         setFollowingEmails(emailsEnSeguimiento);
@@ -65,7 +62,6 @@ export default function Comunidad() {
     load();
   }, []);
 
-  // Función para Seguir / Dejar de seguir desde la tarjeta
   const handleFollowToggle = async (profileEmail) => {
     if (!user?.email || !profileEmail || followLoadingId) return;
 
@@ -73,10 +69,9 @@ export default function Comunidad() {
     const followed = profileEmail.toLowerCase().trim();
     const isCurrentlyFollowing = followingEmails.has(followed);
 
-    setFollowLoadingId(profileEmail); // Activamos el estado de carga para esta tarjeta
+    setFollowLoadingId(profileEmail);
 
     if (isCurrentlyFollowing) {
-      // DEJAR DE SEGUIR: Borramos la fila
       const { error } = await supabase
         .from('user_follows')
         .delete()
@@ -94,7 +89,6 @@ export default function Comunidad() {
         alert("No se pudo procesar la solicitud en la base de datos.");
       }
     } else {
-      // SEGUIR: Insertamos nueva fila
       const { error } = await supabase
         .from('user_follows')
         .insert([{ follower_email: follower, following_email: followed }]);
@@ -110,10 +104,9 @@ export default function Comunidad() {
         alert("No se pudo guardar el seguimiento en la base de datos.");
       }
     }
-    setFollowLoadingId(null); // Apagamos el cargador
+    setFollowLoadingId(null);
   };
 
-  // Filtrado por botones de rol
   const filteredProfiles = profiles.filter(p => {
     return roleFilter === 'todos' || p.role === roleFilter;
   });
@@ -174,17 +167,15 @@ export default function Comunidad() {
             const displayName = profile.display_name || profile.full_name || 'Miembro';
             const initials = displayName.slice(0, 2).toUpperCase();
             
-            // Localizamos el email del perfil de manera segura
             const profileEmailClean = (profile.user_email || profile.email)?.toLowerCase().trim();
             const isCurrentlyFollowing = followingEmails.has(profileEmailClean);
             const isButtonLoading = followLoadingId === profileEmailClean;
 
             return (
-              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-start gap-3">
+              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-center gap-3">
                 
-                {/* Contenedor Izquierdo: Avatar + Información */}
+                {/* Contenedor Izquierdo */}
                 <div className="flex items-start gap-4 flex-1 min-w-0">
-                  {/* Avatar */}
                   <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {profile.avatar_url ? (
                       <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -193,7 +184,6 @@ export default function Comunidad() {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-foreground truncate text-base">{displayName}</h3>
                     <p className="text-xs text-primary font-medium mb-1">
@@ -207,7 +197,6 @@ export default function Comunidad() {
                       </div>
                     )}
 
-                    {/* Intereses chips */}
                     {profile.interests && profile.interests.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {profile.interests.slice(0, 2).map((interest, idx) => (
@@ -225,23 +214,29 @@ export default function Comunidad() {
                   </div>
                 </div>
 
-                {/* Contenedor Derecho: Botón de seguir de LinkedIn */}
+                {/* Contenedor Derecho: Botón ya reparado sin el 'hidden' fantasma */}
                 {profileEmailClean && (
                   <button
                     onClick={() => handleFollowToggle(profileEmailClean)}
                     disabled={isButtonLoading}
-                    className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 ${
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 shadow-sm border ${
                       isCurrentlyFollowing 
-                        ? 'bg-primary/10 text-primary border border-primary/20 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20' 
-                        : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/20 border border-transparent'
+                        ? 'bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30' 
+                        : 'bg-muted text-muted-foreground border-transparent hover:bg-primary hover:text-primary-foreground'
                     }`}
                   >
                     {isButtonLoading ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : isCurrentlyFollowing ? (
-                      <><UserCheck className="w-3 h-3" /><span className="hidden xs:inline">Siguiendo</span></>
+                      <>
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Siguiendo</span>
+                      </>
                     ) : (
-                      <><UserPlus className="w-3 h-3" /><span className="hidden xs:inline">Seguir</span></>
+                      <>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Seguir</span>
+                      </>
                     )}
                   </button>
                 )}
