@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, Users, MapPin, UserPlus } from 'lucide-react';
-import ProfileSearch from '@/components/ProfileSearch'; // Corregido el acceso con el alias @/components
+import { Search, Users, MapPin, UserPlus, UserCheck, Loader2 } from 'lucide-react';
+import ProfileSearch from '@/components/ProfileSearch';
 
 const ROLES = [
   { value: 'todos', label: 'Todos' },
@@ -23,9 +23,11 @@ const ROLE_LABELS = {
 
 export default function Comunidad() {
   const [profiles, setProfiles] = useState([]);
+  const [followingEmails, setFollowingEmails] = useState(new Set()); // Guardamos a quién sigues
   const [user, setUser] = useState(null);
   const [roleFilter, setRoleFilter] = useState('todos');
   const [loading, setLoading] = useState(true);
+  const [followLoadingId, setFollowLoadingId] = useState(null); // Loader individual para cada botón
 
   useEffect(() => {
     const load = async () => {
@@ -34,23 +36,82 @@ export default function Comunidad() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      // Pedimos todos los perfiles de la base de datos (menos el tuyo propio para no salirte a ti mismo)
-      let query = supabase.from('profiles').select('*');
-      if (authUser?.id) {
-        query = query.neq('id', authUser.id);
+      const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
+
+      // 1. Pedimos perfiles y los seguimientos actuales en paralelo
+      const [profilesRes, followsRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        myEmailClean
+          ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      // 2. Procesamos los perfiles (quitando el tuyo propio)
+      if (profilesRes.data) {
+        const filteredData = authUser?.id 
+          ? profilesRes.data.filter(p => p.id !== authUser.id)
+          : profilesRes.data;
+        setProfiles(filteredData);
       }
 
-      const { data: profilesData, error } = await query;
-
-      if (error) {
-        console.error("Error cargando perfiles:", error);
-      } else {
-        setProfiles(profilesData || []);
+      // 3. Llenamos el Set con la gente que ya sigues
+      if (followsRes.data) {
+        const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
+        setFollowingEmails(emailsEnSeguimiento);
       }
+
       setLoading(false);
     };
     load();
   }, []);
+
+  // Función para Seguir / Dejar de seguir desde la tarjeta
+  const handleFollowToggle = async (profileEmail) => {
+    if (!user?.email || !profileEmail || followLoadingId) return;
+
+    const follower = user.email.toLowerCase().trim();
+    const followed = profileEmail.toLowerCase().trim();
+    const isCurrentlyFollowing = followingEmails.has(followed);
+
+    setFollowLoadingId(profileEmail); // Activamos el estado de carga para esta tarjeta
+
+    if (isCurrentlyFollowing) {
+      // DEJAR DE SEGUIR: Borramos la fila
+      const { error } = await supabase
+        .from('user_follows')
+        .delete()
+        .eq('follower_email', follower)
+        .eq('following_email', followed);
+
+      if (!error) {
+        setFollowingEmails(prev => {
+          const next = new Set(prev);
+          next.delete(followed);
+          return next;
+        });
+      } else {
+        console.error("Error al dejar de seguir:", error);
+        alert("No se pudo procesar la solicitud en la base de datos.");
+      }
+    } else {
+      // SEGUIR: Insertamos nueva fila
+      const { error } = await supabase
+        .from('user_follows')
+        .insert([{ follower_email: follower, following_email: followed }]);
+
+      if (!error) {
+        setFollowingEmails(prev => {
+          const next = new Set(prev);
+          next.add(followed);
+          return next;
+        });
+      } else {
+        console.error("Error al seguir:", error);
+        alert("No se pudo guardar el seguimiento en la base de datos.");
+      }
+    }
+    setFollowLoadingId(null); // Apagamos el cargador
+  };
 
   // Filtrado por botones de rol
   const filteredProfiles = profiles.filter(p => {
@@ -67,7 +128,7 @@ export default function Comunidad() {
         </div>
       </div>
 
-      {/* Buscador Avanzado (El que trajimos de Layout) */}
+      {/* Buscador Avanzado */}
       <div className="mb-6 relative z-50">
         <ProfileSearch />
       </div>
@@ -89,7 +150,7 @@ export default function Comunidad() {
         ))}
       </div>
 
-      {/* Grid de Perfiles (Tipo LinkedIn) */}
+      {/* Grid de Perfiles interactivos */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(i => (
@@ -113,48 +174,78 @@ export default function Comunidad() {
             const displayName = profile.display_name || profile.full_name || 'Miembro';
             const initials = displayName.slice(0, 2).toUpperCase();
             
+            // Localizamos el email del perfil de manera segura
+            const profileEmailClean = (profile.user_email || profile.email)?.toLowerCase().trim();
+            const isCurrentlyFollowing = followingEmails.has(profileEmailClean);
+            const isButtonLoading = followLoadingId === profileEmailClean;
+
             return (
-              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex items-start gap-4">
+              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-start gap-3">
                 
-                {/* Avatar */}
-                <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="font-cormorant text-xl font-bold text-primary">{initials}</span>
-                  )}
+                {/* Contenedor Izquierdo: Avatar + Información */}
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  {/* Avatar */}
+                  <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-cormorant text-xl font-bold text-primary">{initials}</span>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground truncate text-base">{displayName}</h3>
+                    <p className="text-xs text-primary font-medium mb-1">
+                      {ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}
+                    </p>
+                    
+                    {profile.location && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 truncate">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{profile.location}</span>
+                      </div>
+                    )}
+
+                    {/* Intereses chips */}
+                    {profile.interests && profile.interests.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {profile.interests.slice(0, 2).map((interest, idx) => (
+                          <span key={idx} className="text-[9px] uppercase tracking-wider bg-muted text-muted-foreground px-2 py-0.5 rounded-md">
+                            {interest}
+                          </span>
+                        ))}
+                        {profile.interests.length > 2 && (
+                          <span className="text-[9px] uppercase bg-muted/50 text-muted-foreground px-1.5 py-0.5 rounded-md">
+                            +{profile.interests.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate text-base">{displayName}</h3>
-                  <p className="text-xs text-primary font-medium mb-1">
-                    {ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}
-                  </p>
-                  
-                  {profile.location && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 truncate">
-                      <MapPin className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{profile.location}</span>
-                    </div>
-                  )}
+                {/* Contenedor Derecho: Botón de seguir de LinkedIn */}
+                {profileEmailClean && (
+                  <button
+                    onClick={() => handleFollowToggle(profileEmailClean)}
+                    disabled={isButtonLoading}
+                    className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 ${
+                      isCurrentlyFollowing 
+                        ? 'bg-primary/10 text-primary border border-primary/20 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20' 
+                        : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/20 border border-transparent'
+                    }`}
+                  >
+                    {isButtonLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : isCurrentlyFollowing ? (
+                      <><UserCheck className="w-3 h-3" /><span className="hidden xs:inline">Siguiendo</span></>
+                    ) : (
+                      <><UserPlus className="w-3 h-3" /><span className="hidden xs:inline">Seguir</span></>
+                    )}
+                  </button>
+                )}
 
-                  {/* Intereses en chips pequeñitos */}
-                  {profile.interests && profile.interests.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {profile.interests.slice(0, 2).map((interest, idx) => (
-                        <span key={idx} className="text-[9px] uppercase tracking-wider bg-muted text-muted-foreground px-2 py-0.5 rounded-md">
-                          {interest}
-                        </span>
-                      ))}
-                      {profile.interests.length > 2 && (
-                        <span className="text-[9px] uppercase bg-muted/50 text-muted-foreground px-1.5 py-0.5 rounded-md">
-                          +{profile.interests.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
             );
           })}
