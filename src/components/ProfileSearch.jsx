@@ -58,25 +58,27 @@ export default function ProfileSearch() {
   const clear = () => { setQuery(''); setResults([]); setOpen(false); };
 
   return (
-    <div ref={containerRef} className="relative flex-1 max-w-xs">
-      <div className="flex items-center gap-2 bg-muted/60 rounded-full px-3 py-1.5">
-        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+    <div ref={containerRef} className="relative w-full">
+      {/* Barra de búsqueda adaptada al tamaño principal */}
+      <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5">
+        <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="Buscar personas..."
+          placeholder="Buscar personas en la comunidad..."
           className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground min-w-0"
         />
         {query && (
-          <button onClick={clear} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="w-3.5 h-3.5" />
+          <button onClick={clear} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
+      {/* Menú desplegable de resultados */}
       {open && (
-        <div className="absolute top-10 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full mt-2 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
           {loading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Buscando...</div>
           ) : results.length === 0 ? (
@@ -86,10 +88,10 @@ export default function ProfileSearch() {
               {results.map((profile) => {
                 const initials = (profile.display_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
                 return (
-                  <li key={profile.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors cursor-default border-b border-border/50 last:border-0">
-                    <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <li key={profile.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer border-b border-border/50 last:border-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {profile.avatar_url ? (
-                        <img src={profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                        <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
                       )}

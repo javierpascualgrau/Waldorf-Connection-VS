@@ -3,7 +3,6 @@ import { Home, School, Users, User, PlusCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient'; 
 import CreatePostModal from './CreatePostModal';
-import ProfileSearch from './ProfileSearch';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Inicio' },
@@ -67,16 +66,16 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top header */}
+      {/* Top header - ¡Buscador removido de aquí! */}
       <header className="sticky top-0 z-40 bg-card/90 backdrop-blur-md border-b border-border">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <Link to="/" className="flex items-center gap-1.5 flex-shrink-0">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground text-xs font-cormorant font-semibold">W</span>
             </div>
             <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connect</span>
           </Link>
-          <ProfileSearch />
+          
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors flex-shrink-0"
