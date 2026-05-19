@@ -43,7 +43,7 @@ const CATEGORY_COLORS = {
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
-  // 👈 CLAVE: Convertimos a String para evitar que 1 y "1" sean diferentes
+  // Guardamos el ID como string para la consistencia del estado visual de React
   const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
   
@@ -85,6 +85,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     
     const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
     const myEmailClean = userEmail.toLowerCase().trim();
+    
+    // Convertimos a número para asegurar la coincidencia con el tipo integer de Supabase
+    const numericPostId = Number(postId);
 
     if (liked) {
       // QUITAR LIKE
@@ -92,7 +95,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         .from('post_likes')
         .delete()
         .eq('user_email', myEmailClean)
-        .eq('post_id', postId);
+        .eq('post_id', numericPostId);
 
       if (errorDelete) {
         console.error("❌ Error de Supabase al quitar el like:", errorDelete);
@@ -100,11 +103,10 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
-      // 👈 CLAVE: Vuelto a poner 'id' en minúscula
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('id', postId);
+        .eq('id', numericPostId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -116,7 +118,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       // DAR LIKE
       const { error: errorInsert } = await supabase
         .from('post_likes')
-        .insert([{ user_email: myEmailClean, post_id: postId }]);
+        .insert([{ user_email: myEmailClean, post_id: numericPostId }]);
 
       if (errorInsert) {
         console.error("❌ Error de Supabase al guardar el like:", errorInsert);
@@ -124,11 +126,10 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
-      // 👈 CLAVE: Vuelto a poner 'id' en minúscula
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('id', postId);
+        .eq('id', numericPostId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -173,7 +174,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const { error } = await supabase
       .from('posts')
       .delete()
-      .eq('id', postId); // 'id' en minúscula
+      .eq('id', Number(postId));
 
     if (!error && onDeleted) onDeleted(postId);
   };
@@ -308,7 +309,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           onClose={() => setEditOpen(false)}
           onCreated={async () => {
             setEditOpen(false);
-            const { data } = await supabase.from('posts').select('*').eq('id', postId).single();
+            const { data } = await supabase.from('posts').select('*').eq('id', Number(postId)).single();
             if (data) setCurrentPost(data);
           }}
         />
