@@ -86,26 +86,52 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const myEmailClean = userEmail.toLowerCase().trim();
 
     if (liked) {
-      // QUITAR LIKE: Borramos registro intermedio y actualizamos contador
-      const [res1, res2] = await Promise.all([
-        supabase.from('post_likes').delete().eq('user_email', myEmailClean).eq('post_id', currentPost.id),
-        supabase.from('posts').update({ likes_count: newCount }).eq('id', currentPost.id)
-      ]);
+      // QUITAR LIKE
+      const { error: errorDelete } = await supabase
+        .from('post_likes')
+        .delete()
+        .eq('user_email', myEmailClean)
+        .eq('post_id', currentPost.id);
 
-      if (!res1.error && !res2.error) {
+      if (errorDelete) {
+        console.error("❌ Error de Supabase al quitar el like:", errorDelete);
+        setLoading(false);
+        return; 
+      }
+
+      const { error: errorUpdate } = await supabase
+        .from('posts')
+        .update({ likes_count: newCount })
+        .eq('id', currentPost.id);
+
+      if (!errorUpdate) {
         setLikesCount(newCount);
         setLiked(false);
+      } else {
+        console.error("❌ Error al actualizar contador en posts:", errorUpdate);
       }
     } else {
-      // DAR LIKE: Insertamos registro intermedio y actualizamos contador
-      const [res1, res2] = await Promise.all([
-        supabase.from('post_likes').insert([{ user_email: myEmailClean, post_id: currentPost.id }]),
-        supabase.from('posts').update({ likes_count: newCount }).eq('id', currentPost.id)
-      ]);
+      // DAR LIKE
+      const { error: errorInsert } = await supabase
+        .from('post_likes')
+        .insert([{ user_email: myEmailClean, post_id: currentPost.id }]);
 
-      if (!res1.error && !res2.error) {
+      if (errorInsert) {
+        console.error("❌ Error de Supabase al guardar el like:", errorInsert);
+        setLoading(false);
+        return; 
+      }
+
+      const { error: errorUpdate } = await supabase
+        .from('posts')
+        .update({ likes_count: newCount })
+        .eq('id', currentPost.id);
+
+      if (!errorUpdate) {
         setLikesCount(newCount);
         setLiked(true);
+      } else {
+        console.error("❌ Error al actualizar contador en posts:", errorUpdate);
       }
     }
     setLoading(false);
