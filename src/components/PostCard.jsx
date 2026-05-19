@@ -271,10 +271,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             <button
               onClick={handleLike}
               disabled={loading}
-              className={`flex items-center gap-1.5 text-sm transition-colors ${liked ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-400'}`}
+              className={`flex items-center p-1 transition-colors ${liked ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-400'}`}
             >
-              <Heart className={`w-4 h-4 ${liked ? 'fill-rose-500' : ''}`} />
-              <span>{likesCount}</span>
+              <Heart className={`w-5 h-5 ${liked ? 'fill-rose-500' : ''}`} />
             </button>
             <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <MessageCircle className="w-4 h-4" />
