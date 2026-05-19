@@ -42,10 +42,9 @@ const CATEGORY_COLORS = {
   otro: 'bg-gray-100 text-gray-700',
 };
 
-export default function PostCard({ post, userEmail, likedIds, followingIds = new Set(), onDeleted }) {
+export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
   const isLiked = likedIds?.has(post.id);
   
-  // Normalizamos a minúsculas para evitar fallos de coincidencia
   const authorEmailClean = post.author_email?.toLowerCase().trim();
   const isFollowing = followingIds?.has(authorEmailClean);
 
@@ -58,6 +57,15 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
   const [editOpen, setEditOpen] = useState(false);
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
+
+  // Escuchamos cambios por si el Set se actualiza al cargar la página
+  useEffect(() => {
+    setLiked(likedIds?.has(currentPost.id));
+  }, [likedIds, currentPost.id]);
+
+  useEffect(() => {
+    setFollowing(followingIds?.has(authorEmailClean));
+  }, [followingIds, authorEmailClean]);
 
   const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
   const initials = (currentPost.author_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -75,17 +83,30 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
     setLoading(true);
     
     const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
-    
-    const { error } = await supabase
-      .from('posts')
-      .update({ likes_count: newCount })
-      .eq('id', currentPost.id);
+    const myEmailClean = userEmail.toLowerCase().trim();
 
-    if (!error) {
-      setLikesCount(newCount);
-      setLiked(!liked);
+    if (liked) {
+      // QUITAR LIKE: Borramos registro intermedio y actualizamos contador
+      const [res1, res2] = await Promise.all([
+        supabase.from('post_likes').delete().eq('user_email', myEmailClean).eq('post_id', currentPost.id),
+        supabase.from('posts').update({ likes_count: newCount }).eq('id', currentPost.id)
+      ]);
+
+      if (!res1.error && !res2.error) {
+        setLikesCount(newCount);
+        setLiked(false);
+      }
     } else {
-      console.error("Error al dar like:", error);
+      // DAR LIKE: Insertamos registro intermedio y actualizamos contador
+      const [res1, res2] = await Promise.all([
+        supabase.from('post_likes').insert([{ user_email: myEmailClean, post_id: currentPost.id }]),
+        supabase.from('posts').update({ likes_count: newCount }).eq('id', currentPost.id)
+      ]);
+
+      if (!res1.error && !res2.error) {
+        setLikesCount(newCount);
+        setLiked(true);
+      }
     }
     setLoading(false);
   };
@@ -104,23 +125,13 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
         .eq('follower_email', follower)
         .eq('following_email', followed);
 
-      if (!error) {
-        setFollowing(false);
-      } else {
-        console.error("Error al dejar de seguir:", error);
-        alert("Error al dejar de seguir en Base de Datos: " + error.message);
-      }
+      if (!error) setFollowing(false);
     } else {
       const { error } = await supabase
         .from('user_follows')
         .insert([{ follower_email: follower, following_email: followed }]);
 
-      if (!error) {
-        setFollowing(true);
-      } else {
-        console.error("Error al seguir:", error);
-        alert("Error al guardar el seguimiento en Base de Datos: " + error.message);
-      }
+      if (!error) setFollowing(true);
     }
     setFollowLoading(false);
   };
@@ -135,12 +146,7 @@ export default function PostCard({ post, userEmail, likedIds, followingIds = new
       .delete()
       .eq('id', currentPost.id);
 
-    if (!error) {
-      if (onDeleted) onDeleted(currentPost.id);
-    } else {
-      console.error("Error al borrar en Supabase:", error);
-      alert("Hubo un problema al borrar.");
-    }
+    if (!error && onDeleted) onDeleted(currentPost.id);
   };
 
   return (

@@ -14,7 +14,7 @@ export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
-  const [likedIds, setLikedIds] = useState(new Set());
+  const [likedIds, setLikedIds] = useState(new Set()); // Aquí guardamos los IDs con likes reales
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,26 +28,34 @@ export default function Feed() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      const followerEmailClean = authUser?.email?.toLowerCase().trim() || '';
+      const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      const [postsRes, eventsRes, followsRes] = await Promise.all([
+      // Descargamos posts, eventos, seguimientos y LIKES en paralelo
+      const [postsRes, eventsRes, followsRes, likesRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }),
-        followerEmailClean 
-          ? supabase.from('user_follows').select('following_email').eq('follower_email', followerEmailClean)
+        myEmailClean 
+          ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
+          : Promise.resolve({ data: [], error: null }),
+        myEmailClean
+          ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
           : Promise.resolve({ data: [], error: null })
       ]);
 
+      // Sincronizamos los seguimientos
       if (followsRes.data) {
-        // Guardamos todo en minúsculas en el Set de lectura
         const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
         setFollowingIds(emailsEnSeguimiento);
       }
 
+      // Sincronizamos los LIKES persistentes 
+      if (likesRes.data) {
+        const idsConLike = new Set(likesRes.data.map(l => l.post_id));
+        setLikedIds(idsConLike);
+      }
+
       setPosts(postsRes.data || []);
       setEvents(eventsRes.data || []);
-      setLikedIds(new Set()); 
-      
       setLoading(false);
     };
     load();
@@ -145,7 +153,7 @@ export default function Feed() {
                 key={`post-${item.data.id}`}
                 post={item.data}
                 userEmail={user?.email}
-                likedIds={likedIds}
+                likedIds={likedIds} // Pasamos el Set real con los likes cargados de la BD
                 followingIds={followingIds}
                 onDeleted={handlePostDeleted}
               />
