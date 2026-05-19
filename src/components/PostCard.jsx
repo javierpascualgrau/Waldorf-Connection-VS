@@ -43,7 +43,9 @@ const CATEGORY_COLORS = {
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
-  const isLiked = likedIds?.has(post.id);
+  // Mapeamos de forma segura usando ID en mayúsculas tal como está en tu BD
+  const postId = post.ID || post.id;
+  const isLiked = likedIds?.has(postId);
   
   const authorEmailClean = post.author_email?.toLowerCase().trim();
   const isFollowing = followingIds?.has(authorEmailClean);
@@ -58,10 +60,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
-  // Escuchamos cambios por si el Set se actualiza al cargar la página
   useEffect(() => {
-    setLiked(likedIds?.has(currentPost.id));
-  }, [likedIds, currentPost.id]);
+    setLiked(likedIds?.has(postId));
+  }, [likedIds, postId]);
 
   useEffect(() => {
     setFollowing(followingIds?.has(authorEmailClean));
@@ -79,7 +80,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   }, []);
 
   const handleLike = async () => {
-    if (loading || !userEmail) return;
+    if (loading || !userEmail || !postId) return;
     setLoading(true);
     
     const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
@@ -91,7 +92,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         .from('post_likes')
         .delete()
         .eq('user_email', myEmailClean)
-        .eq('post_id', currentPost.id);
+        .eq('post_id', postId);
 
       if (errorDelete) {
         console.error("❌ Error de Supabase al quitar el like:", errorDelete);
@@ -99,10 +100,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
+      // Cambiado a 'ID' en mayúsculas para que coincida con tu base de datos
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('id', currentPost.id);
+        .eq('ID', postId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -114,7 +116,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       // DAR LIKE
       const { error: errorInsert } = await supabase
         .from('post_likes')
-        .insert([{ user_email: myEmailClean, post_id: currentPost.id }]);
+        .insert([{ user_email: myEmailClean, post_id: postId }]);
 
       if (errorInsert) {
         console.error("❌ Error de Supabase al guardar el like:", errorInsert);
@@ -122,10 +124,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
+      // Cambiado a 'ID' en mayúsculas para que coincida con tu base de datos
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('id', currentPost.id);
+        .eq('ID', postId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -170,9 +173,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const { error } = await supabase
       .from('posts')
       .delete()
-      .eq('id', currentPost.id);
+      .eq('ID', postId); // Cambiado a ID en mayúsculas
 
-    if (!error && onDeleted) onDeleted(currentPost.id);
+    if (!error && onDeleted) onDeleted(postId);
   };
 
   return (
@@ -305,7 +308,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           onClose={() => setEditOpen(false)}
           onCreated={async () => {
             setEditOpen(false);
-            const { data } = await supabase.from('posts').select('*').eq('id', currentPost.id).single();
+            const { data } = await supabase.from('posts').select('*').eq('ID', postId).single();
             if (data) setCurrentPost(data);
           }}
         />
