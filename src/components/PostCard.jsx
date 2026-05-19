@@ -43,8 +43,8 @@ const CATEGORY_COLORS = {
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
-  // Mapeamos de forma segura usando ID en mayúsculas tal como está en tu BD
-  const postId = post.ID || post.id;
+  // 👈 CLAVE: Convertimos a String para evitar que 1 y "1" sean diferentes
+  const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
   
   const authorEmailClean = post.author_email?.toLowerCase().trim();
@@ -100,11 +100,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
-      // Cambiado a 'ID' en mayúsculas para que coincida con tu base de datos
+      // 👈 CLAVE: Vuelto a poner 'id' en minúscula
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('ID', postId);
+        .eq('id', postId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -124,11 +124,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         return; 
       }
 
-      // Cambiado a 'ID' en mayúsculas para que coincida con tu base de datos
+      // 👈 CLAVE: Vuelto a poner 'id' en minúscula
       const { error: errorUpdate } = await supabase
         .from('posts')
         .update({ likes_count: newCount })
-        .eq('ID', postId);
+        .eq('id', postId);
 
       if (!errorUpdate) {
         setLikesCount(newCount);
@@ -173,7 +173,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const { error } = await supabase
       .from('posts')
       .delete()
-      .eq('ID', postId); // Cambiado a ID en mayúsculas
+      .eq('id', postId); // 'id' en minúscula
 
     if (!error && onDeleted) onDeleted(postId);
   };
@@ -308,7 +308,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           onClose={() => setEditOpen(false)}
           onCreated={async () => {
             setEditOpen(false);
-            const { data } = await supabase.from('posts').select('*').eq('ID', postId).single();
+            const { data } = await supabase.from('posts').select('*').eq('id', postId).single();
             if (data) setCurrentPost(data);
           }}
         />

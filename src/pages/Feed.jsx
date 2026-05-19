@@ -14,7 +14,7 @@ export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
-  const [likedIds, setLikedIds] = useState(new Set()); // Aquí guardamos los IDs con likes reales
+  const [likedIds, setLikedIds] = useState(new Set()); 
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,6 @@ export default function Feed() {
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      // Descargamos posts, eventos, seguimientos y LIKES en paralelo
       const [postsRes, eventsRes, followsRes, likesRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }),
@@ -42,15 +41,14 @@ export default function Feed() {
           : Promise.resolve({ data: [], error: null })
       ]);
 
-      // Sincronizamos los seguimientos
       if (followsRes.data) {
         const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
         setFollowingIds(emailsEnSeguimiento);
       }
 
-      // Sincronizamos los LIKES persistentes 
       if (likesRes.data) {
-        const idsConLike = new Set(likesRes.data.map(l => l.post_id));
+        // 👈 ¡CLAVE AQUI! Forzamos a que el ID sea texto para evitar fallos de Javascript
+        const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
         setLikedIds(idsConLike);
       }
 
@@ -153,7 +151,7 @@ export default function Feed() {
                 key={`post-${item.data.id}`}
                 post={item.data}
                 userEmail={user?.email}
-                likedIds={likedIds} // Pasamos el Set real con los likes cargados de la BD
+                likedIds={likedIds} 
                 followingIds={followingIds}
                 onDeleted={handlePostDeleted}
               />
