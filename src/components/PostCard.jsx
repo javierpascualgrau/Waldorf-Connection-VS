@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2, Send, Loader2 } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -12,20 +12,6 @@ const ROLE_LABELS = {
   exalumno: 'Exalumno',
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
-};
-
-const CATEGORY_LABELS = {
-  taller: 'Taller',
-  evento_espiritual: 'Evento Espiritual',
-  educacion: 'Educación',
-  arte: 'Arte',
-  carpinteria: 'Carpintería',
-  musica: 'Música',
-  teatro: 'Teatro',
-  naturaleza: 'Naturaleza',
-  profesor_particular: 'Profesor Particular',
-  asociacion: 'Asociación',
-  otro: 'Otro',
 };
 
 const CATEGORY_COLORS = {
@@ -43,7 +29,6 @@ const CATEGORY_COLORS = {
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
-  // Guardamos el ID como string para la consistencia del estado visual de React
   const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
   
@@ -60,6 +45,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
+  // --- NUEVOS ESTADOS PARA COMENTARIOS ---
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
+  const [newComment, setNewComment] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [submittingComment, setSubmittingComment] = useState(false);
+
   useEffect(() => {
     setLiked(likedIds?.has(postId));
   }, [likedIds, postId]);
@@ -67,6 +60,24 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   useEffect(() => {
     setFollowing(followingIds?.has(authorEmailClean));
   }, [followingIds, authorEmailClean]);
+
+  // Cargar comentarios cuando se expande el panel
+  useEffect(() => {
+    if (showComments) {
+      const loadComments = async () => {
+        setLoadingComments(true);
+        const { data, error } = await supabase
+          .from('post_comments')
+          .select('*')
+          .eq('post_id', Number(postId))
+          .order('created_at', { ascending: true });
+        
+        if (!error && data) setComments(data);
+        setLoadingComments(false);
+      };
+      loadComments();
+    }
+  }, [showComments, postId]);
 
   const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
   const initials = (currentPost.author_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -85,12 +96,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     
     const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
     const myEmailClean = userEmail.toLowerCase().trim();
-    
-    // Convertimos a número para asegurar la coincidencia con el tipo integer de Supabase
     const numericPostId = Number(postId);
 
     if (liked) {
-      // QUITAR LIKE
       const { error: errorDelete } = await supabase
         .from('post_likes')
         .delete()
@@ -98,7 +106,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         .eq('post_id', numericPostId);
 
       if (errorDelete) {
-        console.error("❌ Error de Supabase al quitar el like:", errorDelete);
+        console.error("❌ Error al quitar el like:", errorDelete);
         setLoading(false);
         return; 
       }
@@ -111,17 +119,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       if (!errorUpdate) {
         setLikesCount(newCount);
         setLiked(false);
-      } else {
-        console.error("❌ Error al actualizar contador en posts:", errorUpdate);
       }
     } else {
-      // DAR LIKE
       const { error: errorInsert } = await supabase
         .from('post_likes')
         .insert([{ user_email: myEmailClean, post_id: numericPostId }]);
 
       if (errorInsert) {
-        console.error("❌ Error de Supabase al guardar el like:", errorInsert);
+        console.error("❌ Error al guardar el like:", errorInsert);
         setLoading(false);
         return; 
       }
@@ -134,11 +139,59 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       if (!errorUpdate) {
         setLikesCount(newCount);
         setLiked(true);
-      } else {
-        console.error("❌ Error al actualizar contador en posts:", errorUpdate);
       }
     }
     setLoading(false);
+  };
+
+  // --- FUNCIÓN PARA SUBIR COMENTARIO ---
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim() || !userEmail || submittingComment) return;
+    setSubmittingComment(true);
+
+    const numericPostId = Number(postId);
+    const myEmailClean = userEmail.toLowerCase().trim();
+
+    // 1. Conseguir el nombre del usuario actual desde sus metadatos o perfil público
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const currentUserName = authUser?.user_metadata?.display_name || 'Miembro de la comunidad';
+
+    // 2. Insertar comentario
+    const { data: insertedData, error: errorComment } = await supabase
+      .from('post_comments')
+      .insert([
+        {
+          post_id: numericPostId,
+          user_email: myEmailClean,
+          author_name: currentUserName,
+          content: newComment.trim()
+        }
+      ])
+      .select()
+      .single();
+
+    if (errorComment) {
+      console.error("❌ Error al guardar comentario:", errorComment);
+      setSubmittingComment(false);
+      return;
+    }
+
+    // 3. Actualizar el contador en la tabla posts
+    const updatedCount = commentsCount + 1;
+    const { error: errorUpdate } = await supabase
+      .from('posts')
+      .update({ comments_count: updatedCount })
+      .eq('id', numericPostId);
+
+    if (!errorUpdate) {
+      setComments(prev => [...prev, insertedData]);
+      setCommentsCount(updatedCount);
+      setNewComment('');
+    } else {
+      console.error("❌ Error al actualizar contador de comentarios:", errorUpdate);
+    }
+    setSubmittingComment(false);
   };
 
   const handleFollow = async () => {
@@ -212,8 +265,8 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 <Briefcase className="w-3 h-3" /> Servicio
               </span>
             )}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[currentPost.category] || 'bg-muted text-muted-foreground'}`}>
-              {CATEGORY_LABELS[currentPost.category] || currentPost.category || 'General'}
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+              {currentPost.category || 'General'}
             </span>
             {isOwner && (
               <div className="relative" ref={menuRef}>
@@ -279,9 +332,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             >
               <Heart className={`w-5 h-5 ${liked ? 'fill-rose-500' : ''}`} />
             </button>
-            <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            
+            {/* 💬 BOTÓN DE COMENTARIOS AHORA CON EVENTO ONCLICK */}
+            <button 
+              onClick={() => setShowComments(!showComments)}
+              className={`flex items-center gap-1.5 text-sm transition-colors ${showComments ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            >
               <MessageCircle className="w-4 h-4" />
-              <span>{currentPost.comments_count || 0}</span>
+              <span className="text-xs font-medium">{commentsCount}</span>
             </button>
           </div>
           {userEmail && !isOwner && (
@@ -300,6 +358,57 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             </button>
           )}
         </div>
+
+        {/* --- 📝 SECCIÓN DESPLEGABLE DE COMENTARIOS --- */}
+        {showComments && (
+          <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
+            
+            {/* Lista de comentarios cargados */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {loadingComments ? (
+                <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando respuestas...
+                </div>
+              ) : comments.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic pl-1 py-1">Aún no hay comentarios. ¡Sé el primero en responder!</p>
+              ) : (
+                comments.map((comment) => (
+                  <div key={comment.id} className="bg-muted/40 rounded-xl p-3 text-xs">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-foreground/90">{comment.author_name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(comment.created_at), "d MMM HH:mm", { locale: es })}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground leading-relaxed">{comment.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Input para añadir nuevo comentario */}
+            {userEmail && (
+              <form onSubmit={handleAddComment} className="flex gap-2 items-center pt-1">
+                <input
+                  type="text"
+                  placeholder="Escribe una respuesta..."
+                  className="flex-1 bg-muted/60 rounded-xl py-2 px-3 text-xs outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  maxLength={300}
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={submittingComment || !newComment.trim()}
+                  className="bg-primary text-primary-foreground p-2 rounded-xl hover:opacity-90 transition-all disabled:opacity-40 flex-shrink-0"
+                >
+                  {submittingComment ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </div>
 
       {editOpen && (
