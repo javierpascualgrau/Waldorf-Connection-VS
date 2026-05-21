@@ -144,7 +144,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setLoading(false);
   };
 
-  // --- FUNCIÓN ADICIONAR COMENTARIO MEJORADA CON NOMBRE REAL ---
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim() || !userEmail || submittingComment) return;
@@ -153,14 +152,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const numericPostId = Number(postId);
     const myEmailClean = userEmail.toLowerCase().trim();
 
-    // 1. Buscamos el nombre del usuario en su perfil real de Supabase
     const { data: profileData } = await supabase
       .from('profiles')
       .select('display_name')
       .eq('user_email', myEmailClean)
       .maybeSingle();
 
-    // Si no encuentra el perfil o el campo está vacío, saca los metadatos o el fallback estructurado
     let currentUserName = profileData?.display_name;
     
     if (!currentUserName) {
@@ -168,7 +165,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       currentUserName = authUser?.user_metadata?.display_name || 'Miembro de la comunidad';
     }
 
-    // 2. Insertar comentario con el nombre ya resuelto de forma segura
     const { data: insertedData, error: errorComment } = await supabase
       .from('post_comments')
       .insert([
@@ -188,7 +184,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       return;
     }
 
-    // 3. Actualizar el contador en la tabla posts
     const updatedCount = commentsCount + 1;
     const { error: errorUpdate } = await supabase
       .from('posts')
@@ -203,6 +198,34 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       console.error("❌ Error al actualizar contador de comentarios:", errorUpdate);
     }
     setSubmittingComment(false);
+  };
+
+  // --- FUNCIÓN PARA BORRAR COMENTARIOS Y SINCRONIZAR LA BASE DE DATOS ---
+  const handleDeleteComment = async (commentId) => {
+    const numericPostId = Number(postId);
+
+    const { error: errorDelete } = await supabase
+      .from('post_comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (errorDelete) {
+      console.error("❌ Error al eliminar el comentario:", errorDelete);
+      return;
+    }
+
+    const updatedCount = Math.max(0, commentsCount - 1);
+    const { error: errorUpdate } = await supabase
+      .from('posts')
+      .update({ comments_count: updatedCount })
+      .eq('id', numericPostId);
+
+    if (!errorUpdate) {
+      setComments(prev => prev.filter(c => c.id !== commentId));
+      setCommentsCount(updatedCount);
+    } else {
+      console.error("❌ Error al restar contador de comentarios:", errorUpdate);
+    }
   };
 
   const handleFollow = async () => {
