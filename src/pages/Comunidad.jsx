@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, Users, MapPin, UserPlus, UserCheck, Loader2, Globe } from 'lucide-react';
+import { Search, Users, MapPin, UserPlus, UserCheck, Loader2, Globe, Building2 } from 'lucide-react';
 import ProfileSearch from '@/components/ProfileSearch';
 
 const ROLES = [
@@ -126,32 +126,37 @@ export default function Comunidad() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="font-cormorant text-3xl font-semibold mb-1">Comunidad</h1>
-          <p className="text-sm text-muted-foreground">Conecta con personas y oportunidades</p>
-        </div>
-      </div>
+      {/* Header y Selector Centrado */}
+      <div className="flex flex-col items-center text-center mb-8 pt-4">
+        <h1 className="font-cormorant text-4xl font-bold mb-2 text-foreground">Comunidad</h1>
+        <p className="text-base text-muted-foreground mb-6">Conecta con la comunidad Waldorf</p>
 
-      {/* NUEVO: Subpestañas Principales (Personas / Empresas) */}
-      <div className="flex gap-6 mb-6 border-b border-border pb-px">
-        <button
-          onClick={() => setSubTab('personas')}
-          className={`font-cormorant text-xl font-semibold pb-2 border-b-2 transition-all ${
-            subTab === 'personas' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground/80'
-          }`}
-        >
-          Mi Red
-        </button>
-        <button
-          onClick={() => setSubTab('empresas')}
-          className={`font-cormorant text-xl font-semibold pb-2 border-b-2 transition-all ${
-            subTab === 'empresas' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground/80'
-          }`}
-        >
-          Empresas
-        </button>
+        {/* Píldora de navegación */}
+        <div className="bg-muted/60 p-1.5 rounded-full inline-flex items-center border border-border/60 shadow-inner">
+          <button
+            onClick={() => setSubTab('personas')}
+            className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+              subTab === 'personas' 
+                ? 'bg-primary text-primary-foreground shadow-md scale-105' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Mi Red
+          </button>
+          
+          <button
+            onClick={() => setSubTab('empresas')}
+            className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+              subTab === 'empresas' 
+                ? 'bg-primary text-primary-foreground shadow-md scale-105' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            Empresas
+          </button>
+        </div>
       </div>
 
       {/* Buscador Avanzado */}
