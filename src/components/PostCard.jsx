@@ -45,7 +45,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
-  // --- NUEVOS ESTADOS PARA COMENTARIOS ---
+  // Estados para comentarios
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
@@ -144,7 +144,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setLoading(false);
   };
 
-  // --- FUNCIÓN PARA SUBIR COMENTARIO ---
+  // --- FUNCIÓN ADICIONAR COMENTARIO MEJORADA CON NOMBRE REAL ---
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim() || !userEmail || submittingComment) return;
@@ -153,11 +153,22 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     const numericPostId = Number(postId);
     const myEmailClean = userEmail.toLowerCase().trim();
 
-    // 1. Conseguir el nombre del usuario actual desde sus metadatos o perfil público
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    const currentUserName = authUser?.user_metadata?.display_name || 'Miembro de la comunidad';
+    // 1. Buscamos el nombre del usuario en su perfil real de Supabase
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('user_email', myEmailClean)
+      .maybeSingle();
 
-    // 2. Insertar comentario
+    // Si no encuentra el perfil o el campo está vacío, saca los metadatos o el fallback estructurado
+    let currentUserName = profileData?.display_name;
+    
+    if (!currentUserName) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      currentUserName = authUser?.user_metadata?.display_name || 'Miembro de la comunidad';
+    }
+
+    // 2. Insertar comentario con el nombre ya resuelto de forma segura
     const { data: insertedData, error: errorComment } = await supabase
       .from('post_comments')
       .insert([
@@ -332,8 +343,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             >
               <Heart className={`w-5 h-5 ${liked ? 'fill-rose-500' : ''}`} />
             </button>
-            
-            {/* 💬 BOTÓN DE COMENTARIOS AHORA CON EVENTO ONCLICK */}
             <button 
               onClick={() => setShowComments(!showComments)}
               className={`flex items-center gap-1.5 text-sm transition-colors ${showComments ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
@@ -362,8 +371,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         {/* --- 📝 SECCIÓN DESPLEGABLE DE COMENTARIOS --- */}
         {showComments && (
           <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
-            
-            {/* Lista de comentarios cargados */}
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {loadingComments ? (
                 <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
@@ -386,7 +393,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
               )}
             </div>
 
-            {/* Input para añadir nuevo comentario */}
+            {/* Formulario de envío */}
             {userEmail && (
               <form onSubmit={handleAddComment} className="flex gap-2 items-center pt-1">
                 <input
