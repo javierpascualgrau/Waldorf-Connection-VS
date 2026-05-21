@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, Users, MapPin, UserPlus, UserCheck, Loader2 } from 'lucide-react';
+import { Search, Users, MapPin, UserPlus, UserCheck, Loader2, Globe } from 'lucide-react';
 import ProfileSearch from '@/components/ProfileSearch';
 
 const ROLES = [
@@ -19,13 +19,18 @@ const ROLE_LABELS = {
   exalumno: 'Exalumno',
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
+  empresa: 'Empresa', // Añadimos la etiqueta de empresa
 };
 
 export default function Comunidad() {
   const [profiles, setProfiles] = useState([]);
   const [followingEmails, setFollowingEmails] = useState(new Set());
   const [user, setUser] = useState(null);
+  
+  // NUEVO ESTADO: Controla si vemos Personas o Empresas
+  const [subTab, setSubTab] = useState('personas'); 
   const [roleFilter, setRoleFilter] = useState('todos');
+  
   const [loading, setLoading] = useState(true);
   const [followLoadingId, setFollowLoadingId] = useState(null);
 
@@ -107,8 +112,16 @@ export default function Comunidad() {
     setFollowLoadingId(null);
   };
 
+  // LÓGICA DE FILTRADO ACTUALIZADA
   const filteredProfiles = profiles.filter(p => {
-    return roleFilter === 'todos' || p.role === roleFilter;
+    if (subTab === 'empresas') {
+      // Si estamos en la pestaña de Empresas, solo mostramos las empresas
+      return p.role === 'empresa';
+    } else {
+      // Si estamos en Personas, excluimos las empresas y aplicamos el filtro normal
+      if (p.role === 'empresa') return false;
+      return roleFilter === 'todos' || p.role === roleFilter;
+    }
   });
 
   return (
@@ -116,9 +129,29 @@ export default function Comunidad() {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="font-cormorant text-3xl font-semibold mb-1">Mi Red</h1>
-          <p className="text-sm text-muted-foreground">Conecta con la comunidad Waldorf</p>
+          <h1 className="font-cormorant text-3xl font-semibold mb-1">Comunidad</h1>
+          <p className="text-sm text-muted-foreground">Conecta con personas y oportunidades</p>
         </div>
+      </div>
+
+      {/* NUEVO: Subpestañas Principales (Personas / Empresas) */}
+      <div className="flex gap-6 mb-6 border-b border-border pb-px">
+        <button
+          onClick={() => setSubTab('personas')}
+          className={`font-cormorant text-xl font-semibold pb-2 border-b-2 transition-all ${
+            subTab === 'personas' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground/80'
+          }`}
+        >
+          Mi Red
+        </button>
+        <button
+          onClick={() => setSubTab('empresas')}
+          className={`font-cormorant text-xl font-semibold pb-2 border-b-2 transition-all ${
+            subTab === 'empresas' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground/80'
+          }`}
+        >
+          Empresas
+        </button>
       </div>
 
       {/* Buscador Avanzado */}
@@ -126,22 +159,24 @@ export default function Comunidad() {
         <ProfileSearch />
       </div>
 
-      {/* Role filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
-        {ROLES.map(r => (
-          <button
-            key={r.value}
-            onClick={() => setRoleFilter(r.value)}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              roleFilter === r.value 
-                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
-                : 'bg-muted/70 text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
+      {/* Role filter (Solo se muestra en la pestaña de Personas) */}
+      {subTab === 'personas' && (
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+          {ROLES.map(r => (
+            <button
+              key={r.value}
+              onClick={() => setRoleFilter(r.value)}
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                roleFilter === r.value 
+                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
+                  : 'bg-muted/70 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Grid de Perfiles interactivos */}
       {loading ? (
@@ -159,7 +194,9 @@ export default function Comunidad() {
       ) : filteredProfiles.length === 0 ? (
         <div className="text-center py-20 bg-card rounded-3xl border border-border/50 border-dashed">
           <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="font-cormorant text-xl text-muted-foreground">No hay perfiles en esta categoría</p>
+          <p className="font-cormorant text-xl text-muted-foreground">
+            {subTab === 'empresas' ? 'Aún no hay empresas registradas' : 'No hay perfiles en esta categoría'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -172,29 +209,46 @@ export default function Comunidad() {
             const isButtonLoading = followLoadingId === profileEmailClean;
 
             return (
-              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-center gap-3">
+              <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-start gap-3">
                 
                 {/* Contenedor Izquierdo */}
                 <div className="flex items-start gap-4 flex-1 min-w-0">
-                  <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
+                    profile.role === 'empresa' ? 'bg-indigo-100 border-2 border-indigo-200' : 'bg-primary/10 border border-primary/20'
+                  }`}>
                     {profile.avatar_url ? (
                       <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="font-cormorant text-xl font-bold text-primary">{initials}</span>
+                      <span className={`font-cormorant text-xl font-bold ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
+                        {initials}
+                      </span>
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pt-0.5">
                     <h3 className="font-semibold text-foreground truncate text-base">{displayName}</h3>
-                    <p className="text-xs text-primary font-medium mb-1">
+                    <p className={`text-xs font-medium mb-1 ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
                       {ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}
                     </p>
                     
                     {profile.location && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 truncate">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5 truncate">
                         <MapPin className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{profile.location}</span>
                       </div>
+                    )}
+
+                    {/* NUEVO: Enlace web para empresas */}
+                    {profile.company_website && (
+                      <a 
+                        href={profile.company_website.startsWith('http') ? profile.company_website : `https://${profile.company_website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 hover:underline mb-2 truncate w-fit"
+                      >
+                        <Globe className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{profile.company_website.replace(/^https?:\/\//, '')}</span>
+                      </a>
                     )}
 
                     {profile.interests && profile.interests.length > 0 && (
@@ -214,12 +268,12 @@ export default function Comunidad() {
                   </div>
                 </div>
 
-                {/* Contenedor Derecho: Botón ya reparado sin el 'hidden' fantasma */}
+                {/* Contenedor Derecho: Botón de seguir */}
                 {profileEmailClean && (
                   <button
                     onClick={() => handleFollowToggle(profileEmailClean)}
                     disabled={isButtonLoading}
-                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 shadow-sm border ${
+                    className={`flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 shadow-sm border mt-1 ${
                       isCurrentlyFollowing 
                         ? 'bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30' 
                         : 'bg-muted text-muted-foreground border-transparent hover:bg-primary hover:text-primary-foreground'
@@ -230,12 +284,12 @@ export default function Comunidad() {
                     ) : isCurrentlyFollowing ? (
                       <>
                         <UserCheck className="w-3.5 h-3.5" />
-                        <span>Siguiendo</span>
+                        <span className="hidden sm:inline">Siguiendo</span>
                       </>
                     ) : (
                       <>
                         <UserPlus className="w-3.5 h-3.5" />
-                        <span>Seguir</span>
+                        <span className="hidden sm:inline">Seguir</span>
                       </>
                     )}
                   </button>
