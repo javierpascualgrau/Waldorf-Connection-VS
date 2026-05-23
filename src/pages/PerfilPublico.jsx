@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, ArrowLeft, Loader2, MessageSquare, Calendar } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext'; // 1. IMPORTAMOS EL CONTEXTO DE AUTH
+import PostCard from '@/components/PostCard'; // 2. REUTILIZAMOS TU COMPONENTE POSTCARD
+import { MapPin, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
   const navigate = useNavigate();
+  const { user } = useAuth(); // Obtenemos el usuario logueado en la app
   
   const [profile, setProfile] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados para que los likes y seguidos funcionen de forma interactiva aquí dentro
+  const [likedIds, setLikedIds] = useState(new Set());
+  const [followingIds, setFollowingIds] = useState(new Set());
 
   const ROLE_LABELS = {
     alumno: 'Alumno',
@@ -28,7 +35,6 @@ export default function PerfilPublico() {
       const decodedId = decodeURIComponent(id);
       let query = supabase.from('profiles').select('*');
       
-      // Si tiene una arroba, buscamos directamente por la columna real: user_email
       if (decodedId.includes('@')) {
         query = query.ilike('user_email', decodedId);
       } else {
@@ -41,15 +47,27 @@ export default function PerfilPublico() {
         setProfile(profileData);
         
         const cleanEmail = profileData.user_email?.toLowerCase().trim();
+        const myEmailClean = user?.email?.toLowerCase().trim() || '';
         
         if (cleanEmail) {
-          const { data: postsData } = await supabase
-            .from('posts')
-            .select('*')
-            .ilike('author_email', cleanEmail)
-            .order('created_date', { ascending: false });
-            
-          if (postsData) setUserPosts(postsData);
+          // Lanzamos en paralelo la carga de posts, likes y seguidos del usuario actual
+          const [postsRes, followsRes, likesRes] = await Promise.all([
+            supabase.from('posts').select('*').ilike('author_email', cleanEmail).order('created_date', { ascending: false }),
+            myEmailClean ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean) : Promise.resolve({ data: [] }),
+            myEmailClean ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean) : Promise.resolve({ data: [] })
+          ]);
+
+          if (postsRes.data) setUserPosts(postsRes.data);
+          
+          if (followsRes.data) {
+            const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
+            setFollowingIds(emailsEnSeguimiento);
+          }
+
+          if (likesRes.data) {
+            const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
+            setLikedIds(idsConLike);
+          }
         }
       } else {
         console.error("Error al cargar perfil:", profileErr);
@@ -58,8 +76,8 @@ export default function PerfilPublico() {
       setLoading(false);
     };
 
-    if (id) fetchPublicData();
-  }, [id]);
+    fetchPublicData();
+  }, [id, user]);
 
   if (loading) {
     return (
@@ -93,6 +111,7 @@ export default function PerfilPublico() {
         Volver
       </button>
 
+      {/* Tarjeta del perfil */}
       <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-5">
           <div className={`w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
@@ -141,6 +160,7 @@ export default function PerfilPublico() {
         </div>
       </div>
 
+      {/* Listado de publicaciones */}
       <div className="space-y-4">
         <h3 className="font-cormorant text-xl font-bold text-foreground px-1">Publicaciones antiguas</h3>
         
@@ -149,15 +169,17 @@ export default function PerfilPublico() {
             Este usuario aún no ha publicado nada en el feed.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {userPosts.map(post => (
-              <div key={post.id} className="bg-card rounded-2xl border border-border p-4 shadow-sm">
-                <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{post.content}</p>
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground border-t border-border/60 pt-2.5">
-                  <Calendar className="w-3 h-3" />
-                  <span>{post.created_date ? new Date(post.created_date).toLocaleDateString() : ''}</span>
-                </div>
-              </div>
+              /* 3. SUSTITUIMOS EL DIV VIEJO POR TU COMPONENTE ORIGINAL CONECTADO */
+              <PostCard
+                key={`post-${post.id}`}
+                post={post}
+                userEmail={user?.email}
+                likedIds={likedIds}
+                followingIds={followingIds}
+                onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))}
+              />
             ))}
           </div>
         )}
