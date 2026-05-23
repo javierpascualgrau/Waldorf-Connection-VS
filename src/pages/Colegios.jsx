@@ -1,4 +1,3 @@
-JavaScript
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import SchoolEventCard from '@/components/SchoolEventCard';
