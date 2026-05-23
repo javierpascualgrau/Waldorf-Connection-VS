@@ -13,20 +13,7 @@ const ROLE_LABELS = {
   exalumno: 'Exalumno',
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
-};
-
-const CATEGORY_COLORS = {
-  taller: 'bg-amber-100 text-amber-800',
-  evento_espiritual: 'bg-purple-100 text-purple-800',
-  educacion: 'bg-blue-100 text-blue-800',
-  arte: 'bg-rose-100 text-rose-800',
-  carpinteria: 'bg-orange-100 text-orange-800',
-  musica: 'bg-indigo-100 text-indigo-800',
-  teatro: 'bg-pink-100 text-pink-800',
-  naturaleza: 'bg-green-100 text-green-800',
-  profesor_particular: 'bg-cyan-100 text-cyan-800',
-  asociacion: 'bg-yellow-100 text-yellow-800',
-  otro: 'bg-gray-100 text-gray-700',
+  empresa: 'Empresa',
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
@@ -46,6 +33,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
+  // NUEVO ESTADO: Guarda el perfil en tiempo real del autor del post
+  const [authorProfile, setAuthorProfile] = useState(null);
+
   // Estados para comentarios
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
@@ -61,6 +51,20 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   useEffect(() => {
     setFollowing(followingIds?.has(authorEmailClean));
   }, [followingIds, authorEmailClean]);
+
+  // NUEVO EFFECT: Busca los datos actualizados del usuario (Nombre, Foto, Rol) en tiempo real
+  useEffect(() => {
+    const loadAuthorProfile = async () => {
+      if (!authorEmailClean) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('user_email', authorEmailClean)
+        .maybeSingle();
+      if (data) setAuthorProfile(data);
+    };
+    loadAuthorProfile();
+  }, [authorEmailClean]);
 
   // Cargar comentarios cuando se expande el panel
   useEffect(() => {
@@ -81,15 +85,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   }, [showComments, postId]);
 
   const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
-  const initials = (currentPost.author_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  // Variables inteligentes: Priorizan el perfil en tiempo real, si no existe usan lo estático del post
+  const displayName = authorProfile?.display_name || authorProfile?.full_name || currentPost.author_name || 'Usuario';
+  const avatarUrl = authorProfile?.avatar_url || currentPost.author_avatar;
+  const displayRole = authorProfile?.role || currentPost.author_role;
+  const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   const handleLike = async () => {
     if (loading || !userEmail || !postId) return;
@@ -142,7 +143,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         setLiked(true);
       }
     }
-    loading(false);
+    setLoading(false);
   };
 
   const handleAddComment = async (e) => {
@@ -269,7 +270,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   return (
     <>
       <div className={`rounded-2xl p-4 hover:shadow-md transition-shadow animate-fade-up ${
-        currentPost.author_role === 'colegio'
+        displayRole === 'colegio'
           ? 'bg-gradient-to-br from-primary/5 to-primary/10 border-2 border-primary/30 shadow-sm shadow-primary/10'
           : 'bg-card border border-border'
       }`}>
@@ -277,23 +278,24 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         {/* Cabecera: Autor y Opciones */}
         <div className="flex items-start justify-between gap-3 mb-3">
           
-          {/* CORRECCIÓN: Ahora apunta a author_email para que sea infalible */}
           <Link 
-            to={`/usuario/${encodeURIComponent(currentPost.author_email)}`} 
+            to={`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`} 
             className="flex items-start gap-3 flex-1 min-w-0 group cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity">
-              {currentPost.author_avatar ? (
-                <img src={currentPost.author_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+            {/* CORRECCIÓN: Ahora usa la variable dinámica avatarUrl */}
+            <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity overflow-hidden border border-border">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
               )}
             </div>
             <div className="flex-1 min-w-0 group-hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">{currentPost.author_name || 'Usuario'}</span>
-                {currentPost.author_role && (
-                  <span className="text-xs text-muted-foreground">{ROLE_LABELS[currentPost.author_role] || currentPost.author_role}</span>
+                {/* CORRECCIÓN: Ahora usa la variable dinámica displayName */}
+                <span className="font-medium text-sm text-foreground">{displayName}</span>
+                {displayRole && (
+                  <span className="text-xs text-muted-foreground">{ROLE_LABELS[displayRole] || displayRole}</span>
                 )}
               </div>
               <span className="text-xs text-muted-foreground">
@@ -302,7 +304,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             </div>
           </Link>
 
-          {/* Opciones Derecha */}
+          {/* Opciones Ocultas / Filtros */}
           <div className="flex gap-2 items-center flex-shrink-0">
             {currentPost.is_service_offer && (
               <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -405,7 +407,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           )}
         </div>
 
-        {/* --- SECCIÓN COMENTARIOS --- */}
+        {/* Sección Comentarios */}
         {showComments && (
           <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
