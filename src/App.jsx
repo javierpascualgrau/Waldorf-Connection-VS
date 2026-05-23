@@ -11,6 +11,7 @@ import Comunidad from '@/pages/Comunidad';
 import Perfil from '@/pages/Perfil';
 import Login from '@/pages/Login';
 import PerfilPublico from '@/pages/PerfilPublico'; // 1. IMPORTAMOS LA NUEVA PÁGINA
+import SchoolProfile from './pages/SchoolProfile';
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
@@ -32,20 +33,21 @@ const AuthenticatedApp = () => {
     return <Login />;
   }
 
-  return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Feed />} />
-        <Route path="/colegios" element={<Colegios />} />
-        <Route path="/comunidad" element={<Comunidad />} />
-        <Route path="/perfil" element={<Perfil />} />
-        
-        {/* 2. NUEVA RUTA DINÁMICA: Carga el perfil según el ID */}
-        <Route path="/usuario/:id" element={<PerfilPublico />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+ return (
+  <Routes>
+    <Route element={<Layout />}>
+      <Route path="/" element={<Feed />} />
+      <Route path="/colegios" element={<Colegios />} />
+      <Route path="/colegios/:id" element={<SchoolProfile />} /> {/* <-- ¡AQUÍ ESTÁ LA NUEVA! */}
+      <Route path="/comunidad" element={<Comunidad />} />
+      <Route path="/perfil" element={<Perfil />} />
+
+      {/* 2. NUEVA RUTA DINÁMICA: Carga el perfil según el ID */}
+      <Route path="/usuario/:id" element={<PerfilPublico />} />
+    </Route>
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>
+);
 };
 
 function App() {
