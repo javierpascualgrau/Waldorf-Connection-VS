@@ -4,65 +4,57 @@ import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, X, Plus } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
 
-const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
+// 1. IMPORTAMOS TUS IMÁGENES LOCALES AQUÍ PARA QUE REACT LAS EMPAQUETE
+import logoArtaban from '@/assets/logo-1.webp';
+import fotoArtaban1 from '@/assets/solidaridad-escuela-waldorf-artaban1.jpg';
+import fotoArtaban2 from '@/assets/P1060744-1024x769.webp';
+import fotoArtaban3 from '@/assets/images.jpeg';
+import fotoArtaban4 from '@/assets/Micael-010-2048x1369.jpg';
 
-// Datos extendidos, REALES e ILUSTRATIVOS para la demo de los tres colegios
+const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
+
 const MOCK_DETAILS = {
   'micael': {
     id: 'micael',
     name: 'Escuela Libre Micael',
-    location: 'Ctra. de la Coruña Km 21,3 - Las Rozas (Madrid)',
-    description: 'Fundada en 1979, la Escuela Libre Micael es pionera en la pedagogía Waldorf en España. Acompañamos a los alumnos desde el Jardín de Infancia hasta Bachillerato, buscando que "la educación vaya unida al despertar de la Conciencia". Integramos el arte, la música y el respeto a la naturaleza en cada etapa del desarrollo.',
-    activities: ['Olimpiadas Griegas', 'Agrimensura', 'Prácticas Sociales', 'Teatro y Coro', 'Los Oficios', 'Arquitectura', 'Huerto Escolar'],
-    images: [
-      // Galería: Fotos de campo establecido, tradicional, huerto y construcción en madera
-      'https://images.unsplash.com/photo-1541339907198-e08756ebafe3?auto=format&fit=crop&w=800&q=80', 
-      'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1513267768898-ac19f8ec914a?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1498616238612-4d2b27429624?auto=format&fit=crop&w=800&q=80'
-    ],
-    // Logo: Símbolo Waldorf clásico de la naturaleza y el crecimiento
-    avatar_url: 'https://images.unsplash.com/photo-1596706933251-5b77a06f365d?auto=format&fit=crop&w=200&q=80',
+    location: 'Las Rozas, Madrid',
+    description: 'Pionera en la pedagogía Waldorf en España (1979). Acompañamos desde Infantil hasta Bachillerato.',
+    activities: ['Olimpiadas Griegas', 'Teatro y Coro', 'Huerto Escolar'],
+    cover_url: 'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?q=80&w=1200',
+    avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
     num_students: 380,
-    stages: ['Infantil 1-3', 'Infantil 3-6', 'Primaria', 'Secundaria', 'Bachillerato'],
+    stages: ['Infantil', 'Primaria', 'Secundaria', 'Bachillerato'],
     manager_id: 'simulado'
   },
   'aravaca': {
     id: 'aravaca',
-    name: 'Escuela Waldorf Aravaca',
-    location: 'Camino del Barrial, Aravaca (Madrid)',
-    description: 'Un entorno escolar que busca el equilibrio entre el pensar, el sentir y la voluntad. Ofrecemos una pedagogía integral basada en la comprensión del desarrollo físico, intelectual y emocional. Fomentamos el aprendizaje vivencial, los hábitos saludables y el trabajo manual, guiados por un tutor que acompaña toda la etapa primaria.',
-    activities: ['Euritmia', 'Costura y Ganchillo', 'Talla y Carpintería', 'Pintura a la Acuarela', 'Educación Física Bothmer', 'Teatro'],
-    images: [
-      // Galería: Fotos de acuarela vibrante, costura y movimiento/luz
-      'https://images.unsplash.com/photo-1582213713713-718610b65f7c?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1582213713713-718610b65f7c?auto=format&fit=crop&w=800&q=80'
-    ],
-    // Logo: Símbolo ilustrativo de arte y color (ovillo de lana)
-    avatar_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?auto=format&fit=crop&w=200&q=80',
+    name: 'Waldorf Aravaca',
+    location: 'Aravaca, Madrid',
+    description: 'Un entorno cálido especializado en los primeros septenios.',
+    activities: ['Acuarela', 'Euritmia', 'Panadería'],
+    cover_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?q=80&w=1200',
+    avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
     num_students: 250,
-    stages: ['Infantil', 'Primaria', 'Secundaria'],
+    stages: ['Infantil', 'Primaria'],
     manager_id: 'simulado'
   },
   'artaban': {
     id: 'artaban',
     name: 'Escuela Artabán',
-    location: 'Av. Conde de las Almenas - Torrelodones (Madrid)',
-    description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva. Acompañamos a cada alumno respetando su ritmo singular, fomentando la autonomía, las habilidades prácticas para la vida diaria y el contacto directo con la naturaleza.',
-    activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín', 'Gimnasia Bothmer', 'Escuela de Familias'],
+    location: 'Torrelodones, Madrid',
+    description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
+    activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
+    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
+    // 2. USAMOS LAS VARIABLES QUE HEMOS IMPORTADO ARRIBA
+    avatar_url: logoArtaban, 
     images: [
-      // Galería: Fotos de paisaje de sierra, lana cardada y jardinería inclusiva
-      'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80'
+      fotoArtaban1,
+      fotoArtaban2,
+      fotoArtaban3,
+      fotoArtaban4
     ],
-    // Logo: Símbolo ilustrativo de naturaleza y sierra (paisaje)
-    avatar_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=200&q=80',
     num_students: 180,
-    stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
+    stages: ['Infantil', 'Primaria', 'ESO', 'Ed. Especial'],
     manager_id: 'simulado'
   }
 };
@@ -156,57 +148,68 @@ export default function SchoolProfile() {
   if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado.</div>;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 mt-6 px-4 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
       
       {/* BARRA SUPERIOR CON ACCIONES */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
-          <ArrowLeft className="w-4 h-4" /> Volver al directorio
+          <ArrowLeft className="w-4 h-4" /> Directorio
         </button>
 
         {isManager && (
           !isEditing ? (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary hover:text-white transition-all">
-              <Edit3 className="w-4 h-4" /> Editar Perfil Profesional
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
+              <Edit3 className="w-4 h-4" /> Gestionar Perfil
             </button>
           ) : (
             <div className="flex gap-2">
-              <button onClick={() => { setEditForm(school); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-2 rounded-xl text-sm font-semibold hover:bg-muted/80 transition-all">
-                <X className="w-4 h-4" /> Cancelar
-              </button>
-              <button onClick={handleSave} className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md hover:bg-primary/90 transition-all">
-                <Save className="w-4 h-4" /> Guardar Cambios
-              </button>
+              <button onClick={() => { setEditForm(school); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
+              <button onClick={handleSave} className="flex items-center gap-1.5 bg-primary text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-md"><Save className="w-4 h-4" /> Guardar</button>
             </div>
           )
         )}
       </div>
 
-      {/* CABECERA (EDITABLE) */}
+      {/* CABECERA ESTILO LINKEDIN (ESTO ES LO IMPORTANTE) */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
-        <div className="h-40 bg-gradient-to-r from-primary/20 to-primary/5 relative" />
-        <div className="p-8 relative pt-16">
-          <img src={school.avatar_url} className="w-28 h-28 rounded-2xl border-4 border-card absolute -top-14 left-8 object-cover bg-muted shadow-sm" alt="logo" />
+        
+        {/* Banner de Portada alargado */}
+        <div className="h-44 bg-muted relative overflow-hidden">
+          <img 
+            src={school.cover_url} 
+            className="w-full h-full object-cover" 
+            alt="portada" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+        </div>
+
+        {/* Info del Colegio y Logo Superpuesto */}
+        <div className="p-8 relative pt-20">
+          
+          {/* Logo superpuesto a la portada */}
+          <div className="absolute -top-16 left-8">
+            <img 
+              src={school.avatar_url} 
+              className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" 
+              alt="logo" 
+            />
+          </div>
           
           {!isEditing ? (
             <>
               <h1 className="font-cormorant text-4xl font-semibold text-foreground">{school.name}</h1>
               <p className="text-muted-foreground flex items-center gap-1.5 mt-2"><MapPin className="w-4 h-4 text-primary" /> {school.location}</p>
-              <p className="mt-5 text-base text-foreground/80 leading-relaxed">{school.description}</p>
+              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
             </>
           ) : (
-            <div className="space-y-4 mt-2">
+            <div className="space-y-4 mt-2 max-w-xl">
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Nombre del Colegio</label>
-                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" />
+                <label className="text-xs font-bold text-muted-foreground uppercase">Nombre</label>
+                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Ubicación / Municipio</label>
-                <input value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Descripción del Centro</label>
-                <textarea rows={3} value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary resize-none" />
+                <label className="text-xs font-bold text-muted-foreground uppercase">Descripción</label>
+                <textarea rows={3} value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none resize-none" />
               </div>
             </div>
           )}
