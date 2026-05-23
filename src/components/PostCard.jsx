@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CreatePostModal from './CreatePostModal';
-import { Link } from 'react-router-dom'; // 1. IMPORTAMOS LINK
+import { Link } from 'react-router-dom';
 
 const ROLE_LABELS = {
   alumno: 'Alumno',
@@ -142,7 +142,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         setLiked(true);
       }
     }
-    setLoading(false);
+    loading(false);
   };
 
   const handleAddComment = async (e) => {
@@ -277,9 +277,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         {/* Cabecera: Autor y Opciones */}
         <div className="flex items-start justify-between gap-3 mb-3">
           
-          {/* 2. ZONA IZQUIERDA CLICABLE (Avatar + Nombre) -> Lleva al perfil */}
+          {/* CORRECCIÓN: Ahora apunta a author_email para que sea infalible */}
           <Link 
-            to={`/usuario/${currentPost.user_id}`} 
+            to={`/usuario/${encodeURIComponent(currentPost.author_email)}`} 
             className="flex items-start gap-3 flex-1 min-w-0 group cursor-pointer"
           >
             <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity">
@@ -297,12 +297,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 )}
               </div>
               <span className="text-xs text-muted-foreground">
-                {currentPost.created_at ? format(new Date(currentPost.created_at), "d MMM", { locale: es }) : ''}
+                {currentPost.created_date ? format(new Date(currentPost.created_date), "d MMM", { locale: es }) : ''}
               </span>
             </div>
           </Link>
 
-          {/* 3. ZONA DERECHA NO CLICABLE (Etiquetas y Menú) */}
+          {/* Opciones Derecha */}
           <div className="flex gap-2 items-center flex-shrink-0">
             {currentPost.is_service_offer && (
               <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -405,7 +405,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           )}
         </div>
 
-        {/* --- 📝 SECCIÓN DESPLEGABLE DE COMENTARIOS --- */}
+        {/* --- SECCIÓN COMENTARIOS --- */}
         {showComments && (
           <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -430,7 +430,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
               )}
             </div>
 
-            {/* Formulario de envío */}
+            {/* Formulario envío */}
             {userEmail && (
               <form onSubmit={handleAddComment} className="flex gap-2 items-center pt-1">
                 <input

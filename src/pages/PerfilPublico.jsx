@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { MapPin, ArrowLeft, Loader2, MessageSquare, Calendar } from 'lucide-react';
 
 export default function PerfilPublico() {
-  const { id } = useParams(); // Lee el ID del usuario desde la URL
+  const { id } = useParams(); // Puede recibir tanto el ID como el EMAIL
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
@@ -25,24 +25,33 @@ export default function PerfilPublico() {
     const fetchPublicData = async () => {
       setLoading(true);
       
-      // 1. Traer los datos del perfil seleccionado
-      const { data: profileData, error: profileErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const decodedId = decodeURIComponent(id);
+      let query = supabase.from('profiles').select('*');
+      
+      // TRUCO INTELIGENTE: Si tiene una '@', buscamos por email, si no, por ID (UUID)
+      if (decodedId.includes('@')) {
+        query = query.or(`user_email.eq.${decodedId},email.eq.${decodedId}`);
+      } else {
+        query = query.eq('id', decodedId);
+      }
+      
+      const { data: profileData, error: profileErr } = await query.maybeSingle();
 
       if (profileData) {
         setProfile(profileData);
         
-        // 2. Traer solo los posts que pertenecen a este usuario
-        const { data: postsData } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('user_id', id)
-          .order('created_at', { ascending: false });
-          
-        if (postsData) setUserPosts(postsData);
+        const cleanEmail = (profileData.user_email || profileData.email)?.toLowerCase().trim();
+        
+        if (cleanEmail) {
+          // Buscamos los posts vinculados al correo del autor usando vuestro campo 'created_date'
+          const { data: postsData } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('author_email', cleanEmail)
+            .order('created_date', { ascending: false });
+            
+          if (postsData) setUserPosts(postsData);
+        }
       } else {
         console.error("Error al cargar perfil:", profileErr);
       }
@@ -77,7 +86,6 @@ export default function PerfilPublico() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Botón de volver */}
       <button 
         onClick={() => navigate(-1)} 
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
@@ -86,7 +94,6 @@ export default function PerfilPublico() {
         Volver
       </button>
 
-      {/* Tarjeta de Perfil Superior */}
       <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-5">
           <div className={`w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
@@ -122,7 +129,6 @@ export default function PerfilPublico() {
               <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>
             )}
 
-            {/* Futuro Botón de Chat */}
             <div className="pt-2">
               <button 
                 onClick={() => alert("El sistema de mensajería estará disponible próximamente 🚀")}
@@ -136,7 +142,6 @@ export default function PerfilPublico() {
         </div>
       </div>
 
-      {/* Listado de publicaciones antiguas */}
       <div className="space-y-4">
         <h3 className="font-cormorant text-xl font-bold text-foreground px-1">Publicaciones antiguas</h3>
         
@@ -151,7 +156,7 @@ export default function PerfilPublico() {
                 <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{post.content}</p>
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground border-t border-border/60 pt-2.5">
                   <Calendar className="w-3 h-3" />
-                  <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                  <span>{post.created_date ? new Date(post.created_date).toLocaleDateString() : ''}</span>
                 </div>
               </div>
             ))}
