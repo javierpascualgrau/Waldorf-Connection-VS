@@ -3,6 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, X, Plus } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
+// 1. IMPORTAMOS LAS FOTOS COMO VARIABLES
+import logoArtaban from '../assets/logo-1.webp';
+import fotoArtaban1 from '../assets/solidaridad-escuela-waldorf-artaban1.jpg';
+import fotoArtaban2 from '../assets/P1060744-1024x769.webp';
+import fotoArtaban3 from '../assets/images.jpeg';
+import fotoArtaban4 from '../assets/Micael-010-2048x1369.jpg';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
 
@@ -39,6 +45,7 @@ const MOCK_DETAILS = {
     id: 'artaban',
     name: 'Escuela Artabán',
     location: 'Torrelodones, Madrid',
+<<<<<<< HEAD
     description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva.',
     activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín'],
     cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=800&q=80',
@@ -49,6 +56,16 @@ const MOCK_DETAILS = {
       'https://images.unsplash.com/photo-1507676184212-d0330a1523fe?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80'
     ],
+=======
+    description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
+    activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
+    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
+    
+    // AQUÍ ESTÁ EL CAMBIO: Usamos las variables importadas
+    avatar_url: logoArtaban, 
+    images: [fotoArtaban1, fotoArtaban2, fotoArtaban3, fotoArtaban4], 
+    
+>>>>>>> ae3eb36984bc22d144b2941d6ee0223ea45afb9d
     num_students: 180,
     stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
     manager_id: 'simulado'
