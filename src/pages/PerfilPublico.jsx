@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { MapPin, ArrowLeft, Loader2, MessageSquare, Calendar } from 'lucide-react';
 
 export default function PerfilPublico() {
-  const { id } = useParams(); // Recibe el ID (desde Comunidad) o el Email (desde el Feed)
+  const { id } = useParams(); 
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
@@ -28,8 +28,7 @@ export default function PerfilPublico() {
       const decodedId = decodeURIComponent(id);
       let query = supabase.from('profiles').select('*');
       
-      // 💡 CORRECCIÓN MÁGICA: Tu columna real es 'user_email'. 
-      // Usamos .ilike para que no importen las mayúsculas o minúsculas.
+      // Si tiene una arroba, buscamos directamente por la columna real: user_email
       if (decodedId.includes('@')) {
         query = query.ilike('user_email', decodedId);
       } else {
@@ -44,7 +43,6 @@ export default function PerfilPublico() {
         const cleanEmail = profileData.user_email?.toLowerCase().trim();
         
         if (cleanEmail) {
-          // Buscamos los posts antiguos usando también ilike para asegurar el tiro
           const { data: postsData } = await supabase
             .from('posts')
             .select('*')
