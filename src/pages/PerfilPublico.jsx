@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { MapPin, ArrowLeft, Loader2, MessageSquare, Calendar } from 'lucide-react';
 
 export default function PerfilPublico() {
-  const { id } = useParams(); // Puede recibir tanto el ID como el EMAIL
+  const { id } = useParams(); // Recibe el ID (desde Comunidad) o el Email (desde el Feed)
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
@@ -28,9 +28,10 @@ export default function PerfilPublico() {
       const decodedId = decodeURIComponent(id);
       let query = supabase.from('profiles').select('*');
       
-      // TRUCO INTELIGENTE: Si tiene una '@', buscamos por email, si no, por ID (UUID)
+      // 💡 CORRECCIÓN MÁGICA: Tu columna real es 'user_email'. 
+      // Usamos .ilike para que no importen las mayúsculas o minúsculas.
       if (decodedId.includes('@')) {
-        query = query.or(`user_email.eq.${decodedId},email.eq.${decodedId}`);
+        query = query.ilike('user_email', decodedId);
       } else {
         query = query.eq('id', decodedId);
       }
@@ -40,14 +41,14 @@ export default function PerfilPublico() {
       if (profileData) {
         setProfile(profileData);
         
-        const cleanEmail = (profileData.user_email || profileData.email)?.toLowerCase().trim();
+        const cleanEmail = profileData.user_email?.toLowerCase().trim();
         
         if (cleanEmail) {
-          // Buscamos los posts vinculados al correo del autor usando vuestro campo 'created_date'
+          // Buscamos los posts antiguos usando también ilike para asegurar el tiro
           const { data: postsData } = await supabase
             .from('posts')
             .select('*')
-            .eq('author_email', cleanEmail)
+            .ilike('author_email', cleanEmail)
             .order('created_date', { ascending: false });
             
           if (postsData) setUserPosts(postsData);
