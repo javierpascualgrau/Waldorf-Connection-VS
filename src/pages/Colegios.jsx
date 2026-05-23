@@ -5,27 +5,42 @@ import { Search, PlusCircle, School, MapPin } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 import { Link } from 'react-router-dom';
 
-const EVENT_TYPES = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'mercadillo', label: 'Mercadillo' },
-  { value: 'fiesta_trimestral', label: 'Fiestas' },
-  { value: 'obra_teatro', label: 'Teatro' },
-  { value: 'jornada_puertas_abiertas', label: 'Puertas Abiertas' },
-  { value: 'taller_familias', label: 'Talleres' },
-  { value: 'festival', label: 'Festival' },
+// Colegios de prueba que me has pedido con sus fotos e información inventada
+const MOCK_COLEGIOS = [
+  {
+    id: 'micael-id-prueba',
+    name: 'Escuela Libre Micael',
+    location: 'Las Rozas, Madrid',
+    description: 'Colegio Waldorf pionero enfocado en el desarrollo integral, talleres artísticos y un entorno rodeado de naturaleza.',
+    avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'aravaca-id-prueba',
+    name: 'Waldorf Aravaca',
+    location: 'Aravaca, Madrid',
+    description: 'Espacio educativo basado en la pedagogía activa, el respeto al ritmo del niño y el aprendizaje vivencial.',
+    avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'artaban-id-prueba',
+    name: 'Artabán',
+    location: 'Torrelodones, Madrid',
+    description: 'Comunidad educativa Waldorf en la sierra, comprometida con el arte, el huerto escolar y el pensamiento libre.',
+    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80'
+  }
 ];
 
 export default function Colegios() {
-  const [activeTab, setActiveTab] = useState('eventos');
   const [user, setUser] = useState(null);
 
+  // Estados de Eventos (Columna derecha)
   const [events, setEvents] = useState([]);
   const [likedIds, setLikedIds] = useState(new Set());
-  const [filter, setFilter] = useState('todos');
-  const [searchEvents, setSearchEvents] = useState('');
+  const [searchEventLocation, setSearchEventLocation] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
+  // Estados de Colegios (Columna principal)
   const [schools, setSchools] = useState([]);
   const [searchSchoolName, setSearchSchoolName] = useState('');
   const [searchSchoolLocation, setSearchSchoolLocation] = useState('');
@@ -35,6 +50,7 @@ export default function Colegios() {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
 
+    // Cargar Eventos reales de la base de datos
     setLoadingEvents(true);
     const { data: eventsData, error: eventsError } = await supabase
       .from('school_events')
@@ -46,129 +62,57 @@ export default function Colegios() {
     setEvents(eventsData || []);
     setLoadingEvents(false);
 
+    // Cargar Colegios de la base de datos y fusionar con los de prueba
     setLoadingSchools(true);
     const { data: schoolsData, error: schoolsError } = await supabase
       .from('schools')
       .select('id, name, location, description, avatar_url');
 
     if (schoolsError) console.error("Error cargando colegios:", schoolsError);
-    setSchools(schoolsData || []);
+    
+    // Aquí juntamos los 3 colegios de prueba con los que vengan de Supabase
+    const dbSchools = schoolsData || [];
+    setSchools([...MOCK_COLEGIOS, ...dbSchools]);
     setLoadingSchools(false);
   };
 
   useEffect(() => { load(); }, []);
 
+  // Filtro para el tablón de eventos (por ubicación)
   const filteredEvents = events.filter(e => {
-    const matchType = filter === 'todos' || e.event_type === filter;
-    const matchSearch = !searchEvents || e.school_name?.toLowerCase().includes(searchEvents.toLowerCase()) || e.title?.toLowerCase().includes(searchEvents.toLowerCase());
-    return matchType && matchSearch;
+    return !searchEventLocation || e.school_name?.toLowerCase().includes(searchEventLocation.toLowerCase());
   });
 
+  // Filtro para el directorio principal (por nombre y ubicación)
   const filteredSchools = schools.filter((school) => {
     const matchesName = school.name.toLowerCase().includes(searchSchoolName.toLowerCase());
     const matchesLocation = school.location.toLowerCase().includes(searchSchoolLocation.toLowerCase());
     return matchesName && matchesLocation;
   });
   return (
-    <div>
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="font-cormorant text-3xl font-semibold">Colegios Waldorf</h1>
-          {activeTab === 'eventos' && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Nuevo evento
-            </button>
-          )}
-        </div>
-
-        <div className="flex gap-4 border-b border-border pb-1">
-          <button 
-            onClick={() => setActiveTab('eventos')}
-            className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === 'eventos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Tablón de Eventos
-          </button>
-          <button 
-            onClick={() => setActiveTab('directorio')}
-            className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === 'directorio' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Directorio de Colegios
-          </button>
-        </div>
+    <div className="max-w-7xl mx-auto px-1">
+      {/* TÍTULO GENERAL DE LA PÁGINA */}
+      <div className="mb-6">
+        <h1 className="font-cormorant text-4xl font-semibold text-foreground">Comunidad de Colegios</h1>
+        <p className="text-sm text-muted-foreground mt-1">Explora los centros educativos y sus últimas novedades</p>
       </div>
 
-      {activeTab === 'eventos' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5 mb-4">
-            <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <input
-              value={searchEvents}
-              onChange={e => setSearchEvents(e.target.value)}
-              placeholder="Buscar por colegio o título de evento..."
-              className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
-            />
+      {/* REJILLA PRINCIPAL DE DOS COLUMNAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* ========================================================
+            COLUMNA IZQUIERDA (2/3): DIRECTORIO PRINCIPAL DE COLEGIOS
+            ======================================================== */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="border-b border-border pb-2">
+            <h2 className="text-xl font-medium text-foreground flex items-center gap-2">
+              <School className="w-5 h-5 text-primary" /> Centros Educativos
+            </h2>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
-            {EVENT_TYPES.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setFilter(t.value)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  filter === t.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {loadingEvents ? (
-            <div className="space-y-4">
-              {[1, 2].map(i => (
-                <div key={i} className="bg-card rounded-2xl border border-border overflow-hidden animate-pulse">
-                  <div className="h-40 bg-muted" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-muted rounded w-2/3" />
-                    <div className="h-3 bg-muted rounded w-full" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="text-center py-20">
-              <School className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="font-cormorant text-xl text-muted-foreground">No hay eventos disponibles</p>
-              <p className="text-sm text-muted-foreground mt-1">Los colegios publicarán sus eventos aquí</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredEvents.map(event => (
-                <SchoolEventCard
-                  key={event.id}
-                  event={event}
-                  userEmail={user?.email}
-                  likedIds={likedIds}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {activeTab === 'directorio' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5">
+          {/* Buscadores de Colegios */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5 border border-border/40">
               <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
                 value={searchSchoolName}
@@ -177,52 +121,54 @@ export default function Colegios() {
                 className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
               />
             </div>
-            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5">
+            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5 border border-border/40">
               <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
                 value={searchSchoolLocation}
                 onChange={e => setSearchSchoolLocation(e.target.value)}
-                placeholder="Ubicación (Ej: Madrid)..."
+                placeholder="Filtrar por municipio o ubicación..."
                 className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
               />
             </div>
           </div>
 
+          {/* Mapeo de Tarjetas de Colegios */}
           {loadingSchools ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="bg-card rounded-2xl border border-border h-48 animate-pulse"></div>
+              {[1, 2, 3].map(i => (
+                <div key={i} className="bg-card rounded-2xl border border-border h-48 animate-pulse" />
               ))}
             </div>
           ) : filteredSchools.length === 0 ? (
-            <div className="text-center py-20">
-              <School className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="font-cormorant text-xl text-muted-foreground">No se encontraron colegios</p>
+            <div className="text-center py-12 bg-card rounded-2xl border border-border">
+              <School className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-muted-foreground text-sm">No se han encontrado colegios con esos filtros.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredSchools.map((school) => (
-                <div key={school.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col">
-                  <div className="h-16 bg-muted"></div>
+                <div key={school.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col hover:shadow-md transition-shadow">
+                  {/* Foto de portada inventada usando un degradado estético */}
+                  <div className="h-20 bg-gradient-to-r from-primary/20 via-primary/5 to-muted"></div>
                   <div className="p-4 relative flex-1 flex flex-col">
                     <img 
-                      src={school.avatar_url || 'https://via.placeholder.com/150'} 
+                      src={school.avatar_url} 
                       alt={school.name}
-                      className="w-16 h-16 rounded-full border-4 border-card absolute -top-8 left-4 object-cover bg-muted"
+                      className="w-14 h-14 rounded-2xl border-4 border-card absolute -top-7 left-4 object-cover shadow-sm bg-muted"
                     />
-                    <div className="mt-8 mb-2">
-                      <h2 className="font-semibold text-lg leading-tight">{school.name}</h2>
+                    <div className="mt-7 mb-2">
+                      <h3 className="font-semibold text-base leading-tight text-foreground">{school.name}</h3>
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3" /> {school.location}
+                        <MapPin className="w-3 h-3 text-primary" /> {school.location}
                       </p>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">{school.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-4 flex-1">{school.description}</p>
                     
                     <Link 
                       to={`/colegios/${school.id}`} 
-                      className="block text-center bg-muted hover:bg-muted/80 text-foreground font-medium text-sm py-2.5 px-4 rounded-xl transition-colors"
+                      className="block text-center bg-muted hover:bg-muted/80 text-foreground font-medium text-xs py-2 px-4 rounded-xl transition-colors border border-border/40"
                     >
-                      Ver perfil
+                      Ver perfil completo
                     </Link>
                   </div>
                 </div>
@@ -230,8 +176,61 @@ export default function Colegios() {
             </div>
           )}
         </div>
-      )}
 
+        {/* ========================================================
+            COLUMNA DERECHA (1/3): TABLÓN DE EVENTOS SECUNDARIO
+            ======================================================== */}
+        <div className="space-y-4 border-l border-border/60 pl-0 lg:pl-6">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <h2 className="text-lg font-medium text-foreground">Tablón de Anuncios</h2>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              <PlusCircle className="w-3.5 h-3.5" /> Publicar
+            </button>
+          </div>
+
+          {/* Filtro de ubicación para eventos */}
+          <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-1.5 border border-border/30">
+            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <input
+              value={searchEventLocation}
+              onChange={e => setSearchEventLocation(e.target.value)}
+              placeholder="Filtrar eventos por zona..."
+              className="bg-transparent text-xs flex-1 focus:outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+
+          {/* Listado vertical de Eventos */}
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin">
+            {loadingEvents ? (
+              <div className="space-y-3">
+                {[1, 2].map(i => (
+                  <div key={i} className="bg-card rounded-xl h-24 border border-border animate-pulse" />
+                ))}
+              </div>
+            ) : filteredEvents.length === 0 ? (
+              <div className="text-center py-10 bg-muted/20 rounded-xl border border-dashed border-border">
+                <p className="text-xs text-muted-foreground">No hay eventos en esta zona</p>
+              </div>
+            ) : (
+              filteredEvents.map(event => (
+                <div key={event.id} className="transform scale-95 origin-top-left">
+                  <SchoolEventCard
+                    event={event}
+                    userEmail={user?.email}
+                    likedIds={likedIds}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* MODAL DE CREACIÓN */}
       {showCreateModal && (
         <CreateSchoolEventModal
           user={user}
