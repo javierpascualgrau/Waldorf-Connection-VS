@@ -33,7 +33,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [currentPost, setCurrentPost] = useState(post);
   const menuRef = useRef();
 
-  // NUEVO ESTADO: Guarda el perfil en tiempo real del autor del post
   const [authorProfile, setAuthorProfile] = useState(null);
 
   // Estados para comentarios
@@ -44,6 +43,10 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // 📝 NUEVOS ESTADOS: Controlan la edición de comentarios
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+
   useEffect(() => {
     setLiked(likedIds?.has(postId));
   }, [likedIds, postId]);
@@ -52,7 +55,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setFollowing(followingIds?.has(authorEmailClean));
   }, [followingIds, authorEmailClean]);
 
-  // NUEVO EFFECT: Busca los datos actualizados del usuario (Nombre, Foto, Rol) en tiempo real
   useEffect(() => {
     const loadAuthorProfile = async () => {
       if (!authorEmailClean) return;
@@ -66,7 +68,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     loadAuthorProfile();
   }, [authorEmailClean]);
 
-  // Cargar comentarios cuando se expande el panel
   useEffect(() => {
     if (showComments) {
       const loadComments = async () => {
@@ -86,11 +87,18 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
 
   const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
 
-  // Variables inteligentes: Priorizan el perfil en tiempo real, si no existe usan lo estático del post
   const displayName = authorProfile?.display_name || authorProfile?.full_name || currentPost.author_name || 'Usuario';
   const avatarUrl = authorProfile?.avatar_url || currentPost.author_avatar;
   const displayRole = authorProfile?.role || currentPost.author_role;
   const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const handleLike = async () => {
     if (loading || !userEmail || !postId) return;
@@ -196,13 +204,15 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       setComments(prev => [...prev, insertedData]);
       setCommentsCount(updatedCount);
       setNewComment('');
-    } else {
-      console.error("❌ Error al actualizar contador de comentarios:", errorUpdate);
     }
     setSubmittingComment(false);
   };
 
+  // --- FUNCIÓN PARA BORRAR COMENTARIO (MEJORADA) ---
   const handleDeleteComment = async (commentId) => {
+    const confirmar = window.confirm("¿Seguro que quieres borrar este comentario?");
+    if (!confirmar) return;
+
     const numericPostId = Number(postId);
 
     const { error: errorDelete } = await supabase
@@ -224,8 +234,30 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     if (!errorUpdate) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setCommentsCount(updatedCount);
+    }
+  };
+
+  // 📝 NUEVA FUNCIÓN: Activa el modo edición cargando el texto anterior
+  const startEditComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content);
+  };
+
+  // 📝 NUEVA FUNCIÓN: Guarda el comentario editado en Supabase
+  const handleUpdateComment = async (commentId) => {
+    if (!editingCommentText.trim()) return;
+
+    const { error } = await supabase
+      .from('post_comments')
+      .update({ content: editingCommentText.trim() })
+      .eq('id', commentId);
+
+    if (!error) {
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, content: editingCommentText.trim() } : c));
+      setEditingCommentId(null);
+      setEditingCommentText('');
     } else {
-      console.error("❌ Error al restar contador de comentarios:", errorUpdate);
+      console.error("❌ Error al editar comentario:", error);
     }
   };
 
@@ -275,14 +307,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           : 'bg-card border border-border'
       }`}>
         
-        {/* Cabecera: Autor y Opciones */}
+        {/* Cabecera */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          
           <Link 
             to={`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`} 
             className="flex items-start gap-3 flex-1 min-w-0 group cursor-pointer"
           >
-            {/* CORRECCIÓN: Ahora usa la variable dinámica avatarUrl */}
             <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity overflow-hidden border border-border">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -292,7 +322,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             </div>
             <div className="flex-1 min-w-0 group-hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2 flex-wrap">
-                {/* CORRECCIÓN: Ahora usa la variable dinámica displayName */}
                 <span className="font-medium text-sm text-foreground">{displayName}</span>
                 {displayRole && (
                   <span className="text-xs text-muted-foreground">{ROLE_LABELS[displayRole] || displayRole}</span>
@@ -304,7 +333,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             </div>
           </Link>
 
-          {/* Opciones Ocultas / Filtros */}
+          {/* Opciones */}
           <div className="flex gap-2 items-center flex-shrink-0">
             {currentPost.is_service_offer && (
               <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -407,7 +436,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           )}
         </div>
 
-        {/* Sección Comentarios */}
+        {/* --- 📝 SECCIÓN DE COMENTARIOS MEJORADA CON EDICIÓN Y BORRADO --- */}
         {showComments && (
           <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -418,17 +447,72 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
               ) : comments.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic pl-1 py-1">Aún no hay comentarios. ¡Sé el primero en responder!</p>
               ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="bg-muted/40 rounded-xl p-3 text-xs">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-foreground/90">{comment.author_name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {format(new Date(comment.created_at), "d MMM HH:mm", { locale: es })}
-                      </span>
+                comments.map((comment) => {
+                  // Comprobamos si el comentario pertenece al usuario conectado
+                  const isCommentOwner = userEmail && userEmail.toLowerCase().trim() === comment.user_email?.toLowerCase().trim();
+                  const isEditingThis = editingCommentId === comment.id;
+
+                  return (
+                    <div key={comment.id} className="bg-muted/40 rounded-xl p-3 text-xs space-y-1 relative group transition-all">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-foreground/90">{comment.author_name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(comment.created_at), "d MMM HH:mm", { locale: es })}
+                          </span>
+                          
+                          {/* Botones de acción rápidos (solo visibles al hacer hover si eres el dueño) */}
+                          {isCommentOwner && !isEditingThis && (
+                            <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => startEditComment(comment)}
+                                className="text-muted-foreground hover:text-primary transition-colors p-0.5"
+                                title="Editar comentario"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                                title="Borrar comentario"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Si está editando muestra el input, si no, el texto normal */}
+                      {isEditingThis ? (
+                        <div className="flex gap-2 items-center mt-1 pt-1">
+                          <input
+                            type="text"
+                            className="flex-1 bg-card rounded-lg py-1 px-2 text-xs outline-none focus:ring-1 focus:ring-primary text-foreground border border-border"
+                            value={editingCommentText}
+                            onChange={(e) => setEditingCommentText(e.target.value)}
+                            maxLength={300}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleUpdateComment(comment.id)}
+                            className="text-primary font-medium hover:underline text-[11px] flex-shrink-0"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => setEditingCommentId(null)}
+                            className="text-muted-foreground hover:underline text-[11px] flex-shrink-0"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+                      )}
                     </div>
-                    <p className="text-muted-foreground leading-relaxed">{comment.content}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
