@@ -6,45 +6,54 @@ import SchoolEventCard from '@/components/SchoolEventCard';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
 
+// Datos extendidos y REALES inspirados en los tres colegios para la demo
 const MOCK_DETAILS = {
   'micael': {
     id: 'micael',
     name: 'Escuela Libre Micael',
-    location: 'Las Rozas, Madrid',
-    description: 'Fundada en 1979, es el centro Waldorf más antiguo de España. Cuenta con un entorno natural único enfocado en el desarrollo integral.',
-    activities: ['Talla de madera', 'Coro', 'Huerto escolar', 'Teatro'],
+    location: 'Ctra. de la Coruña Km 21,3 - Las Rozas (Madrid)',
+    description: 'Fundada en 1979, la Escuela Libre Micael es pionera en la pedagogía Waldorf en España. Acompañamos a los alumnos desde el Jardín de Infancia hasta Bachillerato, buscando que "la educación vaya unida al despertar de la Conciencia". Integramos el arte, la música y el respeto a la naturaleza en cada etapa del desarrollo.',
+    activities: ['Olimpiadas Griegas', 'Agrimensura', 'Prácticas Sociales', 'Teatro y Coro', 'Los Oficios', 'Arquitectura', 'Huerto Escolar'],
     images: [
-      'https://images.unsplash.com/photo-1541339907198-e08756ebafe3?q=80&w=600', 
-      'https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=600',
-      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600'
+      'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80', 
+      'https://images.unsplash.com/photo-1541339907198-e08756ebafe3?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=800&q=80'
     ],
     avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
-    num_students: 450,
-    stages: ['Infantil', 'Primaria', 'ESO', 'Bachillerato'],
-    manager_id: 'simulado' // Para que os deje editar en las pruebas
+    num_students: 380,
+    stages: ['Infantil 1-3', 'Infantil 3-6', 'Primaria', 'Secundaria', 'Bachillerato'],
+    manager_id: 'simulado'
   },
   'aravaca': {
     id: 'aravaca',
-    name: 'Waldorf Aravaca',
-    location: 'Aravaca, Madrid',
-    description: 'Un espacio cálido y familiar donde se respira el respeto a la infancia. Especializados en los primeros septenios.',
-    activities: ['Acuarela', 'Euritmia', 'Panadería'],
-    images: ['https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=600'],
+    name: 'Escuela Waldorf Aravaca',
+    location: 'Camino del Barrial, Aravaca (Madrid)',
+    description: 'Un entorno escolar que busca el equilibrio entre el pensar, el sentir y la voluntad. Ofrecemos una pedagogía integral basada en la comprensión del desarrollo físico, intelectual y emocional. Fomentamos el aprendizaje vivencial, los hábitos saludables y el trabajo manual, guiados por un tutor que acompaña toda la etapa primaria.',
+    activities: ['Euritmia', 'Costura y Ganchillo', 'Talla y Carpintería', 'Pintura a la Acuarela', 'Educación Física Bothmer', 'Teatro'],
+    images: [
+      'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1602498456745-e9503b30470b?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1574620027658-b67484d85bd7?auto=format&fit=crop&w=800&q=80'
+    ],
     avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
-    num_students: 180,
-    stages: ['Infantil', 'Primaria'],
+    num_students: 250,
+    stages: ['Infantil', 'Primaria', 'Secundaria'],
     manager_id: 'simulado'
   },
   'artaban': {
     id: 'artaban',
     name: 'Escuela Artabán',
-    location: 'Torrelodones, Madrid',
-    description: 'Situada en la sierra de Madrid, Artabán destaca por su fuerte comunidad de padres y su enfoque en el arte.',
-    activities: ['Música', 'Artesanía', 'Senderismo'],
-    images: ['https://images.unsplash.com/photo-1516627145497-ae6968895b74?q=80&w=600'],
+    location: 'Av. Conde de las Almenas - Torrelodones (Madrid)',
+    description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva. Acompañamos a cada alumno respetando su ritmo singular, fomentando la autonomía, las habilidades prácticas para la vida diaria y el contacto directo con la naturaleza.',
+    activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín', 'Gimnasia Bothmer', 'Escuela de Familias'],
+    images: [
+      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1507676184212-d0330a1523fe?auto=format&fit=crop&w=800&q=80'
+    ],
     avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
-    num_students: 220,
-    stages: ['Infantil', 'Primaria', 'ESO'],
+    num_students: 180,
+    stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
     manager_id: 'simulado'
   }
 };
