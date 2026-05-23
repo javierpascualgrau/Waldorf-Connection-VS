@@ -4,15 +4,10 @@ import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, X, Plus } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
 
-// 1. IMPORTAMOS TUS IMÁGENES LOCALES AQUÍ PARA QUE REACT LAS EMPAQUETE
-import logoArtaban from '@/assets/logo-1.webp';
-import fotoArtaban1 from '@/assets/solidaridad-escuela-waldorf-artaban1.jpg';
-import fotoArtaban2 from '@/assets/P1060744-1024x769.webp';
-import fotoArtaban3 from '@/assets/images.jpeg';
-import fotoArtaban4 from '@/assets/Micael-010-2048x1369.jpg';
+const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
 
-const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
-
+// Datos extendidos, REALES e ILUSTRATIVOS para la demo de los tres colegios
+// Datos actualizados con tus imágenes reales para Artabán y portadas tipo LinkedIn
 const MOCK_DETAILS = {
   'micael': {
     id: 'micael',
@@ -20,6 +15,7 @@ const MOCK_DETAILS = {
     location: 'Las Rozas, Madrid',
     description: 'Pionera en la pedagogía Waldorf en España (1979). Acompañamos desde Infantil hasta Bachillerato.',
     activities: ['Olimpiadas Griegas', 'Teatro y Coro', 'Huerto Escolar'],
+    // Portada simbólica (Naturaleza/Madera)
     cover_url: 'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
     num_students: 380,
@@ -32,6 +28,7 @@ const MOCK_DETAILS = {
     location: 'Aravaca, Madrid',
     description: 'Un entorno cálido especializado en los primeros septenios.',
     activities: ['Acuarela', 'Euritmia', 'Panadería'],
+    // Portada simbólica (Arte/Luz)
     cover_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
     num_students: 250,
@@ -42,20 +39,20 @@ const MOCK_DETAILS = {
     id: 'artaban',
     name: 'Escuela Artabán',
     location: 'Torrelodones, Madrid',
-    description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
-    activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
-    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
-    // 2. USAMOS LAS VARIABLES QUE HEMOS IMPORTADO ARRIBA
-    avatar_url: logoArtaban, 
+    description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva.',
+    activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín'],
+    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=800&q=80',
+    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
     images: [
-      fotoArtaban1,
-      fotoArtaban2,
-      fotoArtaban3,
-      fotoArtaban4
+      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1507676184212-d0330a1523fe?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80'
     ],
     num_students: 180,
-    stages: ['Infantil', 'Primaria', 'ESO', 'Ed. Especial'],
+    stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
     manager_id: 'simulado'
+ 
   }
 };
 
