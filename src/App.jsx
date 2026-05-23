@@ -9,12 +9,12 @@ import Feed from '@/pages/Feed';
 import Colegios from '@/pages/Colegios';
 import Comunidad from '@/pages/Comunidad';
 import Perfil from '@/pages/Perfil';
-import Login from '@/pages/Login'; // Importamos tu nueva puerta de entrada
+import Login from '@/pages/Login';
+import PerfilPublico from '@/pages/PerfilPublico'; // 1. IMPORTAMOS LA NUEVA PÁGINA
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
 
-  // 1. Mientras Supabase comprueba si hay sesión, enseñamos el spinner
   if (isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -28,12 +28,10 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // 2. Si NO hay usuario, solo mostramos la página de Login
   if (!user) {
     return <Login />;
   }
 
-  // 3. Si SÍ hay usuario, mostramos todas las rutas protegidas
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -41,8 +39,10 @@ const AuthenticatedApp = () => {
         <Route path="/colegios" element={<Colegios />} />
         <Route path="/comunidad" element={<Comunidad />} />
         <Route path="/perfil" element={<Perfil />} />
+        
+        {/* 2. NUEVA RUTA DINÁMICA: Carga el perfil según el ID */}
+        <Route path="/usuario/:id" element={<PerfilPublico />} />
       </Route>
-      {/* Si intentan ir a una ruta que no existe, volvemos al inicio */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
