@@ -208,20 +208,28 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setSubmittingComment(false);
   };
 
-  // --- FUNCIÓN PARA BORRAR COMENTARIO (MEJORADA) ---
+  // --- FUNCIÓN PARA BORRAR COMENTARIO (BLINDADA CON DETECCIÓN DE RLS) ---
   const handleDeleteComment = async (commentId) => {
     const confirmar = window.confirm("¿Seguro que quieres borrar este comentario?");
     if (!confirmar) return;
 
     const numericPostId = Number(postId);
 
-    const { error: errorDelete } = await supabase
+    // Forzamos el ID a número y pedimos el .select() de vuelta para confirmar la acción
+    const { data, error: errorDelete } = await supabase
       .from('post_comments')
       .delete()
-      .eq('id', commentId);
+      .eq('id', Number(commentId))
+      .select();
 
     if (errorDelete) {
       console.error("❌ Error al eliminar el comentario:", errorDelete);
+      return;
+    }
+
+    // Si Supabase devuelve un array vacío, es que las políticas RLS bloquearon el borrado en la nube
+    if (!data || data.length === 0) {
+      alert("⚠️ ¡Cuidado! Supabase no ha borrado la fila de la base de datos. Esto es porque os falta activar la política de DELETE para 'post_comments' en vuestro panel de Supabase.");
       return;
     }
 
@@ -237,13 +245,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     }
   };
 
-  // 📝 NUEVA FUNCIÓN: Activa el modo edición cargando el texto anterior
   const startEditComment = (comment) => {
     setEditingCommentId(comment.id);
     setEditingCommentText(comment.content);
   };
 
-  // 📝 NUEVA FUNCIÓN: Guarda el comentario editado en Supabase
   const handleUpdateComment = async (commentId) => {
     if (!editingCommentText.trim()) return;
 
@@ -436,7 +442,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           )}
         </div>
 
-        {/* --- 📝 SECCIÓN DE COMENTARIOS MEJORADA CON EDICIÓN Y BORRADO --- */}
+        {/* Sección de comentarios */}
         {showComments && (
           <div className="mt-4 pt-4 border-t border-border/40 space-y-3 animate-fade-down">
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -448,7 +454,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 <p className="text-xs text-muted-foreground italic pl-1 py-1">Aún no hay comentarios. ¡Sé el primero en responder!</p>
               ) : (
                 comments.map((comment) => {
-                  // Comprobamos si el comentario pertenece al usuario conectado
                   const isCommentOwner = userEmail && userEmail.toLowerCase().trim() === comment.user_email?.toLowerCase().trim();
                   const isEditingThis = editingCommentId === comment.id;
 
@@ -461,7 +466,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                             {format(new Date(comment.created_at), "d MMM HH:mm", { locale: es })}
                           </span>
                           
-                          {/* Botones de acción rápidos (solo visibles al hacer hover si eres el dueño) */}
                           {isCommentOwner && !isEditingThis && (
                             <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button 
@@ -483,7 +487,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                         </div>
                       </div>
                       
-                      {/* Si está editando muestra el input, si no, el texto normal */}
                       {isEditingThis ? (
                         <div className="flex gap-2 items-center mt-1 pt-1">
                           <input
