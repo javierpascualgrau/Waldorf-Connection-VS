@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, Users, MapPin, UserPlus, UserCheck, Loader2, Globe, Building2 } from 'lucide-react';
 import ProfileSearch from '@/components/ProfileSearch';
-import { Link } from 'react-router-dom'; // 1. IMPORTAMOS LINK
+import { Link } from 'react-router-dom';
 
 const ROLES = [
   { value: 'todos', label: 'Todos' },
@@ -139,7 +139,8 @@ export default function Comunidad() {
             }`}
           >
             <Users className="w-4 h-4" />
-            Mi Red
+            {/* 💡 CAMBIO AQUÍ: De "Mi Red" a "Raíz" */}
+            Raíz
           </button>
           
           <button
@@ -213,7 +214,7 @@ export default function Comunidad() {
             return (
               <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-start gap-3">
                 
-                {/* 2. CONTENEDOR IZQUIERDO AHORA ES UN ENLACE */}
+                {/* Contenedor izquierdo enlace */}
                 <Link 
                   to={`/usuario/${profile.id}`} 
                   className="flex items-start gap-4 flex-1 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
@@ -243,7 +244,6 @@ export default function Comunidad() {
                       </div>
                     )}
 
-                    {/* NUEVO: StopPropagation para que el clic aquí no abra el perfil */}
                     {profile.company_website && (
                       <a 
                         href={profile.company_website.startsWith('http') ? profile.company_website : `https://${profile.company_website}`}
@@ -274,7 +274,7 @@ export default function Comunidad() {
                   </div>
                 </Link>
 
-                {/* Contenedor Derecho: Botón de seguir */}
+                {/* Botón de seguir */}
                 {profileEmailClean && (
                   <button
                     onClick={() => handleFollowToggle(profileEmailClean)}

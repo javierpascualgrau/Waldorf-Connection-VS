@@ -64,9 +64,12 @@ export default function Layout() {
     getSession();
   }, []);
 
+  // 💡 CONDICIÓN MÁGICA: El botón solo será visible en Inicio ('/') o en Mi Perfil ('/perfil')
+  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil';
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top header - ¡Buscador removido de aquí! */}
+      {/* Top header */}
       <header className="sticky top-0 z-40 bg-card/90 backdrop-blur-md border-b border-border">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <Link to="/" className="flex items-center gap-1.5 flex-shrink-0">
@@ -76,13 +79,16 @@ export default function Layout() {
             <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connect</span>
           </Link>
           
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors flex-shrink-0"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Publicar</span>
-          </button>
+          {/* 🔥 EL BOTÓN CONDICIONAL: Solo se renderiza si mostrarBotonPublicar es true */}
+          {mostrarBotonPublicar && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors flex-shrink-0 animate-fade-in"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Publicar</span>
+            </button>
+          )}
         </div>
       </header>
 
