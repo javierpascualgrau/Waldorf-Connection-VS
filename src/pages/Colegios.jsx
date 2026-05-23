@@ -1,243 +1,118 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import SchoolEventCard from '@/components/SchoolEventCard';
-import { Search, PlusCircle, School, MapPin } from 'lucide-react';
+import { Search, PlusCircle, MapPin } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 import { Link } from 'react-router-dom';
 
-// Colegios de prueba que me has pedido con sus fotos e información inventada
+// IDs corregidos para que coincidan con los perfiles
 const MOCK_COLEGIOS = [
-  {
-    id: 'micael-id-prueba',
-    name: 'Escuela Libre Micael',
-    location: 'Las Rozas, Madrid',
-    description: 'Colegio Waldorf pionero enfocado en el desarrollo integral, talleres artísticos y un entorno rodeado de naturaleza.',
-    avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80'
-  },
-  {
-    id: 'aravaca-id-prueba',
-    name: 'Waldorf Aravaca',
-    location: 'Aravaca, Madrid',
-    description: 'Espacio educativo basado en la pedagogía activa, el respeto al ritmo del niño y el aprendizaje vivencial.',
-    avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80'
-  },
-  {
-    id: 'artaban-id-prueba',
-    name: 'Artabán',
-    location: 'Torrelodones, Madrid',
-    description: 'Comunidad educativa Waldorf en la sierra, comprometida con el arte, el huerto escolar y el pensamiento libre.',
-    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80'
-  }
+  { id: 'micael', name: 'Escuela Libre Micael', location: 'Las Rozas, Madrid', description: 'El colegio Waldorf más veterano de España.', avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80' },
+  { id: 'aravaca', name: 'Waldorf Aravaca', location: 'Aravaca, Madrid', description: 'Educación Waldorf en un entorno familiar.', avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80' },
+  { id: 'artaban', name: 'Escuela Artabán', location: 'Torrelodones, Madrid', description: 'Pedagogía Waldorf en plena sierra madrileña.', avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80' }
 ];
 
 export default function Colegios() {
-  const [user, setUser] = useState(null);
-
-  // Estados de Eventos (Columna derecha)
-  const [events, setEvents] = useState([]);
-  const [likedIds, setLikedIds] = useState(new Set());
-  const [searchEventLocation, setSearchEventLocation] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [loadingEvents, setLoadingEvents] = useState(true);
-
-  // Estados de Colegios (Columna principal)
+  const [activeTab, setActiveTab] = useState('directorio'); // 'directorio' o 'eventos'
+  const [search, setSearch] = useState('');
   const [schools, setSchools] = useState([]);
-  const [searchSchoolName, setSearchSchoolName] = useState('');
-  const [searchSchoolLocation, setSearchSchoolLocation] = useState('');
-  const [loadingSchools, setLoadingSchools] = useState(true);
+  const [events, setEvents] = useState([]);
+  const [showModal, setShowModal] = useState(false);
 
-  const load = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: sData } = await supabase.from('schools').select('*');
+      const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
+      setSchools([...MOCK_COLEGIOS, ...(sData || [])]);
+      setEvents(eData || []);
+    };
+    fetchData();
+  }, []);
 
-    // Cargar Eventos reales de la base de datos
-    setLoadingEvents(true);
-    const { data: eventsData, error: eventsError } = await supabase
-      .from('school_events')
-      .select('*')
-      .order('created_date', { ascending: false });
+  const filteredSchools = schools.filter(s => 
+    s.name.toLowerCase().includes(search.toLowerCase()) || s.location.toLowerCase().includes(search.toLowerCase())
+  );
 
-    if (eventsError) console.error("Error cargando eventos:", eventsError);
-    setLikedIds(new Set());
-    setEvents(eventsData || []);
-    setLoadingEvents(false);
+  const filteredEvents = events.filter(e => 
+    e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase())
+  );
 
-    // Cargar Colegios de la base de datos y fusionar con los de prueba
-    setLoadingSchools(true);
-    const { data: schoolsData, error: schoolsError } = await supabase
-      .from('schools')
-      .select('id, name, location, description, avatar_url');
-
-    if (schoolsError) console.error("Error cargando colegios:", schoolsError);
-    
-    // Aquí juntamos los 3 colegios de prueba con los que vengan de Supabase
-    const dbSchools = schoolsData || [];
-    setSchools([...MOCK_COLEGIOS, ...dbSchools]);
-    setLoadingSchools(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  // Filtro para el tablón de eventos (por ubicación)
-  const filteredEvents = events.filter(e => {
-    return !searchEventLocation || e.school_name?.toLowerCase().includes(searchEventLocation.toLowerCase());
-  });
-
-  // Filtro para el directorio principal (por nombre y ubicación)
-  const filteredSchools = schools.filter((school) => {
-    const matchesName = school.name.toLowerCase().includes(searchSchoolName.toLowerCase());
-    const matchesLocation = school.location.toLowerCase().includes(searchSchoolLocation.toLowerCase());
-    return matchesName && matchesLocation;
-  });
   return (
-    <div className="max-w-7xl mx-auto px-1">
-      {/* TÍTULO GENERAL DE LA PÁGINA */}
-      <div className="mb-6">
-        <h1 className="font-cormorant text-4xl font-semibold text-foreground">Comunidad de Colegios</h1>
-        <p className="text-sm text-muted-foreground mt-1">Explora los centros educativos y sus últimas novedades</p>
+    <div className="max-w-5xl mx-auto px-4 pb-20 mt-6">
+      {/* HEADER */}
+      <div className="text-center mb-8">
+        <h1 className="font-cormorant text-5xl font-semibold mb-2 text-foreground">Colegios Waldorf</h1>
+        <p className="text-muted-foreground text-lg">Encuentra tu centro y descubre sus actividades</p>
       </div>
 
-      {/* REJILLA PRINCIPAL DE DOS COLUMNAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* ========================================================
-            COLUMNA IZQUIERDA (2/3): DIRECTORIO PRINCIPAL DE COLEGIOS
-            ======================================================== */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="border-b border-border pb-2">
-            <h2 className="text-xl font-medium text-foreground flex items-center gap-2">
-              <School className="w-5 h-5 text-primary" /> Centros Educativos
-            </h2>
-          </div>
+      {/* SELECTOR DE PESTAÑAS (ESTILO COMUNIDAD) */}
+      <div className="flex justify-center gap-4 mb-8 border-b border-border pb-4">
+        <button 
+          onClick={() => setActiveTab('directorio')}
+          className={`px-8 py-2.5 rounded-full font-medium transition-all ${activeTab === 'directorio' ? 'bg-primary text-white shadow-md' : 'bg-transparent text-muted-foreground hover:bg-muted'}`}
+        >
+          Directorio de Centros
+        </button>
+        <button 
+          onClick={() => setActiveTab('eventos')}
+          className={`px-8 py-2.5 rounded-full font-medium transition-all ${activeTab === 'eventos' ? 'bg-primary text-white shadow-md' : 'bg-transparent text-muted-foreground hover:bg-muted'}`}
+        >
+          Tablón de Eventos
+        </button>
+      </div>
 
-          {/* Buscadores de Colegios */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5 border border-border/40">
-              <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <input
-                value={searchSchoolName}
-                onChange={e => setSearchSchoolName(e.target.value)}
-                placeholder="Buscar colegio por nombre..."
-                className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-4 py-2.5 border border-border/40">
-              <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <input
-                value={searchSchoolLocation}
-                onChange={e => setSearchSchoolLocation(e.target.value)}
-                placeholder="Filtrar por municipio o ubicación..."
-                className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-          </div>
+      {/* BUSCADOR */}
+      <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-6 py-3 shadow-sm mb-10 max-w-2xl mx-auto">
+        <Search className="w-5 h-5 text-muted-foreground" />
+        <input 
+          value={search} 
+          onChange={e => setSearch(e.target.value)}
+          placeholder={activeTab === 'directorio' ? "Buscar colegio o ubicación..." : "Buscar eventos..."}
+          className="bg-transparent flex-1 outline-none text-base"
+        />
+      </div>
 
-          {/* Mapeo de Tarjetas de Colegios */}
-          {loadingSchools ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="bg-card rounded-2xl border border-border h-48 animate-pulse" />
-              ))}
-            </div>
-          ) : filteredSchools.length === 0 ? (
-            <div className="text-center py-12 bg-card rounded-2xl border border-border">
-              <School className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">No se han encontrado colegios con esos filtros.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredSchools.map((school) => (
-                <div key={school.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col hover:shadow-md transition-shadow">
-                  {/* Foto de portada inventada usando un degradado estético */}
-                  <div className="h-20 bg-gradient-to-r from-primary/20 via-primary/5 to-muted"></div>
-                  <div className="p-4 relative flex-1 flex flex-col">
-                    <img 
-                      src={school.avatar_url} 
-                      alt={school.name}
-                      className="w-14 h-14 rounded-2xl border-4 border-card absolute -top-7 left-4 object-cover shadow-sm bg-muted"
-                    />
-                    <div className="mt-7 mb-2">
-                      <h3 className="font-semibold text-base leading-tight text-foreground">{school.name}</h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        <MapPin className="w-3 h-3 text-primary" /> {school.location}
-                      </p>
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-4 flex-1">{school.description}</p>
-                    
-                    <Link 
-                      to={`/colegios/${school.id}`} 
-                      className="block text-center bg-muted hover:bg-muted/80 text-foreground font-medium text-xs py-2 px-4 rounded-xl transition-colors border border-border/40"
-                    >
-                      Ver perfil completo
-                    </Link>
-                  </div>
+      {/* CONTENIDO SEGÚN LA PESTAÑA */}
+      {activeTab === 'directorio' ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in zoom-in duration-300">
+          {filteredSchools.map(school => (
+            <Link to={`/colegios/${school.id}`} key={school.id} className="group bg-card border border-border rounded-3xl p-6 hover:border-primary/50 transition-all hover:shadow-lg flex flex-col">
+              <div className="relative mb-6">
+                <img src={school.avatar_url} className="w-24 h-24 rounded-2xl object-cover mx-auto bg-muted shadow-sm group-hover:scale-105 transition-transform" alt={school.name} />
+              </div>
+              <div className="text-center flex-1 flex flex-col">
+                <h3 className="text-xl font-semibold mb-1 text-foreground">{school.name}</h3>
+                <p className="text-primary text-sm flex items-center justify-center gap-1 mb-4">
+                  <MapPin className="w-3.5 h-3.5" /> {school.location}
+                </p>
+                <p className="text-muted-foreground text-sm line-clamp-2 mb-6 flex-1">
+                  {school.description}
+                </p>
+                <div className="text-xs font-bold text-primary uppercase tracking-widest bg-primary/10 py-2.5 rounded-xl border border-primary/20 group-hover:bg-primary group-hover:text-white transition-colors">
+                  Ver Perfil
                 </div>
-              ))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex justify-end mb-4">
+             <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
+               <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
+             </button>
+          </div>
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map(event => <SchoolEventCard key={event.id} event={event} />)
+          ) : (
+            <div className="text-center py-12 bg-card rounded-3xl border border-border">
+              <p className="text-muted-foreground">No se han encontrado eventos.</p>
             </div>
           )}
         </div>
-
-        {/* ========================================================
-            COLUMNA DERECHA (1/3): TABLÓN DE EVENTOS SECUNDARIO
-            ======================================================== */}
-        <div className="space-y-4 border-l border-border/60 pl-0 lg:pl-6">
-          <div className="flex items-center justify-between border-b border-border pb-2">
-            <h2 className="text-lg font-medium text-foreground">Tablón de Anuncios</h2>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> Publicar
-            </button>
-          </div>
-
-          {/* Filtro de ubicación para eventos */}
-          <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-1.5 border border-border/30">
-            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            <input
-              value={searchEventLocation}
-              onChange={e => setSearchEventLocation(e.target.value)}
-              placeholder="Filtrar eventos por zona..."
-              className="bg-transparent text-xs flex-1 focus:outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-
-          {/* Listado vertical de Eventos */}
-          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin">
-            {loadingEvents ? (
-              <div className="space-y-3">
-                {[1, 2].map(i => (
-                  <div key={i} className="bg-card rounded-xl h-24 border border-border animate-pulse" />
-                ))}
-              </div>
-            ) : filteredEvents.length === 0 ? (
-              <div className="text-center py-10 bg-muted/20 rounded-xl border border-dashed border-border">
-                <p className="text-xs text-muted-foreground">No hay eventos en esta zona</p>
-              </div>
-            ) : (
-              filteredEvents.map(event => (
-                <div key={event.id} className="transform scale-95 origin-top-left">
-                  <SchoolEventCard
-                    event={event}
-                    userEmail={user?.email}
-                    likedIds={likedIds}
-                  />
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* MODAL DE CREACIÓN */}
-      {showCreateModal && (
-        <CreateSchoolEventModal
-          user={user}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={() => { setShowCreateModal(false); load(); }}
-        />
       )}
+
+      {showModal && <CreateSchoolEventModal onClose={() => setShowModal(false)} onCreated={() => window.location.reload()} />}
     </div>
   );
 }

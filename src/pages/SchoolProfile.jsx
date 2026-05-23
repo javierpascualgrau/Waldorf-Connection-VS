@@ -29,7 +29,11 @@ const MOCK_DETAILS = {
     activities: ['Música', 'Artesanía', 'Senderismo'],
     images: ['https://images.unsplash.com/photo-1516627145497-ae6968895b74?q=80&w=600'],
     avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80'
-  }
+  },
+  // Respaldo por si se usa el ID de la versión anterior de dos columnas
+  'micael-id-prueba': { name: 'Escuela Libre Micael', location: 'Las Rozas, Madrid', description: 'Fundada en 1979...', activities: ['Talla'], images: [], avatar_url: '' },
+  'aravaca-id-prueba': { name: 'Waldorf Aravaca', location: 'Aravaca, Madrid', description: 'Un espacio cálido...', activities: ['Acuarela'], images: [], avatar_url: '' },
+  'artaban-id-prueba': { name: 'Escuela Artabán', location: 'Torrelodones, Madrid', description: 'Situada en la sierra...', activities: ['Música'], images: [], avatar_url: '' }
 };
 
 export default function SchoolProfile() {
