@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, Users, MapPin, UserPlus, UserCheck, Loader2, Globe, Building2 } from 'lucide-react';
 import ProfileSearch from '@/components/ProfileSearch';
+import { Link } from 'react-router-dom'; // 1. IMPORTAMOS LINK
 
 const ROLES = [
   { value: 'todos', label: 'Todos' },
@@ -19,7 +20,7 @@ const ROLE_LABELS = {
   exalumno: 'Exalumno',
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
-  empresa: 'Empresa', // Añadimos la etiqueta de empresa
+  empresa: 'Empresa',
 };
 
 export default function Comunidad() {
@@ -27,7 +28,6 @@ export default function Comunidad() {
   const [followingEmails, setFollowingEmails] = useState(new Set());
   const [user, setUser] = useState(null);
   
-  // NUEVO ESTADO: Controla si vemos Personas o Empresas
   const [subTab, setSubTab] = useState('personas'); 
   const [roleFilter, setRoleFilter] = useState('todos');
   
@@ -112,13 +112,10 @@ export default function Comunidad() {
     setFollowLoadingId(null);
   };
 
-  // LÓGICA DE FILTRADO ACTUALIZADA
   const filteredProfiles = profiles.filter(p => {
     if (subTab === 'empresas') {
-      // Si estamos en la pestaña de Empresas, solo mostramos las empresas
       return p.role === 'empresa';
     } else {
-      // Si estamos en Personas, excluimos las empresas y aplicamos el filtro normal
       if (p.role === 'empresa') return false;
       return roleFilter === 'todos' || p.role === roleFilter;
     }
@@ -216,8 +213,11 @@ export default function Comunidad() {
             return (
               <div key={profile.id} className="bg-card rounded-2xl border border-border p-4 hover:shadow-md hover:border-primary/20 transition-all flex justify-between items-start gap-3">
                 
-                {/* Contenedor Izquierdo */}
-                <div className="flex items-start gap-4 flex-1 min-w-0">
+                {/* 2. CONTENEDOR IZQUIERDO AHORA ES UN ENLACE */}
+                <Link 
+                  to={`/usuario/${profile.id}`} 
+                  className="flex items-start gap-4 flex-1 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
+                >
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
                     profile.role === 'empresa' ? 'bg-indigo-100 border-2 border-indigo-200' : 'bg-primary/10 border border-primary/20'
                   }`}>
@@ -243,13 +243,14 @@ export default function Comunidad() {
                       </div>
                     )}
 
-                    {/* NUEVO: Enlace web para empresas */}
+                    {/* NUEVO: StopPropagation para que el clic aquí no abra el perfil */}
                     {profile.company_website && (
                       <a 
                         href={profile.company_website.startsWith('http') ? profile.company_website : `https://${profile.company_website}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 hover:underline mb-2 truncate w-fit"
+                        onClick={(e) => e.stopPropagation()} 
+                        className="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 hover:underline mb-2 truncate w-fit relative z-10"
                       >
                         <Globe className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{profile.company_website.replace(/^https?:\/\//, '')}</span>
@@ -271,14 +272,14 @@ export default function Comunidad() {
                       </div>
                     )}
                   </div>
-                </div>
+                </Link>
 
                 {/* Contenedor Derecho: Botón de seguir */}
                 {profileEmailClean && (
                   <button
                     onClick={() => handleFollowToggle(profileEmailClean)}
                     disabled={isButtonLoading}
-                    className={`flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 shadow-sm border mt-1 ${
+                    className={`flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 shadow-sm border mt-1 relative z-10 ${
                       isCurrentlyFollowing 
                         ? 'bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30' 
                         : 'bg-muted text-muted-foreground border-transparent hover:bg-primary hover:text-primary-foreground'

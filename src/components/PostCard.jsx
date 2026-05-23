@@ -4,6 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CreatePostModal from './CreatePostModal';
+import { Link } from 'react-router-dom'; // 1. IMPORTAMOS LINK
 
 const ROLE_LABELS = {
   alumno: 'Alumno',
@@ -200,7 +201,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setSubmittingComment(false);
   };
 
-  // --- FUNCIÓN PARA BORRAR COMENTARIOS Y SINCRONIZAR LA BASE DE DATOS ---
   const handleDeleteComment = async (commentId) => {
     const numericPostId = Number(postId);
 
@@ -273,27 +273,37 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           ? 'bg-gradient-to-br from-primary/5 to-primary/10 border-2 border-primary/30 shadow-sm shadow-primary/10'
           : 'bg-card border border-border'
       }`}>
-        {/* Author */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-            {currentPost.author_avatar ? (
-              <img src={currentPost.author_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{currentPost.author_name || 'Usuario'}</span>
-              {currentPost.author_role && (
-                <span className="text-xs text-muted-foreground">{ROLE_LABELS[currentPost.author_role] || currentPost.author_role}</span>
+        
+        {/* Cabecera: Autor y Opciones */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          
+          {/* 2. ZONA IZQUIERDA CLICABLE (Avatar + Nombre) -> Lleva al perfil */}
+          <Link 
+            to={`/usuario/${currentPost.user_id}`} 
+            className="flex items-start gap-3 flex-1 min-w-0 group cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity">
+              {currentPost.author_avatar ? (
+                <img src={currentPost.author_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+              ) : (
+                <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
               )}
             </div>
-            <span className="text-xs text-muted-foreground">
-              {currentPost.created_at ? format(new Date(currentPost.created_at), "d MMM", { locale: es }) : ''}
-            </span>
-          </div>
-          <div className="flex gap-2 items-center">
+            <div className="flex-1 min-w-0 group-hover:opacity-80 transition-opacity">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm">{currentPost.author_name || 'Usuario'}</span>
+                {currentPost.author_role && (
+                  <span className="text-xs text-muted-foreground">{ROLE_LABELS[currentPost.author_role] || currentPost.author_role}</span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {currentPost.created_at ? format(new Date(currentPost.created_at), "d MMM", { locale: es }) : ''}
+              </span>
+            </div>
+          </Link>
+
+          {/* 3. ZONA DERECHA NO CLICABLE (Etiquetas y Menú) */}
+          <div className="flex gap-2 items-center flex-shrink-0">
             {currentPost.is_service_offer && (
               <span className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                 <Briefcase className="w-3 h-3" /> Servicio
@@ -302,10 +312,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
               {currentPost.category || 'General'}
             </span>
+            
             {isOwner && (
               <div className="relative" ref={menuRef}>
                 <button
-                  onClick={() => setMenuOpen(o => !o)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMenuOpen(o => !o);
+                  }}
                   className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
                 >
                   <MoreVertical className="w-4 h-4" />
