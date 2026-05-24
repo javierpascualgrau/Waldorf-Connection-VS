@@ -11,7 +11,7 @@ const ROLE_LABELS = {
   simpatizante: 'Simpatizante',
 };
 
-export default function ProfileSearch() {
+export default function ProfileSearch({ onSearch }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -30,32 +30,47 @@ export default function ProfileSearch() {
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (!query.trim()) { setResults([]); setOpen(false); return; }
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      const { data: all, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (error) {
-        console.error('Error fetching user profiles:', error);
+    
+    // Si nos pasan onSearch (estamos en Comunidad), no hacemos la búsqueda del desplegable
+    if (!onSearch) {
+      debounceRef.current = setTimeout(async () => {
+        setLoading(true);
+        const { data: all, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) {
+          console.error('Error fetching user profiles:', error);
+          setLoading(false);
+          return;
+        }
+        const q = query.toLowerCase();
+        const filtered = all.filter(p =>
+          p.display_name?.toLowerCase().includes(q) ||
+          p.role?.toLowerCase().includes(q) ||
+          p.location?.toLowerCase().includes(q) ||
+          p.school_name?.toLowerCase().includes(q)
+        );
+        setResults(filtered.slice(0, 6));
+        setOpen(true);
         setLoading(false);
-        return;
-      }
-      const q = query.toLowerCase();
-      const filtered = all.filter(p =>
-        p.display_name?.toLowerCase().includes(q) ||
-        p.role?.toLowerCase().includes(q) ||
-        p.location?.toLowerCase().includes(q) ||
-        p.school_name?.toLowerCase().includes(q)
-      );
-      setResults(filtered.slice(0, 6));
-      setOpen(true);
-      setLoading(false);
-    }, 300);
-  }, [query]);
+      }, 300);
+    }
+  }, [query, onSearch]);
 
-  const clear = () => { setQuery(''); setResults([]); setOpen(false); };
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    if (onSearch) onSearch(val);
+  };
+
+  const clear = () => { 
+    setQuery(''); 
+    setResults([]); 
+    setOpen(false); 
+    if (onSearch) onSearch('');
+  };
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -64,8 +79,8 @@ export default function ProfileSearch() {
         <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         <input
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          onFocus={() => results.length > 0 && setOpen(true)}
+          onChange={handleChange}
+          onFocus={() => results.length > 0 && !onSearch && setOpen(true)}
           placeholder="Buscar personas en la comunidad..."
           className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground min-w-0"
         />
@@ -76,8 +91,8 @@ export default function ProfileSearch() {
         )}
       </div>
 
-      {/* Menú desplegable de resultados */}
-      {open && (
+      {/* Menú desplegable de resultados (solo visible si no usamos onSearch) */}
+      {open && !onSearch && (
         <div className="absolute top-full mt-2 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden">
           {loading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Buscando...</div>

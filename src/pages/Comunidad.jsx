@@ -30,6 +30,7 @@ export default function Comunidad() {
   
   const [subTab, setSubTab] = useState('personas'); 
   const [roleFilter, setRoleFilter] = useState('todos');
+  const [searchTerm, setSearchTerm] = useState(''); // 💡 NUEVO ESTADO PARA EL BUSCADOR
   
   const [loading, setLoading] = useState(true);
   const [followLoadingId, setFollowLoadingId] = useState(null);
@@ -112,12 +113,19 @@ export default function Comunidad() {
     setFollowLoadingId(null);
   };
 
+  // 💡 LÓGICA DE FILTRADO ACTUALIZADA
   const filteredProfiles = profiles.filter(p => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      p.display_name?.toLowerCase().includes(q) ||
+      p.role?.toLowerCase().includes(q) ||
+      p.location?.toLowerCase().includes(q);
+
     if (subTab === 'empresas') {
-      return p.role === 'empresa';
+      return p.role === 'empresa' && matchesSearch;
     } else {
       if (p.role === 'empresa') return false;
-      return roleFilter === 'todos' || p.role === roleFilter;
+      return (roleFilter === 'todos' || p.role === roleFilter) && matchesSearch;
     }
   });
 
@@ -139,7 +147,6 @@ export default function Comunidad() {
             }`}
           >
             <Users className="w-4 h-4" />
-            {/* 💡 CAMBIO AQUÍ: De "Mi Red" a "Raíz" */}
             Raíz
           </button>
           
@@ -157,9 +164,9 @@ export default function Comunidad() {
         </div>
       </div>
 
-      {/* Buscador Avanzado */}
+      {/* 💡 AQUÍ LE PASAMOS LA FUNCIÓN AL BUSCADOR */}
       <div className="mb-6 relative z-50">
-        <ProfileSearch />
+        <ProfileSearch onSearch={setSearchTerm} />
       </div>
 
       {/* Role filter (Solo se muestra en la pestaña de Personas) */}
@@ -198,7 +205,7 @@ export default function Comunidad() {
         <div className="text-center py-20 bg-card rounded-3xl border border-border/50 border-dashed">
           <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
           <p className="font-cormorant text-xl text-muted-foreground">
-            {subTab === 'empresas' ? 'Aún no hay empresas registradas' : 'No hay perfiles en esta categoría'}
+            {searchTerm ? `No hay resultados para "${searchTerm}"` : (subTab === 'empresas' ? 'Aún no hay empresas registradas' : 'No hay perfiles en esta categoría')}
           </p>
         </div>
       ) : (
