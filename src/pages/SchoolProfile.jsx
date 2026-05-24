@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, X, Plus } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
-// 1. IMPORTAMOS LAS FOTOS COMO VARIABLES
+
+// IMPORTAMOS LAS FOTOS COMO VARIABLES
 import logoArtaban from '../assets/logo-1.webp';
 import fotoArtaban1 from '../assets/solidaridad-escuela-waldorf-artaban1.jpg';
 import fotoArtaban2 from '../assets/P1060744-1024x769.webp';
@@ -12,8 +13,6 @@ import fotoArtaban4 from '../assets/Micael-010-2048x1369.jpg';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
 
-// Datos extendidos, REALES e ILUSTRATIVOS para la demo de los tres colegios
-// Datos actualizados con tus imágenes reales para Artabán y portadas tipo LinkedIn
 const MOCK_DETAILS = {
   'micael': {
     id: 'micael',
@@ -21,7 +20,6 @@ const MOCK_DETAILS = {
     location: 'Las Rozas, Madrid',
     description: 'Pionera en la pedagogía Waldorf en España (1979). Acompañamos desde Infantil hasta Bachillerato.',
     activities: ['Olimpiadas Griegas', 'Teatro y Coro', 'Huerto Escolar'],
-    // Portada simbólica (Naturaleza/Madera)
     cover_url: 'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
     num_students: 380,
@@ -34,7 +32,6 @@ const MOCK_DETAILS = {
     location: 'Aravaca, Madrid',
     description: 'Un entorno cálido especializado en los primeros septenios.',
     activities: ['Acuarela', 'Euritmia', 'Panadería'],
-    // Portada simbólica (Arte/Luz)
     cover_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
     num_students: 250,
@@ -45,31 +42,14 @@ const MOCK_DETAILS = {
     id: 'artaban',
     name: 'Escuela Artabán',
     location: 'Torrelodones, Madrid',
-<<<<<<< HEAD
     description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva.',
     activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín'],
-    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=800&q=80',
-    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
-    images: [
-      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1507676184212-d0330a1523fe?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80'
-    ],
-=======
-    description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
-    activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
     cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
-    
-    // AQUÍ ESTÁ EL CAMBIO: Usamos las variables importadas
     avatar_url: logoArtaban, 
     images: [fotoArtaban1, fotoArtaban2, fotoArtaban3, fotoArtaban4], 
-    
->>>>>>> ae3eb36984bc22d144b2941d6ee0223ea45afb9d
     num_students: 180,
     stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
     manager_id: 'simulado'
- 
   }
 };
 
@@ -90,7 +70,6 @@ export default function SchoolProfile() {
 
   useEffect(() => {
     const loadSchoolData = async () => {
-      // 1. Obtener usuario logueado
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
@@ -111,9 +90,8 @@ export default function SchoolProfile() {
 
       if (schoolData) {
         setSchool(schoolData);
-        setEditForm(schoolData); // Inicializar formulario
+        setEditForm(schoolData);
         
-        // Cargar eventos del colegio
         const { data: evs } = await supabase.from('school_events').select('*').ilike('school_name', `%${schoolData.name}%`);
         setSchoolEvents(evs || []);
       }
@@ -122,14 +100,11 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
-  // Comprobar si el usuario actual es el dueño/administrador del colegio
-  // (Para pruebas, dejamos que si manager_id es 'simulado' o coincide con vuestro id de Supabase, permita editar)
   const isManager = school?.manager_id === 'simulado' || (user && school?.manager_id === user.id);
 
   const handleSave = async () => {
     setSchool(editForm);
     
-    // Si no es un mock, lo guardamos de verdad en Supabase
     if (id !== 'micael' && id !== 'aravaca' && id !== 'artaban') {
       const { error } = await supabase
         .from('schools')
@@ -184,29 +159,16 @@ export default function SchoolProfile() {
         )}
       </div>
 
-      {/* CABECERA ESTILO LINKEDIN (ESTO ES LO IMPORTANTE) */}
+      {/* CABECERA ESTILO LINKEDIN */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
-        
-        {/* Banner de Portada alargado */}
         <div className="h-44 bg-muted relative overflow-hidden">
-          <img 
-            src={school.cover_url} 
-            className="w-full h-full object-cover" 
-            alt="portada" 
-          />
+          <img src={school.cover_url} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
         </div>
 
-        {/* Info del Colegio y Logo Superpuesto */}
         <div className="p-8 relative pt-20">
-          
-          {/* Logo superpuesto a la portada */}
           <div className="absolute -top-16 left-8">
-            <img 
-              src={school.avatar_url} 
-              className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" 
-              alt="logo" 
-            />
+            <img src={school.avatar_url} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
           </div>
           
           {!isEditing ? (
@@ -230,17 +192,11 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-      {/* DETALLES Y PRODUCTOS (REJILLA MULTICOLUMNA) */}
+      {/* REJILLA MULTICOLUMNA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* COLUMNA IZQUIERDA: DATOS MÉTRICOS Y ETAPAS (PRODUCTOS) */}
         <div className="md:col-span-1 space-y-6">
-          
-          {/* Tarjeta de Datos Corporativos */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">Datos del Centro</h2>
-            
-            {/* Alumnos */}
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1">
@@ -253,7 +209,6 @@ export default function SchoolProfile() {
               </div>
             </div>
 
-            {/* Etapas educativas */}
             <div className="pt-2 border-t border-border/60">
               <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5"><GraduationCap className="w-4 h-4 text-primary" /> Oferta Educativa</p>
               {!isEditing ? (
@@ -275,7 +230,6 @@ export default function SchoolProfile() {
             </div>
           </div>
 
-          {/* Tarjeta de Actividades */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-primary" /> Talleres y Proyectos</h2>
             <div className="flex flex-wrap gap-1.5">
@@ -297,13 +251,9 @@ export default function SchoolProfile() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: GALERÍA AMPLIADA Y EVENTOS */}
         <div className="md:col-span-2 space-y-6">
-          
-          {/* Galería de Fotos */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones ({(!isEditing ? school.images : editForm.images)?.length || 0})</h2>
-            
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(!isEditing ? school.images : editForm.images)?.map((img, i) => (
                 <div key={i} className="relative group rounded-2xl overflow-hidden border border-border h-32 bg-muted">
@@ -323,7 +273,6 @@ export default function SchoolProfile() {
             )}
           </div>
 
-          {/* Eventos Vinculados */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Calendar className="w-4 h-4 text-primary" /> Eventos Anunciados por el Centro</h2>
             <div className="space-y-4">
@@ -334,7 +283,6 @@ export default function SchoolProfile() {
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>
