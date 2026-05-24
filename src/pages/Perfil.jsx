@@ -28,7 +28,9 @@ export default function Perfil() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false); // 💡 NUEVO ESTADO
   const fileRef = useRef();
+  const bannerFileRef = useRef(); // 💡 NUEVA REFERENCIA
 
   useEffect(() => {
     const loadData = async () => {
@@ -54,6 +56,7 @@ export default function Perfil() {
           location: profileData.location || '',
           interests: profileData.interests || [],
           avatar_url: profileData.avatar_url || '',
+          banner_url: profileData.banner_url || '', // 💡 RECOGEMOS PORTADA
         });
       } else {
         setForm({
@@ -61,6 +64,7 @@ export default function Perfil() {
           role: 'simpatizante',
           interests: [],
           avatar_url: '',
+          banner_url: '', // 💡 INICIALIZAMOS PORTADA VACÍA
         });
       }
 
@@ -101,6 +105,33 @@ export default function Perfil() {
     
     setForm(f => ({ ...f, avatar_url: data.publicUrl }));
     setUploadingAvatar(false);
+  };
+
+  // 💡 NUEVA FUNCIÓN: PARA SUBIR LA IMAGEN DE PORTADA
+  const handleBannerChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingBanner(true);
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}-banner-${Math.random()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error("Error al subir la portada:", uploadError);
+      alert("Error al subir la portada: " + uploadError.message);
+      setUploadingBanner(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    
+    setForm(f => ({ ...f, banner_url: data.publicUrl }));
+    setUploadingBanner(false);
   };
 
   const handleSave = async () => {
@@ -162,25 +193,58 @@ export default function Perfil() {
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
   const currentAvatarUrl = editing ? form.avatar_url : profile?.avatar_url;
+  const currentBannerUrl = editing ? form.banner_url : profile?.banner_url; // 💡 DETECTOR DE PORTADA
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      {/* Profile card */}
-      <div className="bg-card rounded-2xl border border-border p-5 mb-5 shadow-sm">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex gap-4 items-start">
+      {/* Profile card con overflow-hidden para respetar las esquinas de la portada */}
+      <div className="bg-card rounded-2xl border border-border mb-5 shadow-sm overflow-hidden">
+        
+        {/* 💡 NUEVA ZONA: CONTENEDOR FOTO DE PORTADA */}
+        <div className="relative h-40 w-full bg-muted/50 border-b border-border/40">
+          {currentBannerUrl ? (
+            <img src={currentBannerUrl} alt="Portada de fondo" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-primary/10 to-primary/5 flex items-center justify-center">
+              <span className="text-xs text-muted-foreground/50 italic">Sin foto de portada configurada</span>
+            </div>
+          )}
+          
+          {/* Botón de cámara flotante para la portada (SÓLO en modo edición) */}
+          {editing && (
+            <button
+              type="button"
+              onClick={() => bannerFileRef.current?.click()}
+              disabled={uploadingBanner}
+              className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full transition-colors backdrop-blur-sm shadow-md border border-white/10 flex items-center justify-center z-10"
+            >
+              {uploadingBanner ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
+            </button>
+          )}
+          <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
+        </div>
+
+        {/* CONTENEDOR INFERIOR DE DETALLES */}
+        <div className="p-5 pt-0">
+          
+          {/* Fila de foto de perfil solapada con margen negativo y botón de edición */}
+          <div className="flex items-end justify-between mb-2 relative">
             
-            {/* Foto de perfil con botón flotante visible */}
-            <div className="relative w-16 h-16 flex-shrink-0">
-              <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border border-border">
+            {/* Foto de perfil circular muerde la portada */}
+            <div className="relative w-24 h-24 flex-shrink-0 -mt-12">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border-4 border-card shadow-md">
                 {currentAvatarUrl ? (
                   <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="font-cormorant text-2xl font-semibold text-primary">{initials}</span>
+                  <span className="font-cormorant text-3xl font-semibold text-primary">{initials}</span>
                 )}
               </div>
               
-              {/* Botón flotante en la esquina inferior derecha (SÓLO en modo edición) */}
+              {/* Botón flotante del avatar (SÓLO en modo edición) */}
               {editing && (
                 <button
                   type="button"
@@ -198,99 +262,104 @@ export default function Perfil() {
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
-            <div>
-              <h2 className="font-cormorant text-2xl font-semibold">{displayName}</h2>
+            {/* Botón de activar edición (se alinea arriba a la derecha de la caja limpia) */}
+            <button
+              onClick={() => setEditing(!editing)}
+              className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground self-start mt-2"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Bloque de Textos principales (Nombre, Rol, Ubicación) */}
+          <div className="mb-4">
+            <h2 className="font-cormorant text-2xl font-semibold text-foreground">{displayName}</h2>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
               <span className="text-sm text-primary font-medium">{roleLabel}</span>
               {profile?.location && (
-                <div className="flex items-center gap-1 mt-1">
-                  <MapPin className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">{profile.location}</span>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="w-3 h-3" />
+                  <span className="text-xs">{profile.location}</span>
                 </div>
               )}
             </div>
           </div>
-          <button
-            onClick={() => setEditing(!editing)}
-            className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
-          >
-            <Edit3 className="w-4 h-4" />
-          </button>
+
+          {profile?.bio && !editing && (
+            <p className="text-sm text-muted-foreground leading-relaxed mb-4">{profile.bio}</p>
+          )}
+
+          {profile?.interests?.length > 0 && !editing && (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {profile.interests.map(interest => (
+                <span key={interest} className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border border-primary/10 px-2.5 py-1 rounded-full">
+                  {interest}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Edit form */}
+          {editing && (
+            <div className="space-y-4 mt-2 pt-4 border-t border-border">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Nombre público</label>
+                <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+                  className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Biografía</label>
+                <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
+                  placeholder="Cuéntanos un poco sobre ti..."
+                  className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Rol</label>
+                  <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+                    className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 outline-none">
+                    {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Ubicación</label>
+                  <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                    placeholder="Ej: Madrid"
+                    className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-2 block">Intereses</label>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTS.map(interest => (
+                    <button
+                      key={interest}
+                      type="button"
+                      onClick={() => toggleInterest(interest)}
+                      className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full transition-all border ${
+                        (form.interests || []).includes(interest)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      {interest}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={handleSave} disabled={saving || uploadingAvatar || uploadingBanner}
+                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 disabled:opacity-50">
+                  <Check className="w-4 h-4" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+                <button onClick={() => setEditing(false)}
+                  className="px-5 py-3 rounded-xl text-sm font-semibold bg-muted text-muted-foreground hover:bg-muted/80 transition-all">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-
-        {profile?.bio && !editing && (
-          <p className="text-sm text-muted-foreground leading-relaxed mb-4">{profile.bio}</p>
-        )}
-
-        {profile?.interests?.length > 0 && !editing && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {profile.interests.map(interest => (
-              <span key={interest} className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border border-primary/10 px-2.5 py-1 rounded-full">
-                {interest}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Edit form */}
-        {editing && (
-          <div className="space-y-4 mt-2 pt-4 border-t border-border">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Nombre público</label>
-              <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-                className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Biografía</label>
-              <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-                placeholder="Cuéntanos un poco sobre ti..."
-                className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Rol</label>
-                <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full bg-muted/50 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 outline-none">
-                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Ubicación</label>
-                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="Ej: Madrid"
-                  className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-2 block">Intereses</label>
-              <div className="flex flex-wrap gap-2">
-                {INTERESTS.map(interest => (
-                  <button
-                    key={interest}
-                    type="button"
-                    onClick={() => toggleInterest(interest)}
-                    className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full transition-all border ${
-                      (form.interests || []).includes(interest)
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/50'
-                    }`}
-                  >
-                    {interest}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleSave} disabled={saving || uploadingAvatar}
-                className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 disabled:opacity-50">
-                <Check className="w-4 h-4" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
-              </button>
-              <button onClick={() => setEditing(false)}
-                className="px-5 py-3 rounded-xl text-sm font-semibold bg-muted text-muted-foreground hover:bg-muted/80 transition-all">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Mis publicaciones */}
