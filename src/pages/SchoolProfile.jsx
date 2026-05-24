@@ -9,7 +9,7 @@ import logoArtaban from '../assets/logo-1.webp';
 import fotoArtaban1 from '../assets/solidaridad-escuela-waldorf-artaban1.jpg';
 import fotoArtaban2 from '../assets/P1060744-1024x769.webp';
 import fotoArtaban3 from '../assets/images.jpeg';
-import fotoArtaban4 from '../assets/Micael-010-2048x1369.jpg';
+// 💡 LÍNEA ELIMINADA AQUÍ PARA EVITAR EL CAMPO INEXISTENTE QUE HACÍA FALLAR A VERCEL
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
 
@@ -46,7 +46,8 @@ const MOCK_DETAILS = {
     activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín'],
     cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
     avatar_url: logoArtaban, 
-    images: [fotoArtaban1, fotoArtaban2, fotoArtaban3, fotoArtaban4], 
+    // 💡 CAMBIO AQUÍ: La cuarta foto ahora tira de una URL segura de internet para que compile
+    images: [fotoArtaban1, fotoArtaban2, fotoArtaban3, 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=800&q=80'], 
     num_students: 180,
     stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
     manager_id: 'simulado'
@@ -62,7 +63,6 @@ export default function SchoolProfile() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // Estados para el Formulario de Edición
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [newActivity, setNewActivity] = useState('');
