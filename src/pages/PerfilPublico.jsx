@@ -111,22 +111,55 @@ export default function PerfilPublico() {
         Volver
       </button>
 
-      {/* Tarjeta del perfil */}
-      <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-5">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
-            profile.role === 'empresa' ? 'bg-indigo-100 border-2 border-indigo-200' : 'bg-primary/10 border border-primary/20'
-          }`}>
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className={`font-cormorant text-3xl font-bold ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
-                {initials}
-              </span>
-            )}
+      {/* Tarjeta del perfil rediseñada con overflow-hidden */}
+      <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden">
+        
+        {/* 💡 NUEVA FOTO DE PORTADA / BANNER PÚBLICO */}
+        <div className="relative h-40 w-full bg-muted/50 border-b border-border/40">
+          {profile.banner_url ? (
+            <img src={profile.banner_url} alt="Portada de fondo" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-primary/10 to-primary/5 flex items-center justify-center">
+              <span className="text-xs text-muted-foreground/30 italic">Sin foto de portada</span>
+            </div>
+          )}
+        </div>
+
+        {/* CONTENEDOR DE DETALLES INFERIORES */}
+        <div className="p-6 pt-0">
+          
+          {/* Fila del avatar superpuesto con el botón de acción */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 relative gap-4 text-center sm:text-left">
+            
+            {/* Foto de perfil circular muerde la portada con -mt-12 */}
+            <div className="relative w-24 h-24 flex-shrink-0 -mt-12 mx-auto sm:mx-0">
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border-4 border-card shadow-md ${
+                profile.role === 'empresa' ? 'bg-indigo-100 border-indigo-200' : 'bg-primary/10 border border-primary/20'
+              }`}>
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className={`font-cormorant text-3xl font-bold ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
+                    {initials}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Botón de Contactar flotante a la derecha en PC, centrado abajo en móvil */}
+            <div className="pt-2 sm:pt-0">
+              <button 
+                onClick={() => alert("El sistema de mensajería estará disponible próximamente 🚀")}
+                className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Contactar
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 space-y-2 min-w-0">
+          {/* Bloque de Textos Principales del usuario visitado */}
+          <div className="space-y-2 text-center sm:text-left">
             <div>
               <h2 className="font-cormorant text-2xl font-bold text-foreground">{displayName}</h2>
               <p className={`text-sm font-medium ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
@@ -146,17 +179,8 @@ export default function PerfilPublico() {
             ) : (
               <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>
             )}
-
-            <div className="pt-2">
-              <button 
-                onClick={() => alert("El sistema de mensajería estará disponible próximamente 🚀")}
-                className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Contactar
-              </button>
-            </div>
           </div>
+
         </div>
       </div>
 
@@ -171,7 +195,6 @@ export default function PerfilPublico() {
         ) : (
           <div className="space-y-4">
             {userPosts.map(post => (
-              /* 3. SUSTITUIMOS EL DIV VIEJO POR TU COMPONENTE ORIGINAL CONECTADO */
               <PostCard
                 key={`post-${post.id}`}
                 post={post}
