@@ -10,8 +10,9 @@ import Colegios from '@/pages/Colegios';
 import Comunidad from '@/pages/Comunidad';
 import Perfil from '@/pages/Perfil';
 import Login from '@/pages/Login';
-import PerfilPublico from '@/pages/PerfilPublico'; // 1. IMPORTAMOS LA NUEVA PÁGINA
+import PerfilPublico from '@/pages/PerfilPublico';
 import SchoolProfile from './pages/SchoolProfile';
+import Hilo from '@/pages/Hilo'; // 💡 1. IMPORTAMOS LA NUEVA PÁGINA DE DMs
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
@@ -38,11 +39,13 @@ const AuthenticatedApp = () => {
     <Route element={<Layout />}>
       <Route path="/" element={<Feed />} />
       <Route path="/colegios" element={<Colegios />} />
-      <Route path="/colegios/:id" element={<SchoolProfile />} /> {/* <-- ¡AQUÍ ESTÁ LA NUEVA! */}
+      <Route path="/colegios/:id" element={<SchoolProfile />} />
       <Route path="/comunidad" element={<Comunidad />} />
+      
+      {/* 💡 2. AÑADIMOS LA RUTA DE HILO */}
+      <Route path="/hilo" element={<Hilo />} /> 
+      
       <Route path="/perfil" element={<Perfil />} />
-
-      {/* 2. NUEVA RUTA DINÁMICA: Carga el perfil según el ID */}
       <Route path="/usuario/:id" element={<PerfilPublico />} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CreatePostModal from './CreatePostModal';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const ROLE_LABELS = {
   alumno: 'Alumno',
@@ -17,6 +17,7 @@ const ROLE_LABELS = {
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
+  const navigate = useNavigate(); 
   const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
   
@@ -43,7 +44,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // 📝 NUEVOS ESTADOS: Controlan la edición de comentarios
+  // Control de edición de comentarios
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
 
@@ -99,6 +100,18 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // LÓGICA DE NAVEGACIÓN INTELIGENTE
+  const handleAuthorClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (userEmail && userEmail.toLowerCase().trim() === authorEmailClean) {
+      navigate('/perfil');
+    } else {
+      navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
+    }
+  };
 
   const handleLike = async () => {
     if (loading || !userEmail || !postId) return;
@@ -208,14 +221,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setSubmittingComment(false);
   };
 
-  // --- FUNCIÓN PARA BORRAR COMENTARIO (BLINDADA CON DETECCIÓN DE RLS) ---
   const handleDeleteComment = async (commentId) => {
     const confirmar = window.confirm("¿Seguro que quieres borrar este comentario?");
     if (!confirmar) return;
 
     const numericPostId = Number(postId);
 
-    // Forzamos el ID a número y pedimos el .select() de vuelta para confirmar la acción
     const { data, error: errorDelete } = await supabase
       .from('post_comments')
       .delete()
@@ -227,9 +238,8 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       return;
     }
 
-    // Si Supabase devuelve un array vacío, es que las políticas RLS bloquearon el borrado en la nube
     if (!data || data.length === 0) {
-      alert("⚠️ ¡Cuidado! Supabase no ha borrado la fila de la base de datos. Esto es porque os falta activar la política de DELETE para 'post_comments' en vuestro panel de Supabase.");
+      alert("⚠️ ¡Cuidado! Supabase no ha borrado la fila de la base de datos.");
       return;
     }
 
@@ -315,8 +325,8 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         
         {/* Cabecera */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <Link 
-            to={`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`} 
+          <div 
+            onClick={handleAuthorClick} 
             className="flex items-start gap-3 flex-1 min-w-0 group cursor-pointer"
           >
             <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity overflow-hidden border border-border">
@@ -337,7 +347,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 {currentPost.created_date ? format(new Date(currentPost.created_date), "d MMM", { locale: es }) : ''}
               </span>
             </div>
-          </Link>
+          </div>
 
           {/* Opciones */}
           <div className="flex gap-2 items-center flex-shrink-0">
