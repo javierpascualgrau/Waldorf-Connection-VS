@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { Send, Loader2, MessageSquare, User } from 'lucide-react';
+import { Send, Loader2, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -17,20 +17,21 @@ export default function Hilo() {
 
   const myEmail = user?.email?.toLowerCase().trim() || '';
 
-  // 1. Cargar lista de conversaciones activas
+  // 1. Cargar lista de conversaciones ordenadas por última actividad
   useEffect(() => {
     if (!myEmail) return;
 
     const loadChats = async () => {
       setLoadingChats(true);
-      // Traemos chats donde participas
+      
+      // 💡 CORREGIDO: Ordenamos por la columna de última actividad
       const { data, error } = await supabase
         .from('chats')
         .select('*')
-        .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`);
+        .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
+        .order('last_message_at', { ascending: false });
 
       if (!error && data) {
-        // Buscamos los datos de perfil de la otra persona del chat
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
             const otherEmail = chat.user_1_email === myEmail ? chat.user_2_email : chat.user_1_email;
@@ -40,7 +41,10 @@ export default function Hilo() {
               .ilike('user_email', otherEmail)
               .maybeSingle();
 
-            return { ...chat, otherUser: profile || { display_name: otherEmail.split('@')[0], user_email: otherEmail } };
+            return { 
+              ...chat, 
+              otherUser: profile || { display_name: otherEmail.split('@')[0], user_email: otherEmail } 
+            };
           })
         );
         setChats(chatsWithProfiles);
@@ -51,7 +55,43 @@ export default function Hilo() {
     loadChats();
   }, [myEmail]);
 
-  // 2. Cargar mensajes del chat seleccionado e iniciar suscripción en tiempo real
+  // 2. ESCUCHAR ACTUALIZACIONES DE CHATS EN TIEMPO REAL (Mueve al primer puesto de la lista)
+  useEffect(() => {
+    if (!myEmail) return;
+
+    const chatsChannel = supabase
+      .channel('realtime-sidebar-sorting')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chats' },
+        (payload) => {
+          // Comprobamos si el chat actualizado pertenece al usuario logueado
+          if (payload.new.user_1_email === myEmail || payload.new.user_2_email === myEmail) {
+            setChats((prevChats) => {
+              const targetIndex = prevChats.findIndex(c => c.id === payload.new.id);
+              if (targetIndex === -1) return prevChats;
+
+              // Actualizamos el timestamp del chat modificado
+              const updatedChat = { 
+                ...prevChats[targetIndex], 
+                last_message_at: payload.new.last_message_at 
+              };
+              
+              // Filtramos el chat de su posición vieja y lo inyectamos en la posición index 0
+              const cleanChats = prevChats.filter(c => c.id !== payload.new.id);
+              return [updatedChat, ...cleanChats];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chatsChannel);
+    };
+  }, [myEmail]);
+
+  // 3. Cargar mensajes del chat seleccionado e iniciar su suscripción
   useEffect(() => {
     if (!activeChat) return;
 
@@ -70,12 +110,11 @@ export default function Hilo() {
 
     loadMessages();
 
-    // 🔴 CANAL EN TIEMPO REAL: Escucha nuevos mensajes de este chat instantáneamente
     const channel = supabase
-      .channel(`chat-${activeChat.id}`)
+      .channel(`chat-room-${activeChat.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', scheme: 'public', table: 'chat_messages', filter: `chat_id=eq.${activeChat.id}` },
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${activeChat.id}` },
         (payload) => {
           setMessages((prev) => [...prev, payload.new]);
           scrollToBottom();
@@ -113,9 +152,7 @@ export default function Hilo() {
         },
       ]);
 
-    if (error) {
-      console.error('Error al enviar mensaje:', error);
-    }
+    if (error) console.error('Error al enviar mensaje:', error);
   };
 
   if (!user) {
@@ -175,7 +212,6 @@ export default function Hilo() {
       <div className="flex-1 flex flex-col bg-card">
         {activeChat ? (
           <>
-            {/* Cabecera del chat activo */}
             <div className="p-4 border-b border-border flex items-center gap-3 shadow-inner bg-muted/5">
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border">
                 {activeChat.otherUser.avatar_url ? (
@@ -192,7 +228,6 @@ export default function Hilo() {
               </div>
             </div>
 
-            {/* Globo de mensajes */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
               {loadingMessages ? (
                 <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
@@ -218,7 +253,6 @@ export default function Hilo() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input de envío */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card">
               <input
                 type="text"
