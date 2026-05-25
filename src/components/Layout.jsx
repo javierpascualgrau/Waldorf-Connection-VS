@@ -1,13 +1,15 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle } from 'lucide-react';
+import { Home, School, Users, User, PlusCircle, MessageSquare } from 'lucide-react'; // 💡 IMPORTAMOS MessageSquare
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient'; 
 import CreatePostModal from './CreatePostModal';
 
+// 💡 AÑADIMOS 'HILO' ENTRE COMUNIDAD Y PERFIL
 const navItems = [
   { path: '/', icon: Home, label: 'Inicio' },
   { path: '/colegios', icon: School, label: 'Colegios' },
   { path: '/comunidad', icon: Users, label: 'Comunidad' },
+  { path: '/hilo', icon: MessageSquare, label: 'Hilo' }, 
   { path: '/perfil', icon: User, label: 'Mi Perfil' },
 ];
 
@@ -26,7 +28,6 @@ export default function Layout() {
         
         let profileData = null;
 
-        // Estrategia 1: Buscar en tabla 'profiles' usando el ID único de Auth
         const { data: profById } = await supabase
           .from('profiles')
           .select('*')
@@ -35,7 +36,6 @@ export default function Layout() {
         
         profileData = profById;
 
-        // Estrategia 2: Si falla, buscar en tabla 'profiles' usando el campo 'user_email'
         if (!profileData) {
           const { data: profByEmail } = await supabase
             .from('profiles')
@@ -45,7 +45,6 @@ export default function Layout() {
           profileData = profByEmail;
         }
 
-        // Estrategia 3: Si falla, probar si la tabla se llama 'user_profiles'
         if (!profileData) {
           const { data: userProf } = await supabase
             .from('user_profiles')
@@ -64,7 +63,6 @@ export default function Layout() {
     getSession();
   }, []);
 
-  // 💡 CONDICIÓN MÁGICA: El botón solo será visible en Inicio ('/') o en Mi Perfil ('/perfil')
   const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil';
 
   return (
@@ -76,10 +74,10 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground text-xs font-cormorant font-semibold">W</span>
             </div>
-            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connect</span>
+            {/* 💡 ACTUALIZADO AL NUEVO NOMBRE */}
+            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Nexo Waldorf</span>
           </Link>
           
-          {/* 🔥 EL BOTÓN CONDICIONAL: Solo se renderiza si mostrarBotonPublicar es true */}
           {mostrarBotonPublicar && (
             <button
               onClick={() => setShowCreateModal(true)}

@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { useAuth } from '@/lib/AuthContext'; // 1. IMPORTAMOS EL CONTEXTO DE AUTH
-import PostCard from '@/components/PostCard'; // 2. REUTILIZAMOS TU COMPONENTE POSTCARD
+import { useAuth } from '@/lib/AuthContext';
+import PostCard from '@/components/PostCard';
 import { MapPin, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
   const navigate = useNavigate();
-  const { user } = useAuth(); // Obtenemos el usuario logueado en la app
+  const { user } = useAuth();
   
   const [profile, setProfile] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados para que los likes y seguidos funcionen de forma interactiva aquí dentro
   const [likedIds, setLikedIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
 
@@ -50,7 +49,6 @@ export default function PerfilPublico() {
         const myEmailClean = user?.email?.toLowerCase().trim() || '';
         
         if (cleanEmail) {
-          // Lanzamos en paralelo la carga de posts, likes y seguidos del usuario actual
           const [postsRes, followsRes, likesRes] = await Promise.all([
             supabase.from('posts').select('*').ilike('author_email', cleanEmail).order('created_date', { ascending: false }),
             myEmailClean ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean) : Promise.resolve({ data: [] }),
@@ -78,6 +76,27 @@ export default function PerfilPublico() {
 
     fetchPublicData();
   }, [id, user]);
+
+  // 💡 LÓGICA PARA CREAR CHAT Y REDIRIGIR AL HILO
+  const handleContactar = async () => {
+    if (!user?.email || !profile?.user_email) return;
+    
+    // Ordenamos los emails alfabéticamente para que el chat siempre tenga el mismo identificador (user_1 y user_2)
+    const emails = [user.email.toLowerCase().trim(), profile.user_email.toLowerCase().trim()].sort();
+    
+    // Upsert: Si el chat ya existe lo devuelve, si no existe lo crea
+    const { data, error } = await supabase
+      .from('chats')
+      .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
+      .select()
+      .single();
+
+    if (data) {
+      navigate('/hilo'); // Redirige directamente al sistema de DMs
+    } else {
+      console.error("Error al abrir chat:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -111,10 +130,7 @@ export default function PerfilPublico() {
         Volver
       </button>
 
-      {/* Tarjeta del perfil rediseñada con overflow-hidden */}
       <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden">
-        
-        {/* 💡 NUEVA FOTO DE PORTADA / BANNER PÚBLICO */}
         <div className="relative h-40 w-full bg-muted/50 border-b border-border/40">
           {profile.banner_url ? (
             <img src={profile.banner_url} alt="Portada de fondo" className="w-full h-full object-cover" />
@@ -125,13 +141,8 @@ export default function PerfilPublico() {
           )}
         </div>
 
-        {/* CONTENEDOR DE DETALLES INFERIORES */}
         <div className="p-6 pt-0">
-          
-          {/* Fila del avatar superpuesto con el botón de acción */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 relative gap-4 text-center sm:text-left">
-            
-            {/* Foto de perfil circular muerde la portada con -mt-12 */}
             <div className="relative w-24 h-24 flex-shrink-0 -mt-12 mx-auto sm:mx-0">
               <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border-4 border-card shadow-md ${
                 profile.role === 'empresa' ? 'bg-indigo-100 border-indigo-200' : 'bg-primary/10 border border-primary/20'
@@ -146,10 +157,10 @@ export default function PerfilPublico() {
               </div>
             </div>
 
-            {/* Botón de Contactar flotante a la derecha en PC, centrado abajo en móvil */}
             <div className="pt-2 sm:pt-0">
+              {/* 💡 AQUÍ LLAMAMOS A LA FUNCIÓN handleContactar */}
               <button 
-                onClick={() => alert("El sistema de mensajería estará disponible próximamente 🚀")}
+                onClick={handleContactar}
                 className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -158,7 +169,6 @@ export default function PerfilPublico() {
             </div>
           </div>
 
-          {/* Bloque de Textos Principales del usuario visitado */}
           <div className="space-y-2 text-center sm:text-left">
             <div>
               <h2 className="font-cormorant text-2xl font-bold text-foreground">{displayName}</h2>
@@ -180,11 +190,9 @@ export default function PerfilPublico() {
               <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>
             )}
           </div>
-
         </div>
       </div>
 
-      {/* Listado de publicaciones */}
       <div className="space-y-4">
         <h3 className="font-cormorant text-xl font-bold text-foreground px-1">Publicaciones antiguas</h3>
         
