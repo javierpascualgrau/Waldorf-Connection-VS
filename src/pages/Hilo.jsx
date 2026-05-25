@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useNavigate } from 'react-router-dom'; // 💡 IMPORTADO PARA IR AL PERFIL
-import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check } from 'lucide-react'; // 💡 IMPORTADOS NUEVOS ICONOS
+import { useLocation } from 'react-router-dom'; // 💡 IMPORTADO useLocation
+import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check, Search } from 'lucide-react'; // 💡 AÑADIDO ICONO SEARCH
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function Hilo() {
   const { user } = useAuth();
-  const navigate = useNavigate(); // 💡 INICIALIZAMOS EL NAVEGADOR
+  const location = useLocation(); // 💡 INICIALIZAMOS
   const [activeChat, setActiveChat] = useState(null);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -16,6 +16,9 @@ export default function Hilo() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // 💡 NUEVO ESTADO: Guarda el texto escrito en el buscador
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Estados para la edición de mensajes en caliente
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -52,12 +55,22 @@ export default function Hilo() {
           })
         );
         setChats(chatsWithProfiles);
+
+        // 💡 AUTO-APERTURA DIRECTA AL ENTRAR DESDE PERFIL
+        if (location.state?.activeChatId) {
+          const targetChat = chatsWithProfiles.find(c => c.id === location.state.activeChatId);
+          if (targetChat) {
+            setActiveChat(targetChat);
+            // Limpia el maletero de la ruta para que no se reabra solo al cambiar de vista
+            window.history.replaceState({}, document.title);
+          }
+        }
       }
       setLoadingChats(false);
     };
 
     loadChats();
-  }, [myEmail]);
+  }, [myEmail, location.state]);
 
   // 2. Escuchar ordenación de barra lateral en tiempo real
   useEffect(() => {
@@ -108,7 +121,6 @@ export default function Hilo() {
 
     loadMessages();
 
-    // 💡 CONFIGURADO EVENTO ESCUCHA TOTAL '*'
     const channel = supabase
       .channel(`chat-room-${activeChat.id}`)
       .on(
@@ -129,11 +141,9 @@ export default function Hilo() {
               return [...prev, payload.new];
             });
           } else if (payload.eventType === 'UPDATE') {
-            // Sincroniza la edición del mensaje en tiempo real para ambos
             setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m));
           } else if (payload.eventType === 'DELETE') {
-            // Elimina el globo de la pantalla en tiempo real para ambos
-            setMessages((prev) => prev.filter(m => m.id === payload.old.id));
+            setMessages((prev) => prev.filter(m => m.id !== payload.old.id));
           }
           scrollToBottom();
         }
@@ -185,11 +195,8 @@ export default function Hilo() {
     }
   };
 
-  // 💡 NUEVA FUNCIÓN: ACTUALIZAR MENSAJE EN SUPABASE
   const handleUpdateMessage = async (msgId) => {
     if (!editingText.trim()) return;
-    
-    // Cambiamos el estado local al instante para dar velocidad
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: editingText.trim() } : m));
     setEditingMessageId(null);
 
@@ -201,13 +208,11 @@ export default function Hilo() {
     if (error) console.error("Error al editar mensaje:", error);
   };
 
-  // 💡 NUEVA FUNCIÓN: ELIMINAR MENSAJE EN SUPABASE
   const handleDeleteMessage = async (msgId) => {
     if (String(msgId).startsWith('temp-')) return;
     const confirmar = window.confirm("¿Quieres eliminar este mensaje para todos?");
     if (!confirmar) return;
 
-    // Quitamos de pantalla de forma optimista
     setMessages(prev => prev.filter(m => m.id !== msgId));
 
     const { error } = await supabase
@@ -217,6 +222,11 @@ export default function Hilo() {
 
     if (error) console.error("Error al borrar mensaje:", error);
   };
+
+  // 💡 LÓGICA FILTRADORA EN CLIENTE PARA EL BUSCADOR
+  const filteredChats = chats.filter(chat => 
+    chat.otherUser.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (!user) {
     return (
@@ -231,16 +241,30 @@ export default function Hilo() {
     <div className="max-w-4xl mx-auto bg-card border border-border rounded-2xl h-[calc(100vh-140px)] flex overflow-hidden shadow-sm mt-2">
       {/* BARRA LATERAL IZQUIERDA */}
       <div className="w-1/3 border-r border-border flex flex-col bg-muted/10">
-        <div className="p-4 border-b border-border bg-card">
+        
+        {/* 💡 CONTENEDOR BUSCADOR INTEGRADO */}
+        <div className="p-4 border-b border-border bg-card space-y-3">
           <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground/70" />
+            <input 
+              type="text"
+              placeholder="Buscar chat..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-muted/50 border border-border/60 rounded-xl pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-foreground"
+            />
+          </div>
         </div>
+
         <div className="flex-1 overflow-y-auto divide-y divide-border/50">
           {loadingChats ? (
             <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
-          ) : chats.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center p-6 italic">No tienes conversaciones abiertas todavía.</p>
+          ) : filteredChats.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center p-6 italic">No se encontraron chats.</p>
           ) : (
-            chats.map((chat) => {
+            // 💡 MAPEAMOS LOS CHATS YA FILTRADOS
+            filteredChats.map((chat) => {
               const isSelected = activeChat?.id === chat.id;
               const initials = chat.otherUser.display_name?.slice(0, 2).toUpperCase() || 'U';
               return (
@@ -275,15 +299,8 @@ export default function Hilo() {
       <div className="flex-1 flex flex-col bg-card">
         {activeChat ? (
           <>
-            {/* 💡 CABECERA CON CLICK INTELIGENTE AL PERFIL PÚBLICO */}
             <div 
-              onClick={() => {
-                if (activeChat.otherUser.id) {
-                  navigate(`/usuario/${activeChat.otherUser.id}`);
-                } else {
-                  navigate(`/usuario/${encodeURIComponent(activeChat.otherUser.user_email)}`);
-                }
-              }}
+              onClick={() => navigate(`/usuario/${activeChat.otherUser.id || encodeURIComponent(activeChat.otherUser.user_email)}`)}
               className="p-4 border-b border-border flex items-center gap-3 shadow-inner bg-muted/5 cursor-pointer hover:bg-muted/20 transition-all select-none"
             >
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border">
@@ -301,7 +318,6 @@ export default function Hilo() {
               </div>
             </div>
 
-            {/* CONTENEDOR DE MENSAJES */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
               {loadingMessages ? (
                 <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
@@ -312,8 +328,6 @@ export default function Hilo() {
 
                   return (
                     <div key={msg.id} className={`flex items-center gap-2 group ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      
-                      {/* Acciones de mis mensajes (Aparecen a la izquierda al hacer hover en PC) */}
                       {isMe && !isEditingThis && (
                         <div className="opacity-0 group-hover:opacity-100 flex gap-1.5 transition-opacity self-center">
                           <button 
@@ -331,7 +345,6 @@ export default function Hilo() {
                         </div>
                       )}
 
-                      {/* Globo de texto */}
                       <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-xs shadow-sm relative ${
                         isMe 
                           ? 'bg-primary text-primary-foreground rounded-tr-none' 
@@ -369,7 +382,6 @@ export default function Hilo() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* INPUT DE ENVÍO */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card">
               <input
                 type="text"

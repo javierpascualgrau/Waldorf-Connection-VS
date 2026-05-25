@@ -77,14 +77,11 @@ export default function PerfilPublico() {
     fetchPublicData();
   }, [id, user]);
 
-  // 💡 LÓGICA PARA CREAR CHAT Y REDIRIGIR AL HILO
   const handleContactar = async () => {
     if (!user?.email || !profile?.user_email) return;
     
-    // Ordenamos los emails alfabéticamente para que el chat siempre tenga el mismo identificador (user_1 y user_2)
     const emails = [user.email.toLowerCase().trim(), profile.user_email.toLowerCase().trim()].sort();
     
-    // Upsert: Si el chat ya existe lo devuelve, si no existe lo crea
     const { data, error } = await supabase
       .from('chats')
       .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
@@ -92,7 +89,8 @@ export default function PerfilPublico() {
       .single();
 
     if (data) {
-      navigate('/hilo'); // Redirige directamente al sistema de DMs
+      // 💡 AQUÍ ESTÁ EL TRUCO: Pasamos el ID del chat al estado de la ruta
+      navigate('/hilo', { state: { activeChatId: data.id } }); 
     } else {
       console.error("Error al abrir chat:", error);
     }
@@ -158,7 +156,6 @@ export default function PerfilPublico() {
             </div>
 
             <div className="pt-2 sm:pt-0">
-              {/* 💡 AQUÍ LLAMAMOS A LA FUNCIÓN handleContactar */}
               <button 
                 onClick={handleContactar}
                 className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0"
