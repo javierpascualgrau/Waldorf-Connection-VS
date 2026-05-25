@@ -134,9 +134,14 @@ export default function SchoolProfile() {
   const handleSave = async () => {
     setSchool(editForm);
     
-    // CAMBIAMOS .update() POR .upsert() PARA REESCRIBIR O CREAR SI NO EXISTE
+    // MAGIA: Si el manager era "simulado", ahora pasas a ser tú el dueño real
+    const realManagerId = editForm.manager_id === 'simulado' 
+      ? (user ? user.id : null) 
+      : editForm.manager_id;
+    
+    // Guardado real en Supabase con upsert
     const { error } = await supabase.from('schools').upsert({
-      id: id, // IMPORTANTE: Le pasamos el id directamente dentro del objeto
+      id: id,
       name: editForm.name,
       location: editForm.location,
       description: editForm.description,
@@ -146,8 +151,8 @@ export default function SchoolProfile() {
       images: editForm.images,
       cover_url: editForm.cover_url,
       avatar_url: editForm.avatar_url,
-      manager_id: editForm.manager_id || 'simulado'
-    }); // Quitamos el .eq('id', id) porque upsert ya busca por la clave primaria automáticamente
+      manager_id: realManagerId // Enviamos un ID de usuario real (UUID) válido
+    });
     
     if (error) {
       console.error("Error al guardar en base de datos:", error);
