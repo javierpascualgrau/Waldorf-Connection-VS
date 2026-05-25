@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { Send, Loader2, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // 💡 IMPORTADO PARA IR AL PERFIL
+import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check } from 'lucide-react'; // 💡 IMPORTADOS NUEVOS ICONOS
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function Hilo() {
   const { user } = useAuth();
+  const navigate = useNavigate(); // 💡 INICIALIZAMOS EL NAVEGADOR
   const [activeChat, setActiveChat] = useState(null);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -14,6 +16,10 @@ export default function Hilo() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Estados para la edición de mensajes en caliente
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState('');
 
   const myEmail = user?.email?.toLowerCase().trim() || '';
 
@@ -23,7 +29,6 @@ export default function Hilo() {
 
     const loadChats = async () => {
       setLoadingChats(true);
-      
       const { data, error } = await supabase
         .from('chats')
         .select('*')
@@ -42,7 +47,7 @@ export default function Hilo() {
 
             return { 
               ...chat, 
-              otherUser: profile || { display_name: otherEmail.split('@')[0], user_email: otherEmail } 
+              otherUser: profile || { id: null, display_name: otherEmail.split('@')[0], user_email: otherEmail } 
             };
           })
         );
@@ -54,7 +59,7 @@ export default function Hilo() {
     loadChats();
   }, [myEmail]);
 
-  // 2. ESCUCHAR ACTUALIZACIONES DE CHATS EN TIEMPO REAL (Mueve la barra lateral si te escriben)
+  // 2. Escuchar ordenación de barra lateral en tiempo real
   useEffect(() => {
     if (!myEmail) return;
 
@@ -67,14 +72,10 @@ export default function Hilo() {
           if (payload.new.user_1_email === myEmail || payload.new.user_2_email === myEmail) {
             setChats((prevChats) => {
               const targetIndex = prevChats.findIndex(c => c.id === payload.new.id);
-              
               if (targetIndex !== -1) {
-                const updatedChat = { 
-                  ...prevChats[targetIndex], 
-                  last_message_at: payload.new.last_message_at 
-                };
+                const updatedChat = { ...prevChats[targetIndex], last_message_at: payload.new.last_message_at };
                 const cleanChats = prevChats.filter(c => c.id !== payload.new.id);
-                return [updatedChat, ...cleanChats]; // Lo inyecta arriba del todo (Posición 0)
+                return [updatedChat, ...cleanChats];
               }
               return prevChats;
             });
@@ -88,7 +89,7 @@ export default function Hilo() {
     };
   }, [myEmail]);
 
-  // 3. Cargar mensajes del chat seleccionado y escuchar nuevos entrantes
+  // 3. Cargar mensajes del chat seleccionado y escuchar TODO en tiempo real (* INSERT, UPDATE, DELETE)
   useEffect(() => {
     if (!activeChat) return;
 
@@ -107,28 +108,33 @@ export default function Hilo() {
 
     loadMessages();
 
+    // 💡 CONFIGURADO EVENTO ESCUCHA TOTAL '*'
     const channel = supabase
       .channel(`chat-room-${activeChat.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${activeChat.id}` },
+        { event: '*', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${activeChat.id}` },
         (payload) => {
-          setMessages((prev) => {
-            // Evitamos duplicados si el mensaje ya se pintó de forma optimista
-            if (prev.some(m => m.id === payload.new.id)) return prev;
-            
-            // Si es un mensaje enviado por mí, reemplazamos el globo temporal por el oficial
-            if (payload.new.sender_email === myEmail) {
-              const tempIndex = prev.findIndex(m => m.content === payload.new.content && String(m.id).startsWith('temp-'));
-              if (tempIndex !== -1) {
-                const updated = [...prev];
-                updated[tempIndex] = payload.new;
-                return updated;
+          if (payload.eventType === 'INSERT') {
+            setMessages((prev) => {
+              if (prev.some(m => m.id === payload.new.id)) return prev;
+              if (payload.new.sender_email === myEmail) {
+                const tempIndex = prev.findIndex(m => m.content === payload.new.content && String(m.id).startsWith('temp-'));
+                if (tempIndex !== -1) {
+                  const updated = [...prev];
+                  updated[tempIndex] = payload.new;
+                  return updated;
+                }
               }
-            }
-            
-            return [...prev, payload.new];
-          });
+              return [...prev, payload.new];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            // Sincroniza la edición del mensaje en tiempo real para ambos
+            setMessages((prev) => prev.map(m => m.id === payload.new.id ? payload.new : m));
+          } else if (payload.eventType === 'DELETE') {
+            // Elimina el globo de la pantalla en tiempo real para ambos
+            setMessages((prev) => prev.filter(m => m.id === payload.old.id));
+          }
           scrollToBottom();
         }
       )
@@ -155,7 +161,6 @@ export default function Hilo() {
     setNewMessage('');
     const nowIso = new Date().toISOString();
 
-    // 💡 PASO INTEGRADO: PINTAR EL MENSAJE EN PANTALLA YA (Optimista)
     const temporaryMessage = {
       id: `temp-${Date.now()}`,
       chat_id: activeChat.id,
@@ -165,34 +170,52 @@ export default function Hilo() {
     };
     setMessages((prev) => [...prev, temporaryMessage]);
 
-    // 💡 PASO INTEGRADO: MOVER A MATEO AL TOP DE LA LISTA EN CALIENTE
     setChats((prevChats) => {
       const filtered = prevChats.filter(c => c.id !== activeChat.id);
       const updatedActiveChat = { ...activeChat, last_message_at: nowIso };
       return [updatedActiveChat, ...filtered];
     });
 
-    // Enviar el mensaje a la base de datos
     const { error: msgError } = await supabase
       .from('chat_messages')
-      .insert([
-        {
-          chat_id: activeChat.id,
-          sender_email: myEmail,
-          content: messageText,
-        },
-      ]);
+      .insert([{ chat_id: activeChat.id, sender_email: myEmail, content: messageText }]);
 
-    if (msgError) {
-      console.error('Error al enviar mensaje:', msgError);
-      return;
+    if (!msgError) {
+      await supabase.from('chats').update({ last_message_at: nowIso }).eq('id', activeChat.id);
     }
+  };
 
-    // Aseguramos el orden permanente en base de datos guardando la fecha del último mensaje
-    await supabase
-      .from('chats')
-      .update({ last_message_at: nowIso })
-      .eq('id', activeChat.id);
+  // 💡 NUEVA FUNCIÓN: ACTUALIZAR MENSAJE EN SUPABASE
+  const handleUpdateMessage = async (msgId) => {
+    if (!editingText.trim()) return;
+    
+    // Cambiamos el estado local al instante para dar velocidad
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: editingText.trim() } : m));
+    setEditingMessageId(null);
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .update({ content: editingText.trim() })
+      .eq('id', msgId);
+
+    if (error) console.error("Error al editar mensaje:", error);
+  };
+
+  // 💡 NUEVA FUNCIÓN: ELIMINAR MENSAJE EN SUPABASE
+  const handleDeleteMessage = async (msgId) => {
+    if (String(msgId).startsWith('temp-')) return;
+    const confirmar = window.confirm("¿Quieres eliminar este mensaje para todos?");
+    if (!confirmar) return;
+
+    // Quitamos de pantalla de forma optimista
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('id', msgId);
+
+    if (error) console.error("Error al borrar mensaje:", error);
   };
 
   if (!user) {
@@ -206,7 +229,7 @@ export default function Hilo() {
 
   return (
     <div className="max-w-4xl mx-auto bg-card border border-border rounded-2xl h-[calc(100vh-140px)] flex overflow-hidden shadow-sm mt-2">
-      {/* COLUMNA IZQUIERDA: LISTA DE CHATS */}
+      {/* BARRA LATERAL IZQUIERDA */}
       <div className="w-1/3 border-r border-border flex flex-col bg-muted/10">
         <div className="p-4 border-b border-border bg-card">
           <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
@@ -248,11 +271,21 @@ export default function Hilo() {
         </div>
       </div>
 
-      {/* COLUMNA DERECHA: CHAT ACTIVO */}
+      {/* BLOQUE DE CHAT ACTIVO */}
       <div className="flex-1 flex flex-col bg-card">
         {activeChat ? (
           <>
-            <div className="p-4 border-b border-border flex items-center gap-3 shadow-inner bg-muted/5">
+            {/* 💡 CABECERA CON CLICK INTELIGENTE AL PERFIL PÚBLICO */}
+            <div 
+              onClick={() => {
+                if (activeChat.otherUser.id) {
+                  navigate(`/usuario/${activeChat.otherUser.id}`);
+                } else {
+                  navigate(`/usuario/${encodeURIComponent(activeChat.otherUser.user_email)}`);
+                }
+              }}
+              className="p-4 border-b border-border flex items-center gap-3 shadow-inner bg-muted/5 cursor-pointer hover:bg-muted/20 transition-all select-none"
+            >
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border">
                 {activeChat.otherUser.avatar_url ? (
                   <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
@@ -263,28 +296,71 @@ export default function Hilo() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-foreground">{activeChat.otherUser.display_name}</h3>
-                <p className="text-[10px] text-muted-foreground">{activeChat.otherUser.location || 'Comunidad Waldorf'}</p>
+                <h3 className="text-sm font-bold text-foreground group-hover:underline">{activeChat.otherUser.display_name}</h3>
+                <p className="text-[10px] text-muted-foreground">Ver perfil de la comunidad ↗</p>
               </div>
             </div>
 
+            {/* CONTENEDOR DE MENSAJES */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
               {loadingMessages ? (
                 <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
               ) : (
                 messages.map((msg) => {
                   const isMe = msg.sender_email === myEmail;
+                  const isEditingThis = editingMessageId === msg.id;
+
                   return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-xs shadow-sm ${
+                    <div key={msg.id} className={`flex items-center gap-2 group ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      
+                      {/* Acciones de mis mensajes (Aparecen a la izquierda al hacer hover en PC) */}
+                      {isMe && !isEditingThis && (
+                        <div className="opacity-0 group-hover:opacity-100 flex gap-1.5 transition-opacity self-center">
+                          <button 
+                            onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.content); }}
+                            className="text-muted-foreground hover:text-primary p-1 rounded-md hover:bg-muted transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="text-muted-foreground hover:text-destructive p-1 rounded-md hover:bg-muted transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Globo de texto */}
+                      <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-xs shadow-sm relative ${
                         isMe 
                           ? 'bg-primary text-primary-foreground rounded-tr-none' 
                           : 'bg-muted/70 text-foreground rounded-tl-none border border-border/40'
                       }`}>
-                        <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                        <span className={`text-[9px] block text-right mt-1 opacity-70 ${isMe ? 'text-primary-foreground/90' : 'text-muted-foreground'}`}>
-                          {format(new Date(msg.created_at), 'HH:mm')}
-                        </span>
+                        {isEditingThis ? (
+                          <div className="flex items-center gap-2 py-0.5 min-w-[180px]">
+                            <input
+                              type="text"
+                              className="flex-1 bg-card text-foreground rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary-foreground border border-border"
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              autoFocus
+                            />
+                            <button onClick={() => handleUpdateMessage(msg.id)} className="text-primary-foreground bg-emerald-600 p-1 rounded-md hover:bg-emerald-700">
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setEditingMessageId(null)} className="text-primary-foreground bg-muted/30 p-1 rounded-md hover:bg-muted/50">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            <span className={`text-[9px] block text-right mt-1 opacity-70 ${isMe ? 'text-primary-foreground/90' : 'text-muted-foreground'}`}>
+                              {format(new Date(msg.created_at), 'HH:mm')}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -293,6 +369,7 @@ export default function Hilo() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* INPUT DE ENVÍO */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card">
               <input
                 type="text"
