@@ -28,7 +28,7 @@ export default function Hilo() {
         .from('chats')
         .select('*')
         .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
-        .order('last_message_at', { ascending: false }); // Los más recientes primero
+        .order('last_message_at', { ascending: false });
 
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
@@ -54,7 +54,7 @@ export default function Hilo() {
     loadChats();
   }, [myEmail]);
 
-  // 2. ESCUCHAR ACTUALIZACIONES EN TIEMPO REAL (Mueve la barra lateral cuando te escriben)
+  // 2. ESCUCHAR ACTUALIZACIONES DE CHATS EN TIEMPO REAL (Mueve la barra lateral si te escriben)
   useEffect(() => {
     if (!myEmail) return;
 
@@ -68,14 +68,13 @@ export default function Hilo() {
             setChats((prevChats) => {
               const targetIndex = prevChats.findIndex(c => c.id === payload.new.id);
               
-              // Si el chat ya existe en nuestra lista lateral
               if (targetIndex !== -1) {
                 const updatedChat = { 
                   ...prevChats[targetIndex], 
                   last_message_at: payload.new.last_message_at 
                 };
                 const cleanChats = prevChats.filter(c => c.id !== payload.new.id);
-                return [updatedChat, ...cleanChats]; // Corta y pega en la posición 0
+                return [updatedChat, ...cleanChats]; // Lo inyecta arriba del todo (Posición 0)
               }
               return prevChats;
             });
@@ -89,7 +88,7 @@ export default function Hilo() {
     };
   }, [myEmail]);
 
-  // 3. Cargar mensajes del chat seleccionado
+  // 3. Cargar mensajes del chat seleccionado y escuchar nuevos entrantes
   useEffect(() => {
     if (!activeChat) return;
 
@@ -114,7 +113,22 @@ export default function Hilo() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${activeChat.id}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          setMessages((prev) => {
+            // Evitamos duplicados si el mensaje ya se pintó de forma optimista
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            
+            // Si es un mensaje enviado por mí, reemplazamos el globo temporal por el oficial
+            if (payload.new.sender_email === myEmail) {
+              const tempIndex = prev.findIndex(m => m.content === payload.new.content && String(m.id).startsWith('temp-'));
+              if (tempIndex !== -1) {
+                const updated = [...prev];
+                updated[tempIndex] = payload.new;
+                return updated;
+              }
+            }
+            
+            return [...prev, payload.new];
+          });
           scrollToBottom();
         }
       )
@@ -123,7 +137,7 @@ export default function Hilo() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeChat]);
+  }, [activeChat, myEmail]);
 
   useEffect(() => {
     scrollToBottom();
@@ -139,14 +153,27 @@ export default function Hilo() {
 
     const messageText = newMessage.trim();
     setNewMessage('');
+    const nowIso = new Date().toISOString();
 
-    // 💡 REORDENACIÓN OPTIMISTA: Movemos el chat al top de la lista en la pantalla ya mismo
+    // 💡 PASO INTEGRADO: PINTAR EL MENSAJE EN PANTALLA YA (Optimista)
+    const temporaryMessage = {
+      id: `temp-${Date.now()}`,
+      chat_id: activeChat.id,
+      sender_email: myEmail,
+      content: messageText,
+      created_at: nowIso
+    };
+    setMessages((prev) => [...prev, temporaryMessage]);
+
+    // 💡 PASO INTEGRADO: MOVER A MATEO AL TOP DE LA LISTA EN CALIENTE
     setChats((prevChats) => {
       const filtered = prevChats.filter(c => c.id !== activeChat.id);
-      return [activeChat, ...filtered];
+      const updatedActiveChat = { ...activeChat, last_message_at: nowIso };
+      return [updatedActiveChat, ...filtered];
     });
 
-    const { error } = await supabase
+    // Enviar el mensaje a la base de datos
+    const { error: msgError } = await supabase
       .from('chat_messages')
       .insert([
         {
@@ -156,7 +183,16 @@ export default function Hilo() {
         },
       ]);
 
-    if (error) console.error('Error al enviar mensaje:', error);
+    if (msgError) {
+      console.error('Error al enviar mensaje:', msgError);
+      return;
+    }
+
+    // Aseguramos el orden permanente en base de datos guardando la fecha del último mensaje
+    await supabase
+      .from('chats')
+      .update({ last_message_at: nowIso })
+      .eq('id', activeChat.id);
   };
 
   if (!user) {
