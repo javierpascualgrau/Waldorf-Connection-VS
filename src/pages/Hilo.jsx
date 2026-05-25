@@ -24,12 +24,11 @@ export default function Hilo() {
     const loadChats = async () => {
       setLoadingChats(true);
       
-      // 💡 CORREGIDO: Ordenamos por la columna de última actividad
       const { data, error } = await supabase
         .from('chats')
         .select('*')
         .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
-        .order('last_message_at', { ascending: false });
+        .order('last_message_at', { ascending: false }); // Los más recientes primero
 
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
@@ -55,7 +54,7 @@ export default function Hilo() {
     loadChats();
   }, [myEmail]);
 
-  // 2. ESCUCHAR ACTUALIZACIONES DE CHATS EN TIEMPO REAL (Mueve al primer puesto de la lista)
+  // 2. ESCUCHAR ACTUALIZACIONES EN TIEMPO REAL (Mueve la barra lateral cuando te escriben)
   useEffect(() => {
     if (!myEmail) return;
 
@@ -65,21 +64,20 @@ export default function Hilo() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'chats' },
         (payload) => {
-          // Comprobamos si el chat actualizado pertenece al usuario logueado
           if (payload.new.user_1_email === myEmail || payload.new.user_2_email === myEmail) {
             setChats((prevChats) => {
               const targetIndex = prevChats.findIndex(c => c.id === payload.new.id);
-              if (targetIndex === -1) return prevChats;
-
-              // Actualizamos el timestamp del chat modificado
-              const updatedChat = { 
-                ...prevChats[targetIndex], 
-                last_message_at: payload.new.last_message_at 
-              };
               
-              // Filtramos el chat de su posición vieja y lo inyectamos en la posición index 0
-              const cleanChats = prevChats.filter(c => c.id !== payload.new.id);
-              return [updatedChat, ...cleanChats];
+              // Si el chat ya existe en nuestra lista lateral
+              if (targetIndex !== -1) {
+                const updatedChat = { 
+                  ...prevChats[targetIndex], 
+                  last_message_at: payload.new.last_message_at 
+                };
+                const cleanChats = prevChats.filter(c => c.id !== payload.new.id);
+                return [updatedChat, ...cleanChats]; // Corta y pega en la posición 0
+              }
+              return prevChats;
             });
           }
         }
@@ -91,7 +89,7 @@ export default function Hilo() {
     };
   }, [myEmail]);
 
-  // 3. Cargar mensajes del chat seleccionado e iniciar su suscripción
+  // 3. Cargar mensajes del chat seleccionado
   useEffect(() => {
     if (!activeChat) return;
 
@@ -141,6 +139,12 @@ export default function Hilo() {
 
     const messageText = newMessage.trim();
     setNewMessage('');
+
+    // 💡 REORDENACIÓN OPTIMISTA: Movemos el chat al top de la lista en la pantalla ya mismo
+    setChats((prevChats) => {
+      const filtered = prevChats.filter(c => c.id !== activeChat.id);
+      return [activeChat, ...filtered];
+    });
 
     const { error } = await supabase
       .from('chat_messages')
