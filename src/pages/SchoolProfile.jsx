@@ -134,8 +134,9 @@ export default function SchoolProfile() {
   const handleSave = async () => {
     setSchool(editForm);
     
-    // Guardado real en Supabase para CUALQUIER colegio
-    const { error } = await supabase.from('schools').update({
+    // CAMBIAMOS .update() POR .upsert() PARA REESCRIBIR O CREAR SI NO EXISTE
+    const { error } = await supabase.from('schools').upsert({
+      id: id, // IMPORTANTE: Le pasamos el id directamente dentro del objeto
       name: editForm.name,
       location: editForm.location,
       description: editForm.description,
@@ -144,10 +145,16 @@ export default function SchoolProfile() {
       activities: editForm.activities,
       images: editForm.images,
       cover_url: editForm.cover_url,
-      avatar_url: editForm.avatar_url
-    }).eq('id', id);
+      avatar_url: editForm.avatar_url,
+      manager_id: editForm.manager_id || 'simulado'
+    }); // Quitamos el .eq('id', id) porque upsert ya busca por la clave primaria automáticamente
     
-    if (error) console.error("Error al guardar en base de datos:", error);
+    if (error) {
+      console.error("Error al guardar en base de datos:", error);
+      alert("Hubo un error al guardar los cambios en la base de datos.");
+    } else {
+      alert("¡Cambios guardados con éxito en la base de datos!");
+    }
     setIsEditing(false);
   };
 
