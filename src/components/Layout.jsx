@@ -1,10 +1,9 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle, MessageSquare } from 'lucide-react'; // 💡 IMPORTAMOS MessageSquare
+import { Home, School, Users, User, PlusCircle, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient'; 
 import CreatePostModal from './CreatePostModal';
 
-// 💡 AÑADIMOS 'HILO' ENTRE COMUNIDAD Y PERFIL
 const navItems = [
   { path: '/', icon: Home, label: 'Inicio' },
   { path: '/colegios', icon: School, label: 'Colegios' },
@@ -74,8 +73,8 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground text-xs font-cormorant font-semibold">W</span>
             </div>
-            {/* 💡 ACTUALIZADO AL NUEVO NOMBRE */}
-            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Nexo Waldorf</span>
+            {/* 💡 REVERTIDO AL NOMBRE ORIGINAL SOLICITADO */}
+            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connection</span>
           </Link>
           
           {mostrarBotonPublicar && (
