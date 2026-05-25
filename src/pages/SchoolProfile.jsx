@@ -1,19 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, X, Plus } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, Upload, Plus, X } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
-// 1. IMPORTAMOS LAS FOTOS COMO VARIABLES
-import logoArtaban from '../assets/logo-1.webp';
-import fotoArtaban1 from '../assets/solidaridad-escuela-waldorf-artaban1.jpg';
-import fotoArtaban2 from '../assets/P1060744-1024x769.webp';
-import fotoArtaban3 from '../assets/images.jpeg';
-import fotoArtaban4 from '../assets/Micael-010-2048x1369.jpg';
 
-const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato'];
+const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
-// Datos extendidos, REALES e ILUSTRATIVOS para la demo de los tres colegios
-// Datos actualizados con tus imágenes reales para Artabán y portadas tipo LinkedIn
+// TUS 3 COLEGIOS CON IMÁGENES DE INTERNET PARA QUE VERCEL NO FALLE
 const MOCK_DETAILS = {
   'micael': {
     id: 'micael',
@@ -21,9 +14,9 @@ const MOCK_DETAILS = {
     location: 'Las Rozas, Madrid',
     description: 'Pionera en la pedagogía Waldorf en España (1979). Acompañamos desde Infantil hasta Bachillerato.',
     activities: ['Olimpiadas Griegas', 'Teatro y Coro', 'Huerto Escolar'],
-    // Portada simbólica (Naturaleza/Madera)
     cover_url: 'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
+    images: [],
     num_students: 380,
     stages: ['Infantil', 'Primaria', 'Secundaria', 'Bachillerato'],
     manager_id: 'simulado'
@@ -34,9 +27,9 @@ const MOCK_DETAILS = {
     location: 'Aravaca, Madrid',
     description: 'Un entorno cálido especializado en los primeros septenios.',
     activities: ['Acuarela', 'Euritmia', 'Panadería'],
-    // Portada simbólica (Arte/Luz)
     cover_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?q=80&w=1200',
     avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
+    images: [],
     num_students: 250,
     stages: ['Infantil', 'Primaria'],
     manager_id: 'simulado'
@@ -45,31 +38,17 @@ const MOCK_DETAILS = {
     id: 'artaban',
     name: 'Escuela Artabán',
     location: 'Torrelodones, Madrid',
-<<<<<<< HEAD
-    description: 'Centro pionero con más de 20 años de experiencia que une la Pedagogía Waldorf y la Pedagogía Curativa (Educación Especial) en una misma comunidad inclusiva.',
-    activities: ['Pedagogía Curativa', 'Artes Textiles y Lana', 'Carpintería', 'Cuidado del Jardín'],
-    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?auto=format&fit=crop&w=800&q=80',
-    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
-    images: [
-      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1507676184212-d0330a1523fe?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1616117414603-5e7e00a89d71?auto=format&fit=crop&w=800&q=80'
-    ],
-=======
     description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
     activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
     cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
-    
-    // AQUÍ ESTÁ EL CAMBIO: Usamos las variables importadas
-    avatar_url: logoArtaban, 
-    images: [fotoArtaban1, fotoArtaban2, fotoArtaban3, fotoArtaban4], 
-    
->>>>>>> ae3eb36984bc22d144b2941d6ee0223ea45afb9d
+    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?q=80&w=600',
+      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?q=80&w=600'
+    ],
     num_students: 180,
-    stages: ['Infantil', 'Primaria', 'Secundaria', 'Educación Especial'],
+    stages: ['Infantil', 'Primaria', 'ESO', 'Ed. Especial'],
     manager_id: 'simulado'
- 
   }
 };
 
@@ -82,38 +61,30 @@ export default function SchoolProfile() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // Estados para el Formulario de Edición
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [newActivity, setNewActivity] = useState('');
-  const [newImage, setNewImage] = useState('');
+  
+  // Estados para saber si la foto está subiendo
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
 
   useEffect(() => {
     const loadSchoolData = async () => {
-      // 1. Obtener usuario logueado
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      let schoolData = null;
-      if (MOCK_DETAILS[id]) {
-        schoolData = MOCK_DETAILS[id];
-      } else {
-        const { data } = await supabase.from('schools').select('*').eq('id', id).single();
-        if (data) {
-          schoolData = {
-            ...data,
-            stages: data.stages || [],
-            activities: data.activities || [],
-            images: data.images || []
-          };
-        }
+      let schoolData = MOCK_DETAILS[id] || null;
+      
+      const { data } = await supabase.from('schools').select('*').eq('id', id).single();
+      if (data) {
+        schoolData = { ...data, stages: data.stages || [], activities: data.activities || [], images: data.images || [] };
       }
 
       if (schoolData) {
         setSchool(schoolData);
-        setEditForm(schoolData); // Inicializar formulario
-        
-        // Cargar eventos del colegio
+        setEditForm(schoolData);
         const { data: evs } = await supabase.from('school_events').select('*').ilike('school_name', `%${schoolData.name}%`);
         setSchoolEvents(evs || []);
       }
@@ -122,30 +93,61 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
-  // Comprobar si el usuario actual es el dueño/administrador del colegio
-  // (Para pruebas, dejamos que si manager_id es 'simulado' o coincide con vuestro id de Supabase, permita editar)
   const isManager = school?.manager_id === 'simulado' || (user && school?.manager_id === user.id);
+
+  // LA MAGIA: Función que sube el archivo a tu ordenador directamente a Supabase
+  const uploadFile = async (event, type) => {
+    try {
+      if (type === 'avatar') setUploadingAvatar(true);
+      if (type === 'cover') setUploadingCover(true);
+      if (type === 'gallery') setUploadingGallery(true);
+
+      if (!event.target.files || event.target.files.length === 0) {
+        throw new Error('Debes seleccionar una imagen.');
+      }
+
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${type}s/${crypto.randomUUID()}.${fileExt}`; 
+
+      let { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const publicUrl = publicUrlData.publicUrl;
+
+      if (type === 'avatar') setEditForm({ ...editForm, avatar_url: publicUrl });
+      if (type === 'cover') setEditForm({ ...editForm, cover_url: publicUrl });
+      if (type === 'gallery') {
+        setEditForm({ ...editForm, images: [...(editForm.images || []), publicUrl] });
+      }
+
+    } catch (error) {
+      alert('Error al subir: ' + error.message);
+    } finally {
+      setUploadingAvatar(false);
+      setUploadingCover(false);
+      setUploadingGallery(false);
+    }
+  };
 
   const handleSave = async () => {
     setSchool(editForm);
     
-    // Si no es un mock, lo guardamos de verdad en Supabase
-    if (id !== 'micael' && id !== 'aravaca' && id !== 'artaban') {
-      const { error } = await supabase
-        .from('schools')
-        .update({
-          name: editForm.name,
-          location: editForm.location,
-          description: editForm.description,
-          num_students: parseInt(editForm.num_students) || 0,
-          stages: editForm.stages,
-          activities: editForm.activities,
-          images: editForm.images
-        })
-        .eq('id', id);
-      
-      if (error) console.error("Error al guardar en base de datos:", error);
-    }
+    // Guardado real en Supabase para CUALQUIER colegio
+    const { error } = await supabase.from('schools').update({
+      name: editForm.name,
+      location: editForm.location,
+      description: editForm.description,
+      num_students: parseInt(editForm.num_students) || 0,
+      stages: editForm.stages,
+      activities: editForm.activities,
+      images: editForm.images,
+      cover_url: editForm.cover_url,
+      avatar_url: editForm.avatar_url
+    }).eq('id', id);
+    
+    if (error) console.error("Error al guardar en base de datos:", error);
     setIsEditing(false);
   };
 
@@ -164,9 +166,9 @@ export default function SchoolProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
       
-      {/* BARRA SUPERIOR CON ACCIONES */}
+      {/* BARRA SUPERIOR */}
       <div className="flex items-center justify-between mb-5">
-        <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+        <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Directorio
         </button>
 
@@ -184,29 +186,32 @@ export default function SchoolProfile() {
         )}
       </div>
 
-      {/* CABECERA ESTILO LINKEDIN (ESTO ES LO IMPORTANTE) */}
+      {/* CABECERA VISUAL LINKEDIN */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
-        
-        {/* Banner de Portada alargado */}
-        <div className="h-44 bg-muted relative overflow-hidden">
-          <img 
-            src={school.cover_url} 
-            className="w-full h-full object-cover" 
-            alt="portada" 
-          />
+        <div className="h-44 bg-muted relative overflow-hidden group">
+          <img src={isEditing ? editForm.cover_url : school.cover_url} className="w-full h-full object-cover transition-opacity" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+          
+          {/* Botón flotante para cambiar Portada */}
+          {isEditing && (
+            <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
+              {uploadingCover ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'cover')} disabled={uploadingCover} />
+            </label>
+          )}
         </div>
 
-        {/* Info del Colegio y Logo Superpuesto */}
         <div className="p-8 relative pt-20">
-          
-          {/* Logo superpuesto a la portada */}
-          <div className="absolute -top-16 left-8">
-            <img 
-              src={school.avatar_url} 
-              className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" 
-              alt="logo" 
-            />
+          <div className="absolute -top-16 left-8 relative group w-32 h-32">
+            <img src={isEditing ? editForm.avatar_url : school.avatar_url} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
+            
+            {/* Botón flotante para cambiar Logo */}
+            {isEditing && (
+              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                 <span className="text-white text-xs font-bold text-center px-2">{uploadingAvatar ? 'Subiendo...' : 'Cambiar Logo'}</span>
+                 <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'avatar')} disabled={uploadingAvatar} />
+              </label>
+            )}
           </div>
           
           {!isEditing ? (
@@ -219,7 +224,11 @@ export default function SchoolProfile() {
             <div className="space-y-4 mt-2 max-w-xl">
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Nombre</label>
-                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none" />
+                <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 font-cormorant text-2xl font-semibold focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Ubicación</label>
+                <input value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none" />
               </div>
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Descripción</label>
@@ -230,17 +239,13 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-      {/* DETALLES Y PRODUCTOS (REJILLA MULTICOLUMNA) */}
+      {/* REJILLA DE DETALLES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* COLUMNA IZQUIERDA: DATOS MÉTRICOS Y ETAPAS (PRODUCTOS) */}
+        {/* COLUMNA IZQ: DATOS Y TALLERES */}
         <div className="md:col-span-1 space-y-6">
-          
-          {/* Tarjeta de Datos Corporativos */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">Datos del Centro</h2>
-            
-            {/* Alumnos */}
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1">
@@ -252,15 +257,11 @@ export default function SchoolProfile() {
                 )}
               </div>
             </div>
-
-            {/* Etapas educativas */}
             <div className="pt-2 border-t border-border/60">
               <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5"><GraduationCap className="w-4 h-4 text-primary" /> Oferta Educativa</p>
               {!isEditing ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {school.stages?.map((s, i) => (
-                    <span key={i} className="bg-primary/5 text-primary border border-primary/10 text-[11px] font-medium px-2.5 py-1 rounded-lg">{s}</span>
-                  ))}
+                  {school.stages?.map((s, i) => <span key={i} className="bg-primary/5 text-primary border border-primary/10 text-[11px] font-medium px-2.5 py-1 rounded-lg">{s}</span>)}
                 </div>
               ) : (
                 <div className="space-y-1.5 mt-2">
@@ -275,16 +276,13 @@ export default function SchoolProfile() {
             </div>
           </div>
 
-          {/* Tarjeta de Actividades */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-primary" /> Talleres y Proyectos</h2>
             <div className="flex flex-wrap gap-1.5">
               {(!isEditing ? school.activities : editForm.activities)?.map((a, i) => (
                 <span key={i} className="bg-muted px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1">
                   {a}
-                  {isEditing && (
-                    <button onClick={() => setEditForm({...editForm, activities: editForm.activities.filter(act => act !== a)})} className="text-destructive font-bold ml-1 hover:text-destructive/80">×</button>
-                  )}
+                  {isEditing && <button onClick={() => setEditForm({...editForm, activities: editForm.activities.filter(act => act !== a)})} className="text-destructive font-bold ml-1 hover:text-destructive/80">×</button>}
                 </span>
               ))}
             </div>
@@ -297,44 +295,40 @@ export default function SchoolProfile() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: GALERÍA AMPLIADA Y EVENTOS */}
+        {/* COLUMNA DER: GALERÍA Y EVENTOS */}
         <div className="md:col-span-2 space-y-6">
-          
-          {/* Galería de Fotos */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones ({(!isEditing ? school.images : editForm.images)?.length || 0})</h2>
-            
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones</h2>
+              
+              {/* Botón para subir fotos a la Galería */}
+              {isEditing && (
+                <label className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1 hover:bg-primary hover:text-white transition-all">
+                  {uploadingGallery ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Subir Foto</>}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'gallery')} disabled={uploadingGallery} />
+                </label>
+              )}
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(!isEditing ? school.images : editForm.images)?.map((img, i) => (
                 <div key={i} className="relative group rounded-2xl overflow-hidden border border-border h-32 bg-muted">
                   <img src={img} className="h-full w-full object-cover" alt="galeria" />
                   {isEditing && (
-                    <button onClick={() => setEditForm({...editForm, images: editForm.images.filter((_, idx) => idx !== i)})} className="absolute top-2 right-2 bg-destructive text-white p-1 rounded-full text-xs opacity-90 hover:opacity-100 shadow-sm">×</button>
+                    <button onClick={() => setEditForm({...editForm, images: editForm.images.filter((_, idx) => idx !== i)})} className="absolute top-2 right-2 bg-destructive text-white p-1 rounded-full text-xs shadow-sm">
+                      <X className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
               ))}
             </div>
-
-            {isEditing && (
-              <div className="flex gap-2 mt-4">
-                <input value={newImage} onChange={e => setNewImage(e.target.value)} placeholder="Pegar URL de imagen de prueba..." className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-xs" />
-                <button onClick={() => { if(newImage) { setEditForm({...editForm, images: [...(editForm.images || []), newImage]}); setNewImage(''); } }} className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1"><Plus className="w-3 h-3" /> Añadir Foto</button>
-              </div>
-            )}
           </div>
 
-          {/* Eventos Vinculados */}
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Calendar className="w-4 h-4 text-primary" /> Eventos Anunciados por el Centro</h2>
             <div className="space-y-4">
-              {schoolEvents.length > 0 ? (
-                schoolEvents.map(e => <SchoolEventCard key={e.id} event={e} />)
-              ) : (
-                <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl border border-dashed border-border text-center">Este centro educativo no tiene eventos activos en cartelera.</p>
-              )}
+              {schoolEvents.length > 0 ? schoolEvents.map(e => <SchoolEventCard key={e.id} event={e} />) : <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl border border-dashed border-border text-center">Este centro educativo no tiene eventos activos en cartelera.</p>}
             </div>
           </div>
-
         </div>
       </div>
     </div>
