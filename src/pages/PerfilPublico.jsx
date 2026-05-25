@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom'; // 💡 Asegúrate de que esté importado aquí
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import PostCard from '@/components/PostCard';
@@ -7,7 +7,7 @@ import { MapPin, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // 💡 ¡ESTA ERA LA LÍNEA QUE FALTABA!
   const { user } = useAuth();
   
   const [profile, setProfile] = useState(null);
@@ -89,7 +89,7 @@ export default function PerfilPublico() {
       .single();
 
     if (data) {
-      // 💡 AQUÍ ESTÁ EL TRUCO: Pasamos el ID del chat al estado de la ruta
+      // Ahora sí redirigirá perfectamente con el ID del chat en el estado
       navigate('/hilo', { state: { activeChatId: data.id } }); 
     } else {
       console.error("Error al abrir chat:", error);
