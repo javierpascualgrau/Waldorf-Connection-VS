@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useLocation, useNavigate } from 'react-router-dom'; // 💡 IMPORTADO useNavigate
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check, Search, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -9,7 +9,7 @@ import { es } from 'date-fns/locale';
 export default function Hilo() {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate(); // 💡 INICIALIZAMOS EL NAVEGADOR
+  const navigate = useNavigate();
   const [activeChat, setActiveChat] = useState(null);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -244,10 +244,27 @@ export default function Hilo() {
   return (
     <div className="max-w-2xl mx-auto bg-card border border-border rounded-3xl h-[calc(100vh-140px)] flex flex-col overflow-hidden shadow-sm mt-2">
       
+      {/* 💡 ESTILOS INLINE PARA UNA BARRA DE SCROLL LIMPIA Y MINIMALISTA */}
+      <style>{`
+        .chat-scroll-area::-webkit-scrollbar {
+          width: 5px;
+        }
+        .chat-scroll-area::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .chat-scroll-area::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 9999px;
+        }
+        .chat-scroll-area::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+      `}</style>
+
       {/* SECCIÓN LISTA DE CHATS */}
       {!activeChat ? (
-        <div className="flex-1 flex flex-col bg-card animate-fade-in">
-          <div className="p-4 border-b border-border space-y-3">
+        <div className="flex-1 flex flex-col bg-card animate-fade-in min-h-0">
+          <div className="p-4 border-b border-border space-y-3 flex-shrink-0">
             <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground/70" />
@@ -261,7 +278,7 @@ export default function Hilo() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-border/40">
+          <div className="flex-1 overflow-y-auto divide-y divide-border/40 chat-scroll-area">
             {loadingChats ? (
               <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary w-6 h-6" /></div>
             ) : filteredChats.length === 0 ? (
@@ -306,16 +323,15 @@ export default function Hilo() {
         </div>
       ) : (
         
-        /* SECCIÓN CONVERSACIÓN ABIERTA */
-        <div className="flex-1 flex flex-col bg-card animate-fade-in">
+        /* SECCIÓN CONVERSACIÓN ABIERTA FIJA CON SCROLL SEPARADO */
+        /* 💡 min-h-0 obliga a este contenedor a respetar la altura del padre y no estirarse */
+        <div className="flex-1 flex flex-col bg-card animate-fade-in min-h-0">
           
-          {/* 💡 CABECERA CORREGIDA: Separamos el botón Volver de los datos del Perfil */}
-          <div className="p-3 border-b border-border flex items-center gap-2 bg-muted/5 select-none">
-            
-            {/* Botón Volver (Aislado con stopPropagation) */}
+          {/* Cabecera del Chat (Fija arriba gracias a flex-shrink-0) */}
+          <div className="p-3 border-b border-border flex items-center gap-2 bg-muted/5 select-none flex-shrink-0">
             <button 
               onClick={(e) => {
-                e.stopPropagation(); // Evita activar el clic del perfil
+                e.stopPropagation();
                 setActiveChat(null);
               }}
               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors mr-1 flex-shrink-0"
@@ -323,7 +339,6 @@ export default function Hilo() {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            {/* Sub-Contenedor del Perfil (Clicable e independiente) */}
             <div 
               onClick={() => {
                 const targetId = activeChat.otherUser.id || encodeURIComponent(activeChat.otherUser.user_email);
@@ -345,11 +360,10 @@ export default function Hilo() {
                 <p className="text-[10px] text-muted-foreground truncate">Ver perfil de la comunidad ↗</p>
               </div>
             </div>
-
           </div>
 
-          {/* Burbujas de chat */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
+          {/* Burbujas de chat (ÚNICO CONTENEDOR CON SCROLL ACTIVO) */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5 chat-scroll-area">
             {loadingMessages ? (
               <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
             ) : (
@@ -409,7 +423,8 @@ export default function Hilo() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card">
+          {/* Formulario de entrada (Fijo abajo gracias a flex-shrink-0) */}
+          <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card flex-shrink-0">
             <input
               type="text"
               placeholder="Escribe un mensaje..."
