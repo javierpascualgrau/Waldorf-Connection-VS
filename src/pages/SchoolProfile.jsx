@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, Upload, Plus, X } from 'lucide-react';
+// AÑADIDO: Trash2 al final de esta línea para que no dé error la papelera
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
+import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -69,6 +71,13 @@ export default function SchoolProfile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const isSuperAdmin = true; // Modo moderador activo
+
+  const loadEvents = async (schoolName) => {
+    const { data: evs } = await supabase.from('school_events').select('*').ilike('school_name', `%${schoolName}%`);
+    setSchoolEvents(evs || []);
+  };
 
   useEffect(() => {
     const loadSchoolData = async () => {
@@ -336,13 +345,65 @@ export default function SchoolProfile() {
           </div>
 
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Calendar className="w-4 h-4 text-primary" /> Eventos Anunciados por el Centro</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" /> Eventos Anunciados por el Centro
+              </h2>
+              {isManager && (
+                <button 
+                  onClick={() => setShowEventModal(true)} 
+                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Publicar Evento
+                </button>
+              )}
+            </div>
+            
+            {/* AQUÍ ESTABA EL FALLO: Restaurado el renderizado de los eventos y la papelera */}
             <div className="space-y-4">
-              {schoolEvents.length > 0 ? schoolEvents.map(e => <SchoolEventCard key={e.id} event={e} />) : <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl border border-dashed border-border text-center">Este centro educativo no tiene eventos activos en cartelera.</p>}
+              {schoolEvents.length > 0 ? (
+                schoolEvents.map(e => (
+                  <div key={e.id} className="relative group/event">
+                    <SchoolEventCard event={e} />
+                    {isSuperAdmin && (
+                      <button 
+                        onClick={async () => {
+                          if (window.confirm("¿Seguro que quieres borrar este evento de la plataforma?")) {
+                            await supabase.from('school_events').delete().eq('id', e.id);
+                            if (school) loadEvents(school.name);
+                          }
+                        }} 
+                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover/event:opacity-100 z-10"
+                        title="Eliminar evento"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl border border-dashed border-border text-center">
+                  Este centro educativo no tiene eventos activos en cartelera.
+                </p>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* EL MODAL INYECTADO CORRECTAMENTE */}
+      {showEventModal && (
+        <CreateSchoolEventModal 
+          onClose={() => setShowEventModal(false)} 
+          onCreated={() => {
+            setShowEventModal(false);
+            if (school) loadEvents(school.name);
+          }} 
+          defaultSchoolName={school?.name} 
+          defaultSchoolId={id} 
+        />
+      )}
+      
     </div>
   );
 }
