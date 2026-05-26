@@ -5,7 +5,6 @@ import { Search, PlusCircle, MapPin } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 import { Link } from 'react-router-dom';
 
-// IDs corregidos para que coincidan con los perfiles
 const MOCK_COLEGIOS = [
   { id: 'micael', name: 'Escuela Libre Micael', location: 'Las Rozas, Madrid', description: 'El colegio Waldorf más veterano de España.', avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80' },
   { id: 'aravaca', name: 'Waldorf Aravaca', location: 'Aravaca, Madrid', description: 'Educación Waldorf en un entorno familiar.', avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80' },
@@ -13,7 +12,7 @@ const MOCK_COLEGIOS = [
 ];
 
 export default function Colegios() {
-  const [activeTab, setActiveTab] = useState('directorio'); // 'directorio' o 'eventos'
+  const [activeTab, setActiveTab] = useState('directorio'); 
   const [search, setSearch] = useState('');
   const [schools, setSchools] = useState([]);
   const [events, setEvents] = useState([]);
@@ -21,9 +20,22 @@ export default function Colegios() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Nos traemos los datos reales
       const { data: sData } = await supabase.from('schools').select('*');
       const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
-      setSchools([...MOCK_COLEGIOS, ...(sData || [])]);
+      
+      const colegiosReales = sData || [];
+      
+      // 2. Extraemos los IDs de los colegios que ya están en la base de datos
+      const idsReales = colegiosReales.map(escuela => escuela.id);
+      
+      // 3. Filtramos los de prueba: solo dejamos los que NO están en la base de datos
+      const colegiosDePruebaFiltrados = MOCK_COLEGIOS.filter(
+        mock => !idsReales.includes(mock.id)
+      );
+
+      // 4. Juntamos las dos listas (ahora sin duplicados)
+      setSchools([...colegiosReales, ...colegiosDePruebaFiltrados]);
       setEvents(eData || []);
     };
     fetchData();
@@ -45,7 +57,7 @@ export default function Colegios() {
         <p className="text-muted-foreground text-lg">Encuentra tu centro y descubre sus actividades</p>
       </div>
 
-      {/* SELECTOR DE PESTAÑAS (ESTILO COMUNIDAD) */}
+      {/* SELECTOR DE PESTAÑAS */}
       <div className="flex justify-center gap-4 mb-8 border-b border-border pb-4">
         <button 
           onClick={() => setActiveTab('directorio')}
