@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, MapPin, Calendar, Clock } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient'; // 💡 MIGRADO: Importamos vuestro cliente de Supabase real
 
 const EVENT_TYPES = [
   { value: 'mercadillo', label: 'Mercadillo' },
@@ -31,14 +31,27 @@ export default function CreateSchoolEventModal({ user, onClose, onCreated }) {
   const handleSubmit = async () => {
     if (!form.school_name || !form.title || !form.event_date) return;
     setLoading(true);
-    await base44.entities.SchoolEvent.create({
-      ...form,
-      school_email: user?.email || '',
-      likes_count: 0,
-      is_public: true,
-    });
+    
+    // 💡 MIGRADO: Guardamos directamente en la tabla de Supabase school_events
+    const { error } = await supabase
+      .from('school_events')
+      .insert([
+        {
+          ...form,
+          school_email: user?.email || '',
+          likes_count: 0,
+          is_public: true,
+        },
+      ]);
+
     setLoading(false);
-    onCreated();
+
+    if (!error) {
+      onCreated();
+    } else {
+      console.error("Error al crear evento del colegio:", error);
+      alert("Hubo un error al publicar el evento en la base de datos.");
+    }
   };
 
   return (
@@ -63,7 +76,7 @@ export default function CreateSchoolEventModal({ user, onClose, onCreated }) {
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Título del evento *</label>
             <input value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="Ej: Mercadillo de Navidad 2025"
+              placeholder="Ej: Mercadillo de Navidad 2026"
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
 
