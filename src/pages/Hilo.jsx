@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom'; // 💡 IMPORTADO useNavigate
 import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check, Search, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -9,6 +9,7 @@ import { es } from 'date-fns/locale';
 export default function Hilo() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate(); // 💡 INICIALIZAMOS EL NAVEGADOR
   const [activeChat, setActiveChat] = useState(null);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -307,28 +308,47 @@ export default function Hilo() {
         
         /* SECCIÓN CONVERSACIÓN ABIERTA */
         <div className="flex-1 flex flex-col bg-card animate-fade-in">
-          <div className="p-3 border-b border-border flex items-center gap-2 bg-muted/5">
+          
+          {/* 💡 CABECERA CORREGIDA: Separamos el botón Volver de los datos del Perfil */}
+          <div className="p-3 border-b border-border flex items-center gap-2 bg-muted/5 select-none">
+            
+            {/* Botón Volver (Aislado con stopPropagation) */}
             <button 
-              onClick={() => setActiveChat(null)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors mr-1"
+              onClick={(e) => {
+                e.stopPropagation(); // Evita activar el clic del perfil
+                setActiveChat(null);
+              }}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors mr-1 flex-shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
-              {activeChat.otherUser.avatar_url ? (
-                <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-primary font-semibold text-xs">
-                  {activeChat.otherUser.display_name?.slice(0, 2).toUpperCase()}
-                </span>
-              )}
+
+            {/* Sub-Contenedor del Perfil (Clicable e independiente) */}
+            <div 
+              onClick={() => {
+                const targetId = activeChat.otherUser.id || encodeURIComponent(activeChat.otherUser.user_email);
+                navigate(`/usuario/${targetId}`);
+              }}
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity min-w-0 flex-1"
+            >
+              <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
+                {activeChat.otherUser.avatar_url ? (
+                  <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-primary font-semibold text-xs">
+                    {activeChat.otherUser.display_name?.slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
+                <p className="text-[10px] text-muted-foreground truncate">Ver perfil de la comunidad ↗</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">{activeChat.otherUser.display_name}</h3>
-              <p className="text-[10px] text-muted-foreground">Conversación activa</p>
-            </div>
+
           </div>
 
+          {/* Burbujas de chat */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
             {loadingMessages ? (
               <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
