@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2 } from 'lucide-react';
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings } from 'lucide-react'; // 💡 Añadido Settings
 import PostCard from '@/components/PostCard';
+import ChangePasswordModal from '@/components/ChangePasswordModal'; // 💡 Importamos el modal de seguridad
 
 const ROLES = [
   { value: 'alumno', label: 'Alumno' },
@@ -28,9 +29,12 @@ export default function Perfil() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false); // 💡 NUEVO ESTADO
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const fileRef = useRef();
-  const bannerFileRef = useRef(); // 💡 NUEVA REFERENCIA
+  const bannerFileRef = useRef();
+
+  // 💡 NUEVO ESTADO: Controla la apertura del modal de contraseña
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -56,7 +60,7 @@ export default function Perfil() {
           location: profileData.location || '',
           interests: profileData.interests || [],
           avatar_url: profileData.avatar_url || '',
-          banner_url: profileData.banner_url || '', // 💡 RECOGEMOS PORTADA
+          banner_url: profileData.banner_url || '',
         });
       } else {
         setForm({
@@ -64,7 +68,7 @@ export default function Perfil() {
           role: 'simpatizante',
           interests: [],
           avatar_url: '',
-          banner_url: '', // 💡 INICIALIZAMOS PORTADA VACÍA
+          banner_url: '',
         });
       }
 
@@ -107,7 +111,6 @@ export default function Perfil() {
     setUploadingAvatar(false);
   };
 
-  // 💡 NUEVA FUNCIÓN: PARA SUBIR LA IMAGEN DE PORTADA
   const handleBannerChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -193,14 +196,13 @@ export default function Perfil() {
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
   const currentAvatarUrl = editing ? form.avatar_url : profile?.avatar_url;
-  const currentBannerUrl = editing ? form.banner_url : profile?.banner_url; // 💡 DETECTOR DE PORTADA
+  const currentBannerUrl = editing ? form.banner_url : profile?.banner_url;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      {/* Profile card con overflow-hidden para respetar las esquinas de la portada */}
       <div className="bg-card rounded-2xl border border-border mb-5 shadow-sm overflow-hidden">
         
-        {/* 💡 NUEVA ZONA: CONTENEDOR FOTO DE PORTADA */}
+        {/* CONTENEDOR FOTO DE PORTADA */}
         <div className="relative h-40 w-full bg-muted/50 border-b border-border/40">
           {currentBannerUrl ? (
             <img src={currentBannerUrl} alt="Portada de fondo" className="w-full h-full object-cover" />
@@ -210,7 +212,6 @@ export default function Perfil() {
             </div>
           )}
           
-          {/* Botón de cámara flotante para la portada (SÓLO en modo edición) */}
           {editing && (
             <button
               type="button"
@@ -218,11 +219,7 @@ export default function Perfil() {
               disabled={uploadingBanner}
               className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full transition-colors backdrop-blur-sm shadow-md border border-white/10 flex items-center justify-center z-10"
             >
-              {uploadingBanner ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Camera className="w-4 h-4" />
-              )}
+              {uploadingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-4 h-4" />}
             </button>
           )}
           <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
@@ -231,10 +228,8 @@ export default function Perfil() {
         {/* CONTENEDOR INFERIOR DE DETALLES */}
         <div className="p-5 pt-0">
           
-          {/* Fila de foto de perfil solapada con margen negativo y botón de edición */}
           <div className="flex items-end justify-between mb-2 relative">
-            
-            {/* Foto de perfil circular muerde la portada */}
+            {/* Foto de perfil */}
             <div className="relative w-24 h-24 flex-shrink-0 -mt-12">
               <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border-4 border-card shadow-md">
                 {currentAvatarUrl ? (
@@ -244,7 +239,6 @@ export default function Perfil() {
                 )}
               </div>
               
-              {/* Botón flotante del avatar (SÓLO en modo edición) */}
               {editing && (
                 <button
                   type="button"
@@ -252,26 +246,32 @@ export default function Perfil() {
                   disabled={uploadingAvatar}
                   className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-1.5 rounded-full shadow-md hover:bg-primary/90 transition-colors cursor-pointer z-10 flex items-center justify-center border border-card"
                 >
-                  {uploadingAvatar ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Camera className="w-3.5 h-3.5" />
-                  )}
+                  {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                 </button>
               )}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
-            {/* Botón de activar edición (se alinea arriba a la derecha de la caja limpia) */}
-            <button
-              onClick={() => setEditing(!editing)}
-              className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground self-start mt-2"
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
+            {/* 💡 CONTENEDOR DE BOTONES (Ruedita Ajustes + Lápiz Edición) */}
+            <div className="flex gap-1 items-center self-start mt-2">
+              <button
+                onClick={() => setPasswordModalOpen(true)}
+                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                title="Ajustes de cuenta"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setEditing(!editing)}
+                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                title="Editar perfil"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Bloque de Textos principales (Nombre, Rol, Ubicación) */}
+          {/* Bloque de Textos principales */}
           <div className="mb-4">
             <h2 className="font-cormorant text-2xl font-semibold text-foreground">{displayName}</h2>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -378,6 +378,14 @@ export default function Perfil() {
             <PostCard key={post.id} post={post} userEmail={user?.email} likedIds={new Set()} />
           ))}
         </div>
+      )}
+
+      {/* 💡 MODAL DE CAMBIO DE CONTRASEÑA */}
+      {passwordModalOpen && (
+        <ChangePasswordModal 
+          userEmail={user?.email} 
+          onClose={() => setPasswordModalOpen(false)} 
+        />
       )}
     </div>
   );
