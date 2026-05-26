@@ -1,22 +1,26 @@
 import { useLocation } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/lib/AuthContext'; // 💡 IMPORTAMOS VUESTRO CONTEXTO REAL
+import { supabase } from '@/api/supabaseClient'; // 💡 IMPORTAMOS EL CLIENTE DE SUPABASE
 
-
-export default function PageNotFound({}) {
+export default function PageNotFound() {
     const location = useLocation();
     const pageName = location.pathname.substring(1);
+    const { user } = useAuth(); // 💡 Obtenemos el usuario logueado en la sesión de Supabase
 
-    const { data: authData, isFetched } = useQuery({
-        queryKey: ['user'],
+    // 💡 MIGRADO: Ahora consulta el rol directamente en vuestra tabla de perfiles de Supabase
+    const { data: profile, isFetched } = useQuery({
+        queryKey: ['adminCheck', user?.id],
         queryFn: async () => {
-            try {
-                const user = await base44.auth.me();
-                return { user, isAuthenticated: true };
-            } catch (error) {
-                return { user: null, isAuthenticated: false };
-            }
-        }
+            if (!user) return null;
+            const { data } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .maybeSingle();
+            return data;
+        },
+        enabled: !!user, // Solo se ejecuta si el usuario está autenticado
     });
     
     return (
@@ -39,8 +43,8 @@ export default function PageNotFound({}) {
                         </p>
                     </div>
                     
-                    {/* Admin Note */}
-                    {isFetched && authData.isAuthenticated && authData.user?.role === 'admin' && (
+                    {/* Admin Note (Conectado a los roles de vuestra base de datos) */}
+                    {user && isFetched && profile?.role === 'admin' && (
                         <div className="mt-8 p-4 bg-slate-100 rounded-lg border border-slate-200">
                             <div className="flex items-start space-x-3">
                                 <div className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center mt-0.5">
