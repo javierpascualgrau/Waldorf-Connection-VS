@@ -1,39 +1,26 @@
-**Welcome to your Base44 project** 
+# 🏛️ Waldorf Connection
 
-**About**
+Una plataforma comunitaria viva e integradora diseñada para conectar a familias, alumnos, profesores y exalumnos de escuelas Waldorf (como la Escuela Libre Micael). Un espacio respetuoso enfocado en fortalecer los vínculos reales, la colaboración de proximidad y la visibilidad de la pedagogía.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## 🚀 Características Principales
 
-This project contains everything you need to run your app locally.
+* **Feed de Comunidad:** Espacio dinámico para compartir publicaciones, reflexiones e iniciativas.
+* **Gestión de Colegios y Eventos:** Calendario interactivo para mercadillos, festivales y jornadas de puertas abiertas.
+* **Hilos de Mensajería Privada:** Sistema de DMs estilo chat dinámico con ordenación por actividad, modo edición/borrado de mensajes e indicadores de notificaciones no leídos en tiempo real.
+* **Perfiles Personalizables:** Identificación por roles de la comunidad, biografía, selección de intereses, carga de avatares/portadas y ajustes de seguridad integrados.
 
-**Edit the code in your local development environment**
+## 🛠️ Tecnologías Utilizadas
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+* **Frontend:** React (v18) + Vite + Tailwind CSS
+* **Base de Datos y Autenticación:** Supabase (PostgreSQL con políticas RLS y Triggers en tiempo real)
+* **Gestión de Estado:** TanStack Query (React Query)
+* **Despliegue:** Vercel
 
-**Prerequisites:** 
+## 💻 Desarrollo Local
 
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+### Prerrequisitos
 
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
-```
-
-Run the app: `npm run dev`
-
-**Publish your changes**
-
-Open [Base44.com](http://Base44.com) and click on Publish.
-
-**Docs & Support**
-
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+1. Clonar el repositorio.
+2. Instalar las dependencias del proyecto:
+   ```bash
+   npm install
