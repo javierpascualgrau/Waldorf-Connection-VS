@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import SchoolEventCard from '@/components/SchoolEventCard';
-import { Search, PlusCircle, MapPin } from 'lucide-react';
+import { Search, PlusCircle, MapPin, Filter } from 'lucide-react'; // Añadimos Filter
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 import { Link } from 'react-router-dom';
 
@@ -11,9 +11,13 @@ const MOCK_COLEGIOS = [
   { id: 'artaban', name: 'Escuela Artabán', location: 'Torrelodones, Madrid', description: 'Pedagogía Waldorf en plena sierra madrileña.', avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80' }
 ];
 
+// Listado de categorías para los filtros del tablón
+const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
+
 export default function Colegios() {
   const [activeTab, setActiveTab] = useState('directorio'); 
   const [search, setSearch] = useState('');
+  const [eventoFiltro, setEventoFiltro] = useState('Todos'); // Estado para controlar el filtro de eventos
   const [schools, setSchools] = useState([]);
   const [events, setEvents] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -45,9 +49,16 @@ export default function Colegios() {
     s.name.toLowerCase().includes(search.toLowerCase()) || s.location.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredEvents = events.filter(e => 
-    e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Lógica de filtrado doble para eventos: por buscador de texto AND por tipo de categoría
+  const filteredEvents = events.filter(e => {
+    const coincideTexto = e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase());
+    
+    const coincideCategoria = eventoFiltro === 'Todos' || 
+                              e.title.toLowerCase().includes(eventoFiltro.toLowerCase()) || 
+                              (e.description && e.description.toLowerCase().includes(eventoFiltro.toLowerCase()));
+    
+    return coincideTexto && coincideCategoria;
+  });
 
   return (
     <div className="max-w-5xl mx-auto px-4 pb-20 mt-6">
@@ -74,7 +85,7 @@ export default function Colegios() {
       </div>
 
       {/* BUSCADOR */}
-      <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-6 py-3 shadow-sm mb-10 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-6 py-3 shadow-sm mb-6 max-w-2xl mx-auto">
         <Search className="w-5 h-5 text-muted-foreground" />
         <input 
           value={search} 
@@ -83,6 +94,22 @@ export default function Colegios() {
           className="bg-transparent flex-1 outline-none text-base"
         />
       </div>
+
+      {/* FILTROS DE CATEGORÍAS (Solo se renderizan en la pestaña de eventos) */}
+      {activeTab === 'eventos' && (
+        <div className="flex flex-wrap justify-center gap-2 mb-10 max-w-3xl mx-auto">
+          <Filter className="w-4 h-4 text-muted-foreground mr-1 self-center" />
+          {CATEGORIAS_EVENTOS.map(cat => (
+            <button 
+              key={cat}
+              onClick={() => setEventoFiltro(cat)}
+              className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all border ${eventoFiltro === cat ? 'bg-primary/10 text-primary border-primary/30 shadow-sm' : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* CONTENIDO SEGÚN LA PESTAÑA */}
       {activeTab === 'directorio' ? (
@@ -115,10 +142,15 @@ export default function Colegios() {
              </button>
           </div>
           {filteredEvents.length > 0 ? (
-            filteredEvents.map(event => <SchoolEventCard key={event.id} event={event} />)
+            // Envolvemos las tarjetas dinámicamente con Links para redirigir al detalle
+            filteredEvents.map(event => (
+              <Link to={`/eventos/${event.id}`} key={event.id} className="block transition-transform hover:-translate-y-0.5">
+                <SchoolEventCard event={event} />
+              </Link>
+            ))
           ) : (
             <div className="text-center py-12 bg-card rounded-3xl border border-border">
-              <p className="text-muted-foreground">No se han encontrado eventos.</p>
+              <p className="text-muted-foreground">No se han encontrado eventos de este tipo.</p>
             </div>
           )}
         </div>

@@ -13,6 +13,7 @@ import Login from '@/pages/Login';
 import PerfilPublico from '@/pages/PerfilPublico';
 import SchoolProfile from './pages/SchoolProfile';
 import Hilo from '@/pages/Hilo'; // 💡 1. IMPORTAMOS LA NUEVA PÁGINA DE DMs
+import EventDetail from './pages/EventDetail';
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
@@ -41,6 +42,7 @@ const AuthenticatedApp = () => {
       <Route path="/colegios" element={<Colegios />} />
       <Route path="/colegios/:id" element={<SchoolProfile />} />
       <Route path="/comunidad" element={<Comunidad />} />
+      <Route path="/eventos/:id" element={<EventDetail />} />
       
       {/* 💡 2. AÑADIMOS LA RUTA DE HILO */}
       <Route path="/hilo" element={<Hilo />} /> 
