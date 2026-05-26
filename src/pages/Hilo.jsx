@@ -244,7 +244,7 @@ export default function Hilo() {
   return (
     <div className="max-w-2xl mx-auto bg-card border border-border rounded-3xl h-[calc(100vh-140px)] flex flex-col overflow-hidden shadow-sm mt-2">
       
-      {/* 💡 ESTILOS INLINE PARA UNA BARRA DE SCROLL LIMPIA Y MINIMALISTA */}
+      {/* Estilos inline para scroll minimalista */}
       <style>{`
         .chat-scroll-area::-webkit-scrollbar {
           width: 5px;
@@ -323,12 +323,11 @@ export default function Hilo() {
         </div>
       ) : (
         
-        /* SECCIÓN CONVERSACIÓN ABIERTA FIJA CON SCROLL SEPARADO */
-        /* 💡 min-h-0 obliga a este contenedor a respetar la altura del padre y no estirarse */
-        <div className="flex-1 flex flex-col bg-card animate-fade-in min-h-0">
+        /* 💡 SECCIÓN CONVERSACIÓN ABIERTA CON POSICIONAMIENTO ABSOLUTO (Blindado para Móvil) */
+        <div className="relative flex-1 bg-card animate-fade-in min-h-0 overflow-hidden">
           
-          {/* Cabecera del Chat (Fija arriba gracias a flex-shrink-0) */}
-          <div className="p-3 border-b border-border flex items-center gap-2 bg-muted/5 select-none flex-shrink-0">
+          {/* 💡 Cabecera del Chat (FIJA ARRIBA CON ABSOLUTE) */}
+          <div className="absolute top-0 left-0 right-0 h-16 border-b border-border flex items-center gap-2 bg-muted/5 select-none z-10 px-3">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -362,8 +361,8 @@ export default function Hilo() {
             </div>
           </div>
 
-          {/* Burbujas de chat (ÚNICO CONTENEDOR CON SCROLL ACTIVO) */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5 chat-scroll-area">
+          {/* 💡 Burbujas de chat (ÚNICO CONTENEDOR CON SCROLL - Ajustado entre top-16 y bottom-[73px]) */}
+          <div className="absolute top-16 bottom-[73px] left-0 right-0 overflow-y-auto p-4 space-y-3 bg-muted/5 chat-scroll-area">
             {loadingMessages ? (
               <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
             ) : (
@@ -423,8 +422,8 @@ export default function Hilo() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Formulario de entrada (Fijo abajo gracias a flex-shrink-0) */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-border flex gap-2 bg-card flex-shrink-0">
+          {/* 💡 Formulario de entrada (FIJO ABAJO CON ABSOLUTE) */}
+          <form onSubmit={handleSendMessage} className="absolute bottom-0 left-0 right-0 h-[73px] p-4 border-t border-border flex gap-2 bg-card z-10">
             <input
               type="text"
               placeholder="Escribe un mensaje..."
