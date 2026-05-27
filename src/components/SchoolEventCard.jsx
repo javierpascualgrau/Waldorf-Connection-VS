@@ -3,6 +3,7 @@ import { Heart, MapPin, Calendar, Clock } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Link } from 'react-router-dom'; // INYECTADO: Para poder viajar al perfil del colegio
 
 const EVENT_TYPE_LABELS = {
   mercadillo: 'Mercadillo',
@@ -36,6 +37,10 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
 
   const initials = (event.school_name || 'C').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
+  // Seguro para que la fecha y hora funcionen sin importar si la columna se llama 'date' o 'event_date'
+  const eventDate = event.event_date || event.date;
+  const eventTime = event.event_time || event.time;
+
   const handleLike = async () => {
     if (loading || !userEmail) return;
     setLoading(true);
@@ -64,9 +69,13 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
       )}
 
       <div className="p-4">
-        {/* School info */}
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+        
+        {/* School info - AHORA ES UN ENLACE QUE TE LLEVA AL PERFIL */}
+        <Link 
+          to={`/colegios/${event.school_id || ''}`} 
+          className="flex items-center gap-3 mb-3 group"
+        >
+          <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/25 transition-colors">
             {event.school_logo ? (
               <img src={event.school_logo} alt="" className="w-9 h-9 rounded-full object-cover" />
             ) : (
@@ -74,12 +83,16 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
             )}
           </div>
           <div>
-            <p className="text-sm font-medium">{event.school_name || 'Colegio Waldorf'}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_TYPE_COLORS[event.event_type] || 'bg-muted text-muted-foreground'}`}>
-              {EVENT_TYPE_LABELS[event.event_type] || event.event_type || 'Evento'}
-            </span>
+            <p className="text-sm font-medium group-hover:text-primary group-hover:underline transition-all">
+              {event.school_name || 'Colegio Waldorf'}
+            </p>
+            {event.event_type && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_TYPE_COLORS[event.event_type] || 'bg-muted text-muted-foreground'}`}>
+                {EVENT_TYPE_LABELS[event.event_type] || event.event_type || 'Evento'}
+              </span>
+            )}
           </div>
-        </div>
+        </Link>
 
         {/* Title & description */}
         <h3 className="font-cormorant text-xl font-semibold mb-1">{event.title}</h3>
@@ -89,15 +102,15 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
 
         {/* Meta */}
         <div className="flex flex-wrap gap-3 mb-3">
-          {event.event_date && (
+          {eventDate && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Calendar className="w-3.5 h-3.5 text-primary" />
-              {format(new Date(event.event_date), "d 'de' MMMM, yyyy", { locale: es })}
+              {format(new Date(eventDate), "d 'de' MMMM, yyyy", { locale: es })}
             </span>
           )}
-          {event.event_time && (
+          {eventTime && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="w-3.5 h-3.5 text-primary" /> {event.event_time}
+              <Clock className="w-3.5 h-3.5 text-primary" /> {eventTime}
             </span>
           )}
           {event.location && (
