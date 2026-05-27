@@ -15,7 +15,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE
+  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE (Corregida)
   const handleUploadPhoto = async (e) => {
     try {
       setUploading(true);
@@ -23,14 +23,14 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
-      const fileName = `events/${crypto.randomUUID()}.${fileExt}`;
+      // Guardamos en la carpeta eventos dentro de avatars
+      const fileName = `eventos/${crypto.randomUUID()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setImageUrl(publicUrlData.publicUrl);
-      alert('¡Imagen del evento subida con éxito!');
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      setImageUrl(data.publicUrl); // Usamos data.publicUrl en lugar de publicUrlData
     } catch (error) {
       alert('Error al subir imagen: ' + error.message);
     } finally {
@@ -38,7 +38,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Corrige el cuelgue)
+  // FUNCIÓN PRINCIPAL DE ENVÍO (Blindada contra cuelgues)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -57,12 +57,15 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
         location: location,
         map_link: mapLink,
         image_url: imageUrl,
-        school_name: defaultSchoolName || 'Colegio Independiente',
-        school_id: defaultSchoolId || null, // Guardamos el ID para poder linkear
+        school_name: defaultSchoolName, // Automático: coge el nombre del perfil
+        school_id: defaultSchoolId,     // Automático: coge el ID del perfil
         created_date: new Date().toISOString()
       }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Detalle del error de Supabase:", error);
+        throw error; // Esto fuerza a que salte al catch y no se quede pillado
+      }
 
       alert('¡Evento publicado con éxito en el tablón!');
       onCreated(); // Cierra el modal y refresca la lista
@@ -70,6 +73,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       console.error('Error al insertar evento:', error);
       alert('Hubo un error al publicar el evento: ' + error.message);
     } finally {
+      // ESTO ES CLAVE: Pase lo que pase (éxito o error), quita el estado "Publicando..."
       setIsSubmitting(false);
     }
   };
