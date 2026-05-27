@@ -15,7 +15,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE (Corregida)
+  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE
   const handleUploadPhoto = async (e) => {
     try {
       setUploading(true);
@@ -23,14 +23,13 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
-      // Guardamos en la carpeta eventos dentro de avatars
       const fileName = `eventos/${crypto.randomUUID()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setImageUrl(data.publicUrl); // Usamos data.publicUrl en lugar de publicUrlData
+      setImageUrl(data.publicUrl);
     } catch (error) {
       alert('Error al subir imagen: ' + error.message);
     } finally {
@@ -38,7 +37,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Blindada contra cuelgues)
+  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada con las columnas reales)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -48,32 +47,35 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
     setIsSubmitting(true);
 
+    // Si el usuario pone un enlace de Google Maps, lo sumamos limpiamente a la descripción
+    const finalDescription = mapLink 
+      ? `${description}\n\n🔗 Enlace al mapa: ${mapLink}`
+      : description;
+
     try {
       const { error } = await supabase.from('school_events').insert([{
         title: title,
-        description: description,
+        description: finalDescription,
         date: date,
         time: time,
-        location: location,
-        map_link: mapLink,
-        image_url: imageUrl,
-        school_name: defaultSchoolName, // Automático: coge el nombre del perfil
-        school_id: defaultSchoolId,     // Automático: coge el ID del perfil
+        map_link: location,             // 💡 CORREGIDO: Guardamos el texto de la dirección aquí
+        image_url: imageUrl || null,
+        school_name: defaultSchoolName,
+        school_id: defaultSchoolId,
         created_date: new Date().toISOString()
       }]);
 
       if (error) {
         console.error("Detalle del error de Supabase:", error);
-        throw error; // Esto fuerza a que salte al catch y no se quede pillado
+        throw error;
       }
 
       alert('¡Evento publicado con éxito en el tablón!');
-      onCreated(); // Cierra el modal y refresca la lista
+      onCreated();
     } catch (error) {
       console.error('Error al insertar evento:', error);
       alert('Hubo un error al publicar el evento: ' + error.message);
     } finally {
-      // ESTO ES CLAVE: Pase lo que pase (éxito o error), quita el estado "Publicando..."
       setIsSubmitting(false);
     }
   };
@@ -126,8 +128,8 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
           {/* Enlace al Mapa */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps</label>
-            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace para abrir en GPS (opcional)" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps (Opcional)</label>
+            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace para abrir en GPS" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
           </div>
 
           {/* SUBIR IMAGEN ASOCIADA */}
