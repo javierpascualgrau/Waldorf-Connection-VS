@@ -391,7 +391,7 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-      {/* EL MODAL INYECTADO CORRECTAMENTE */}
+     {/* Ve a la línea donde se renderiza el modal al final de SchoolProfile.jsx y déjala exactamente así: */}
       {showEventModal && (
         <CreateSchoolEventModal 
           onClose={() => setShowEventModal(false)} 
@@ -399,8 +399,8 @@ export default function SchoolProfile() {
             setShowEventModal(false);
             if (school) loadEvents(school.name);
           }} 
-          defaultSchoolName={school?.name} 
-          defaultSchoolId={id} 
+          defaultSchoolName={school?.name} // Envía el nombre del colegio de forma automática
+          defaultSchoolId={id}             // Envía el ID del colegio de forma automática
         />
       )}
       
