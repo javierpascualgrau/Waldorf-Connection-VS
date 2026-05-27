@@ -7,15 +7,15 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [mapLink, setMapLink] = useState('');
+  const [location, setLocation] = useState(''); // Recuperado: Dirección física
+  const [mapLink, setMapLink] = useState('');    // Recuperado: Enlace de Google Maps
   
   // Estados para la gestión de la foto del evento
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE (Corregida)
+  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE
   const handleUploadPhoto = async (e) => {
     try {
       setUploading(true);
@@ -23,14 +23,14 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
-      // Guardamos en la carpeta eventos dentro de avatars
       const fileName = `eventos/${crypto.randomUUID()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setImageUrl(data.publicUrl); // Usamos data.publicUrl en lugar de publicUrlData
+      setImageUrl(data.publicUrl);
+      alert('¡Imagen del evento subida con éxito!');
     } catch (error) {
       alert('Error al subir imagen: ' + error.message);
     } finally {
@@ -38,7 +38,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Blindada contra cuelgues)
+  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada al 100% con todos tus campos)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -49,22 +49,23 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     setIsSubmitting(true);
 
     try {
+      // Insertamos absolutamente todos los datos de tu formulario largo
       const { error } = await supabase.from('school_events').insert([{
         title: title,
         description: description,
         date: date,
         time: time,
-        location: location,
-        map_link: mapLink,
+        location: location,            // Dirección física
+        map_link: mapLink,            // Link de GPS
         image_url: imageUrl,
-        school_name: defaultSchoolName, // Automático: coge el nombre del perfil
-        school_id: defaultSchoolId,     // Automático: coge el ID del perfil
+        school_name: defaultSchoolName, // AUTOMÁTICO: No se le pide al usuario
+        school_id: defaultSchoolId,     // AUTOMÁTICO: No se le pide al usuario
         created_date: new Date().toISOString()
       }]);
 
       if (error) {
         console.error("Detalle del error de Supabase:", error);
-        throw error; // Esto fuerza a que salte al catch y no se quede pillado
+        throw error;
       }
 
       alert('¡Evento publicado con éxito en el tablón!');
@@ -73,8 +74,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       console.error('Error al insertar evento:', error);
       alert('Hubo un error al publicar el evento: ' + error.message);
     } finally {
-      // ESTO ES CLAVE: Pase lo que pase (éxito o error), quita el estado "Publicando..."
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Nos aseguramos de apagar el estado de carga siempre
     }
   };
 
@@ -86,6 +86,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Nuevo evento del colegio</h2>
+            {/* Como ves, aquí ya sale de forma automática el nombre de la escuela sin inputs */}
             <p className="text-xs text-muted-foreground mt-0.5">Publicando como: <span className="font-bold text-primary">{defaultSchoolName}</span></p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-xl text-muted-foreground transition-colors">
