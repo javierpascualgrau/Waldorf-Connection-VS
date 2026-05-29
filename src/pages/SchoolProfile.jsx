@@ -20,13 +20,12 @@ export default function SchoolProfile() {
   const [editForm, setEditForm] = useState({});
   const [newActivity, setNewActivity] = useState('');
   
-  // Estados de carga de imágenes masivas
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   
-  const isSuperAdmin = true; // Modo moderador activo para la papelera
+  const isSuperAdmin = true; // Modo moderador activo para borrar eventos
 
   // Cargar eventos del colegio de forma reactiva
   const loadEvents = async (schoolName) => {
@@ -57,7 +56,6 @@ export default function SchoolProfile() {
       }
 
       if (data) {
-        // Aseguramos que los arrays no vengan como nulls para que no rompan los mapas del formulario
         const schoolData = { 
           ...data, 
           stages: data.stages || [], 
@@ -75,10 +73,10 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
-  // COMPROBACIÓN REAL: Eres el dueño si tu id de usuario coincide con el manager_id del colegio
+  // Eres el dueño si tu id de usuario coincide con el manager_id del colegio en la base de datos
   const isManager = user && school?.manager_id === user.id;
 
-  // Función de subida de imágenes a Supabase Storage
+  // Subida de imágenes a Supabase Storage
   const uploadFile = async (event, type) => {
     try {
       if (type === 'avatar') setUploadingAvatar(true);
@@ -114,7 +112,7 @@ export default function SchoolProfile() {
     }
   };
 
-  // Guardar los cambios editados directamente en la nueva tabla school_profiles
+  // Guardar los cambios directamente en school_profiles
   const handleSave = async () => {
     setSchool(editForm);
     
@@ -135,7 +133,7 @@ export default function SchoolProfile() {
     
     if (error) {
       console.error("Error al guardar en school_profiles:", error);
-      alert("Hubo un error al guardar los cambios en la base de datos.");
+      alert("Hubo un error al guardar los cambios.");
     } else {
       alert("¡Perfil del colegio actualizado con éxito!");
     }
@@ -151,8 +149,8 @@ export default function SchoolProfile() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo real...</div>;
-  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro educativo no encontrado en el sistema.</div>;
+  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo...</div>;
+  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado en el sistema.</div>;
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
@@ -180,10 +178,9 @@ export default function SchoolProfile() {
       {/* CABECERA VISUAL */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
         <div className="h-44 bg-muted relative overflow-hidden group">
-          <img src={isEditing ? editForm.cover_url : school.cover_url} className="w-full h-full object-cover transition-opacity" alt="portada" />
+          <img src={isEditing ? editForm.cover_url : school.cover_url} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
           
-          {/* Cambiar Portada */}
           {isEditing && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
               {uploadingCover ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
@@ -196,7 +193,6 @@ export default function SchoolProfile() {
           <div className="absolute -top-16 left-8 relative group w-32 h-32">
             <img src={isEditing ? editForm.avatar_url : school.avatar_url} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
             
-            {/* Cambiar Logo */}
             {isEditing && (
               <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                  <span className="text-white text-xs font-bold text-center px-2">{uploadingAvatar ? 'Subiendo...' : 'Cambiar Logo'}</span>
@@ -212,7 +208,7 @@ export default function SchoolProfile() {
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
             </>
           ) : (
-            <div className="space-y-4 mt-2 max-w-xl">
+            <div className="space-y-4 mt-2 max-w-xl text-left">
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Nombre del Colegio</label>
                 <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 font-cormorant text-2xl font-semibold focus:outline-none" />
