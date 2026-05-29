@@ -1,58 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-// AÑADIDO: Trash2 al final de esta línea para que no dé error la papelera
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
 import SchoolEventCard from '@/components/SchoolEventCard';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
-
-// TUS 3 COLEGIOS CON IMÁGENES DE INTERNET PARA QUE VERCEL NO FALLE
-const MOCK_DETAILS = {
-  'micael': {
-    id: 'micael',
-    name: 'Escuela Libre Micael',
-    location: 'Las Rozas, Madrid',
-    description: 'Pionera en la pedagogía Waldorf en España (1979). Acompañamos desde Infantil hasta Bachillerato.',
-    activities: ['Olimpiadas Griegas', 'Teatro y Coro', 'Huerto Escolar'],
-    cover_url: 'https://images.unsplash.com/photo-1517036224097-4f114c022d4f?q=80&w=1200',
-    avatar_url: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80',
-    images: [],
-    num_students: 380,
-    stages: ['Infantil', 'Primaria', 'Secundaria', 'Bachillerato'],
-    manager_id: 'simulado'
-  },
-  'aravaca': {
-    id: 'aravaca',
-    name: 'Waldorf Aravaca',
-    location: 'Aravaca, Madrid',
-    description: 'Un entorno cálido especializado en los primeros septenios.',
-    activities: ['Acuarela', 'Euritmia', 'Panadería'],
-    cover_url: 'https://images.unsplash.com/photo-1621360841013-c7683c659ec6?q=80&w=1200',
-    avatar_url: 'https://images.unsplash.com/photo-1595250924457-39d4442dfc70?auto=format&fit=crop&w=200&q=80',
-    images: [],
-    num_students: 250,
-    stages: ['Infantil', 'Primaria'],
-    manager_id: 'simulado'
-  },
-  'artaban': {
-    id: 'artaban',
-    name: 'Escuela Artabán',
-    location: 'Torrelodones, Madrid',
-    description: 'Única escuela que integra Pedagogía Waldorf y Pedagogía Curativa en una comunidad inclusiva.',
-    activities: ['Pedagogía Curativa', 'Artes Textiles', 'Gimnasia Bothmer'],
-    cover_url: 'https://images.unsplash.com/photo-1563229656-787265a6e873?q=80&w=1200',
-    avatar_url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=200&q=80',
-    images: [
-      'https://images.unsplash.com/photo-1516627145497-ae6968895b74?q=80&w=600',
-      'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?q=80&w=600'
-    ],
-    num_students: 180,
-    stages: ['Infantil', 'Primaria', 'ESO', 'Ed. Especial'],
-    manager_id: 'simulado'
-  }
-};
 
 export default function SchoolProfile() {
   const { id } = useParams();
@@ -67,44 +20,65 @@ export default function SchoolProfile() {
   const [editForm, setEditForm] = useState({});
   const [newActivity, setNewActivity] = useState('');
   
-  // Estados para saber si la foto está subiendo
+  // Estados de carga de imágenes masivas
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
-  const isSuperAdmin = true; // Modo moderador activo
+  
+  const isSuperAdmin = true; // Modo moderador activo para la papelera
 
+  // Cargar eventos del colegio de forma reactiva
   const loadEvents = async (schoolName) => {
-    const { data: evs } = await supabase.from('school_events').select('*').ilike('school_name', `%${schoolName}%`);
+    const { data: evs } = await supabase
+      .from('school_events')
+      .select('*')
+      .ilike('school_name', `%${schoolName}%`);
     setSchoolEvents(evs || []);
   };
 
   useEffect(() => {
     const loadSchoolData = async () => {
+      setLoading(true);
+      
+      // 1. Obtener el usuario logueado actualmente
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      let schoolData = MOCK_DETAILS[id] || null;
-      
-      const { data } = await supabase.from('schools').select('*').eq('id', id).single();
-      if (data) {
-        schoolData = { ...data, stages: data.stages || [], activities: data.activities || [], images: data.images || [] };
+      // 2. Traer los datos reales desde la NUEVA tabla school_profiles
+      const { data, error } = await supabase
+        .from('school_profiles')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error al leer el perfil del colegio:", error);
       }
 
-      if (schoolData) {
+      if (data) {
+        // Aseguramos que los arrays no vengan como nulls para que no rompan los mapas del formulario
+        const schoolData = { 
+          ...data, 
+          stages: data.stages || [], 
+          activities: data.activities || [], 
+          images: data.images || [] 
+        };
         setSchool(schoolData);
         setEditForm(schoolData);
-        const { data: evs } = await supabase.from('school_events').select('*').ilike('school_name', `%${schoolData.name}%`);
-        setSchoolEvents(evs || []);
+        
+        // 3. Cargar eventos asociados
+        await loadEvents(schoolData.name);
       }
       setLoading(false);
     };
     loadSchoolData();
   }, [id]);
 
-  const isManager = school?.manager_id === 'simulado' || (user && school?.manager_id === user.id);
+  // COMPROBACIÓN REAL: Eres el dueño si tu id de usuario coincide con el manager_id del colegio
+  const isManager = user && school?.manager_id === user.id;
 
-  // LA MAGIA: Función que sube el archivo a tu ordenador directamente a Supabase
+  // Función de subida de imágenes a Supabase Storage
   const uploadFile = async (event, type) => {
     try {
       if (type === 'avatar') setUploadingAvatar(true);
@@ -132,7 +106,7 @@ export default function SchoolProfile() {
       }
 
     } catch (error) {
-      alert('Error al subir: ' + error.message);
+      alert('Error al subir imagen: ' + error.message);
     } finally {
       setUploadingAvatar(false);
       setUploadingCover(false);
@@ -140,34 +114,30 @@ export default function SchoolProfile() {
     }
   };
 
+  // Guardar los cambios editados directamente en la nueva tabla school_profiles
   const handleSave = async () => {
     setSchool(editForm);
     
-    // MAGIA: Si el manager era "simulado", ahora pasas a ser tú el dueño real
-    const realManagerId = editForm.manager_id === 'simulado' 
-      ? (user ? user.id : null) 
-      : editForm.manager_id;
-    
-    // Guardado real en Supabase con upsert
-    const { error } = await supabase.from('schools').upsert({
-      id: id,
-      name: editForm.name,
-      location: editForm.location,
-      description: editForm.description,
-      num_students: parseInt(editForm.num_students) || 0,
-      stages: editForm.stages,
-      activities: editForm.activities,
-      images: editForm.images,
-      cover_url: editForm.cover_url,
-      avatar_url: editForm.avatar_url,
-      manager_id: realManagerId // Enviamos un ID de usuario real (UUID) válido
-    });
+    const { error } = await supabase
+      .from('school_profiles')
+      .update({
+        name: editForm.name,
+        location: editForm.location,
+        description: editForm.description,
+        num_students: parseInt(editForm.num_students) || 0,
+        stages: editForm.stages,
+        activities: editForm.activities,
+        images: editForm.images,
+        cover_url: editForm.cover_url,
+        avatar_url: editForm.avatar_url
+      })
+      .eq('id', id);
     
     if (error) {
-      console.error("Error al guardar en base de datos:", error);
+      console.error("Error al guardar en school_profiles:", error);
       alert("Hubo un error al guardar los cambios en la base de datos.");
     } else {
-      alert("¡Cambios guardados con éxito en la base de datos!");
+      alert("¡Perfil del colegio actualizado con éxito!");
     }
     setIsEditing(false);
   };
@@ -181,8 +151,8 @@ export default function SchoolProfile() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo...</div>;
-  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado.</div>;
+  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo real...</div>;
+  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro educativo no encontrado en el sistema.</div>;
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
@@ -207,13 +177,13 @@ export default function SchoolProfile() {
         )}
       </div>
 
-      {/* CABECERA VISUAL LINKEDIN */}
+      {/* CABECERA VISUAL */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
         <div className="h-44 bg-muted relative overflow-hidden group">
           <img src={isEditing ? editForm.cover_url : school.cover_url} className="w-full h-full object-cover transition-opacity" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
           
-          {/* Botón flotante para cambiar Portada */}
+          {/* Cambiar Portada */}
           {isEditing && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
               {uploadingCover ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
@@ -226,7 +196,7 @@ export default function SchoolProfile() {
           <div className="absolute -top-16 left-8 relative group w-32 h-32">
             <img src={isEditing ? editForm.avatar_url : school.avatar_url} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
             
-            {/* Botón flotante para cambiar Logo */}
+            {/* Cambiar Logo */}
             {isEditing && (
               <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                  <span className="text-white text-xs font-bold text-center px-2">{uploadingAvatar ? 'Subiendo...' : 'Cambiar Logo'}</span>
@@ -244,7 +214,7 @@ export default function SchoolProfile() {
           ) : (
             <div className="space-y-4 mt-2 max-w-xl">
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Nombre</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Nombre del Colegio</label>
                 <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 font-cormorant text-2xl font-semibold focus:outline-none" />
               </div>
               <div>
@@ -252,7 +222,7 @@ export default function SchoolProfile() {
                 <input value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Descripción</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Descripción del Centro</label>
                 <textarea rows={3} value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none resize-none" />
               </div>
             </div>
@@ -263,7 +233,7 @@ export default function SchoolProfile() {
       {/* REJILLA DE DETALLES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* COLUMNA IZQ: DATOS Y TALLERES */}
+        {/* COLUMNA IZQ: DATOS INTERNOS */}
         <div className="md:col-span-1 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">Datos del Centro</h2>
@@ -316,13 +286,12 @@ export default function SchoolProfile() {
           </div>
         </div>
 
-        {/* COLUMNA DER: GALERÍA Y EVENTOS */}
+        {/* COLUMNA DER: GALERÍA Y TABLÓN */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones</h2>
               
-              {/* Botón para subir fotos a la Galería */}
               {isEditing && (
                 <label className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1 hover:bg-primary hover:text-white transition-all">
                   {uploadingGallery ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Subir Foto</>}
@@ -347,7 +316,7 @@ export default function SchoolProfile() {
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary" /> Eventos Anunciados por el Centro
+                <Calendar className="w-4 h-4 text-primary" /> Eventos del Colegio
               </h2>
               {isManager && (
                 <button 
@@ -359,7 +328,6 @@ export default function SchoolProfile() {
               )}
             </div>
             
-            {/* AQUÍ ESTABA EL FALLO: Restaurado el renderizado de los eventos y la papelera */}
             <div className="space-y-4">
               {schoolEvents.length > 0 ? (
                 schoolEvents.map(e => (
@@ -391,7 +359,7 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-     {/* Ve a la línea donde se renderiza el modal al final de SchoolProfile.jsx y déjala exactamente así: */}
+      {/* MODAL DE EVENTO AUTOMÁTICO */}
       {showEventModal && (
         <CreateSchoolEventModal 
           onClose={() => setShowEventModal(false)} 
@@ -399,8 +367,8 @@ export default function SchoolProfile() {
             setShowEventModal(false);
             if (school) loadEvents(school.name);
           }} 
-          defaultSchoolName={school?.name} // Envía el nombre del colegio de forma automática
-          defaultSchoolId={id}             // Envía el ID del colegio de forma automática
+          defaultSchoolName={school?.name} 
+          defaultSchoolId={id}             
         />
       )}
       
