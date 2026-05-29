@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Heart, MapPin, Calendar, Clock } from 'lucide-react';
+import { Heart, MapPin, Calendar, Clock, ExternalLink } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Link } from 'react-router-dom'; // INYECTADO: Para poder viajar al perfil del colegio
+import { Link } from 'react-router-dom';
 
 const EVENT_TYPE_LABELS = {
   mercadillo: 'Mercadillo',
@@ -37,7 +37,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
 
   const initials = (event.school_name || 'C').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
-  // Seguro para que la fecha y hora funcionen sin importar si la columna se llama 'date' o 'event_date'
   const eventDate = event.event_date || event.date;
   const eventTime = event.event_time || event.time;
 
@@ -65,70 +64,88 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
     <div className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow animate-fade-up">
       {/* Image */}
       {event.image_url && (
-        <img src={event.image_url} alt="" className="w-full h-40 object-cover" />
+        <img src={event.image_url} alt="" className="w-full h-48 object-cover" />
       )}
 
-      <div className="p-4">
+      <div className="p-5">
         
-        {/* School info - AHORA ES UN ENLACE QUE TE LLEVA AL PERFIL */}
+        {/* School info ENLACE AL PERFIL */}
         <Link 
           to={`/colegios/${event.school_id || ''}`} 
-          className="flex items-center gap-3 mb-3 group"
+          className="flex items-center gap-3 mb-4 group block w-fit"
         >
-          <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/25 transition-colors">
+          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/25 transition-colors">
             {event.school_logo ? (
-              <img src={event.school_logo} alt="" className="w-9 h-9 rounded-full object-cover" />
+              <img src={event.school_logo} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
-              <span className="text-primary font-cormorant font-semibold text-xs">{initials}</span>
+              <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
             )}
           </div>
           <div>
-            <p className="text-sm font-medium group-hover:text-primary group-hover:underline transition-all">
+            <p className="text-sm font-semibold group-hover:text-primary group-hover:underline transition-all">
               {event.school_name || 'Colegio Waldorf'}
             </p>
             {event.event_type && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_TYPE_COLORS[event.event_type] || 'bg-muted text-muted-foreground'}`}>
-                {EVENT_TYPE_LABELS[event.event_type] || event.event_type || 'Evento'}
+              <span className={`inline-block mt-0.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium ${EVENT_TYPE_COLORS[event.event_type] || 'bg-muted text-muted-foreground'}`}>
+                {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
               </span>
             )}
           </div>
         </Link>
 
         {/* Title & description */}
-        <h3 className="font-cormorant text-xl font-semibold mb-1">{event.title}</h3>
+        <h3 className="font-cormorant text-xl font-bold mb-2 leading-tight">{event.title}</h3>
         {event.description && (
-          <p className="text-sm text-muted-foreground leading-relaxed mb-3 line-clamp-2">{event.description}</p>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4 line-clamp-3">{event.description}</p>
         )}
 
         {/* Meta */}
-        <div className="flex flex-wrap gap-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border/50">
           {eventDate && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="w-3.5 h-3.5 text-primary" />
-              {format(new Date(eventDate), "d 'de' MMMM, yyyy", { locale: es })}
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Calendar className="w-4 h-4 text-primary" />
+              {format(new Date(eventDate), "d MMM, yyyy", { locale: es })}
             </span>
           )}
           {eventTime && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="w-3.5 h-3.5 text-primary" /> {eventTime}
-            </span>
-          )}
-          {event.location && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <MapPin className="w-3.5 h-3.5 text-primary" /> {event.location}
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Clock className="w-4 h-4 text-primary" /> {eventTime}
             </span>
           )}
         </div>
 
+        {/* Location & Map Link */}
+        {(event.location || event.map_link) && (
+          <div className="mt-3 bg-muted/30 p-2.5 rounded-xl border border-border/50 flex flex-col gap-2">
+            {event.location && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                <MapPin className="w-4 h-4 text-primary flex-shrink-0" /> 
+                <span className="truncate">{event.location}</span>
+              </span>
+            )}
+            
+            {event.map_link && event.map_link.startsWith('http') && (
+              <a 
+                href={event.map_link} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="inline-flex items-center gap-1.5 text-xs text-primary font-bold hover:underline"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Abrir en Google Maps
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Like */}
-        <div className="pt-2 border-t border-border/50">
+        <div className="pt-4 mt-4 border-t border-border/50">
           <button
             onClick={handleLike}
             disabled={loading}
             className={`flex items-center gap-1.5 text-sm transition-colors ${liked ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-400'}`}
           >
             <Heart className={`w-4 h-4 ${liked ? 'fill-rose-500' : ''}`} />
-            <span>{likesCount} me gusta</span>
+            <span className="font-medium">{likesCount} me gusta</span>
           </button>
         </div>
       </div>

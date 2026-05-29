@@ -37,7 +37,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada con las columnas reales)
+  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada con vuestras columnas reales de Supabase)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -47,7 +47,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
     setIsSubmitting(true);
 
-    // Si el usuario pone un enlace de Google Maps, lo sumamos limpiamente a la descripción
+    // Si el usuario añade enlace de Google Maps, lo sumamos limpiamente a la descripción
     const finalDescription = mapLink 
       ? `${description}\n\n🔗 Enlace al mapa: ${mapLink}`
       : description;
@@ -58,7 +58,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
         description: finalDescription,
         date: date,
         time: time,
-        map_link: location,             // 💡 CORREGIDO: Guardamos el texto de la dirección aquí
+        map_link: location, // Mapeado correcto a vuestra columna real
         image_url: imageUrl || null,
         school_name: defaultSchoolName,
         school_id: defaultSchoolId,
