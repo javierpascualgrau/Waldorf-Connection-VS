@@ -20,16 +20,15 @@ export default function SchoolProfile() {
   const [editForm, setEditForm] = useState({});
   const [newActivity, setNewActivity] = useState('');
   
-  // Estados de carga de imágenes masivas
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   
-  const isSuperAdmin = true; // Modo moderador activo para la papelera
+  const isSuperAdmin = true; 
 
-  // Cargar eventos del colegio de forma reactiva
   const loadEvents = async (schoolName) => {
+    if (!schoolName) return;
     const { data: evs } = await supabase
       .from('school_events')
       .select('*')
@@ -41,23 +40,18 @@ export default function SchoolProfile() {
     const loadSchoolData = async () => {
       setLoading(true);
       
-      // 1. Obtener el usuario logueado actualmente
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      // 2. Traer los datos reales desde la NUEVA tabla school_profiles
       const { data, error } = await supabase
         .from('school_profiles')
         .select('*')
         .eq('id', id)
         .maybeSingle();
 
-      if (error) {
-        console.error("Error al leer el perfil del colegio:", error);
-      }
+      if (error) console.error("Error al leer el perfil del colegio:", error);
 
       if (data) {
-        // Aseguramos que los arrays no vengan como nulls para que no rompan los mapas del formulario
         const schoolData = { 
           ...data, 
           stages: data.stages || [], 
@@ -66,8 +60,6 @@ export default function SchoolProfile() {
         };
         setSchool(schoolData);
         setEditForm(schoolData);
-        
-        // 3. Cargar eventos asociados
         await loadEvents(schoolData.name);
       }
       setLoading(false);
@@ -75,10 +67,9 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
-  // COMPROBACIÓN REAL: Eres el dueño si tu id de usuario coincide con el manager_id del colegio
-  const isManager = user && school?.manager_id === user.id;
+  // Eres el dueño si tu ID de autenticación coincide directamente con el ID del perfil
+  const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
 
-  // Función de subida de imágenes a Supabase Storage
   const uploadFile = async (event, type) => {
     try {
       if (type === 'avatar') setUploadingAvatar(true);
@@ -114,10 +105,7 @@ export default function SchoolProfile() {
     }
   };
 
-  // Guardar los cambios editados directamente en la nueva tabla school_profiles
   const handleSave = async () => {
-    setSchool(editForm);
-    
     const { error } = await supabase
       .from('school_profiles')
       .update({
@@ -134,12 +122,13 @@ export default function SchoolProfile() {
       .eq('id', id);
     
     if (error) {
-      console.error("Error al guardar en school_profiles:", error);
-      alert("Hubo un error al guardar los cambios en la base de datos.");
+      console.error("Error al guardar:", error);
+      alert("Hubo un error al guardar los cambios.");
     } else {
+      setSchool(editForm);
       alert("¡Perfil del colegio actualizado con éxito!");
+      setIsEditing(false);
     }
-    setIsEditing(false);
   };
 
   const toggleStage = (stage) => {
@@ -151,13 +140,11 @@ export default function SchoolProfile() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo real...</div>;
-  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro educativo no encontrado en el sistema.</div>;
+  if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo...</div>;
+  if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado en el sistema.</div>;
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
-      
-      {/* BARRA SUPERIOR */}
       <div className="flex items-center justify-between mb-5">
         <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Directorio
@@ -180,10 +167,8 @@ export default function SchoolProfile() {
       {/* CABECERA VISUAL */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
         <div className="h-44 bg-muted relative overflow-hidden group">
-          <img src={isEditing ? editForm.cover_url : school.cover_url} className="w-full h-full object-cover transition-opacity" alt="portada" />
+          <img src={isEditing ? editForm.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-          
-          {/* Cambiar Portada */}
           {isEditing && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
               {uploadingCover ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
@@ -193,12 +178,10 @@ export default function SchoolProfile() {
         </div>
 
         <div className="p-8 relative pt-20">
-          <div className="absolute -top-16 left-8 relative group w-32 h-32">
-            <img src={isEditing ? editForm.avatar_url : school.avatar_url} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
-            
-            {/* Cambiar Logo */}
+          <div className="absolute -top-16 left-8 w-32 h-32">
+            <img src={isEditing ? editForm.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
             {isEditing && (
-              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 hover:opacity-100 transition-opacity">
                  <span className="text-white text-xs font-bold text-center px-2">{uploadingAvatar ? 'Subiendo...' : 'Cambiar Logo'}</span>
                  <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'avatar')} disabled={uploadingAvatar} />
               </label>
@@ -212,7 +195,7 @@ export default function SchoolProfile() {
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
             </>
           ) : (
-            <div className="space-y-4 mt-2 max-w-xl">
+            <div className="space-y-4 mt-2 max-w-xl text-left">
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Nombre del Colegio</label>
                 <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 font-cormorant text-2xl font-semibold focus:outline-none" />
@@ -232,8 +215,6 @@ export default function SchoolProfile() {
 
       {/* REJILLA DE DETALLES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* COLUMNA IZQ: DATOS INTERNOS */}
         <div className="md:col-span-1 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">Datos del Centro</h2>
@@ -291,7 +272,6 @@ export default function SchoolProfile() {
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones</h2>
-              
               {isEditing && (
                 <label className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1 hover:bg-primary hover:text-white transition-all">
                   {uploadingGallery ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Subir Foto</>}
@@ -336,13 +316,12 @@ export default function SchoolProfile() {
                     {isSuperAdmin && (
                       <button 
                         onClick={async () => {
-                          if (window.confirm("¿Seguro que quieres borrar este evento de la plataforma?")) {
+                          if (window.confirm("¿Seguro que quieres borrar este evento?")) {
                             await supabase.from('school_events').delete().eq('id', e.id);
-                            if (school) loadEvents(school.name);
+                            loadEvents(school.name);
                           }
                         }} 
                         className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover/event:opacity-100 z-10"
-                        title="Eliminar evento"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -359,19 +338,17 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-      {/* MODAL DE EVENTO AUTOMÁTICO */}
       {showEventModal && (
         <CreateSchoolEventModal 
           onClose={() => setShowEventModal(false)} 
           onCreated={() => {
             setShowEventModal(false);
-            if (school) loadEvents(school.name);
+            loadEvents(school.name);
           }} 
           defaultSchoolName={school?.name} 
           defaultSchoolId={id}             
         />
       )}
-      
     </div>
   );
 }
