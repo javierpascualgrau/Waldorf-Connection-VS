@@ -27,6 +27,9 @@ export default function SchoolProfile() {
   
   const isSuperAdmin = true; 
 
+  // 💡 CORREGIDO: Definimos la ID aquí arriba para que funcione en cualquier rincón del archivo
+  const currentSchoolId = id || user?.id;
+
   const loadEvents = async (schoolName) => {
     if (!schoolName) return;
     const { data: evs } = await supabase
@@ -43,10 +46,17 @@ export default function SchoolProfile() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
+      const targetId = id || authUser?.id;
+
+      if (!targetId) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('school_profiles')
         .select('*')
-        .eq('id', id)
+        .eq('id', targetId)
         .maybeSingle();
 
       if (error) console.error("Error al leer el perfil del colegio:", error);
@@ -67,7 +77,6 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
-  // Eres el dueño si tu ID de autenticación coincide directamente con el ID del perfil
   const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
 
   const uploadFile = async (event, type) => {
@@ -82,7 +91,7 @@ export default function SchoolProfile() {
 
       const file = event.target.files[0];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${type}s/${crypto.randomUUID()}.${fileExt}`; 
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`; 
 
       let { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
@@ -106,6 +115,8 @@ export default function SchoolProfile() {
   };
 
   const handleSave = async () => {
+    if (!currentSchoolId) return;
+    
     const { error } = await supabase
       .from('school_profiles')
       .update({
@@ -119,7 +130,7 @@ export default function SchoolProfile() {
         cover_url: editForm.cover_url,
         avatar_url: editForm.avatar_url
       })
-      .eq('id', id);
+      .eq('id', currentSchoolId);
     
     if (error) {
       console.error("Error al guardar:", error);
@@ -346,7 +357,7 @@ export default function SchoolProfile() {
             loadEvents(school.name);
           }} 
           defaultSchoolName={school?.name} 
-          defaultSchoolId={id}             
+          defaultSchoolId={currentSchoolId} // 💡 ARREGLADO: Ahora sí está en el contexto global             
         />
       )}
     </div>

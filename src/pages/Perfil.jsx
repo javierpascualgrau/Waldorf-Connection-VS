@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings } from 'lucide-react'; 
 import PostCard from '@/components/PostCard';
 import ChangePasswordModal from '@/components/ChangePasswordModal'; 
-import SchoolProfile from './SchoolProfile'; // 💡 NUEVO: Importamos el panel de colegios que arreglamos antes
+import SchoolProfile from './SchoolProfile'; 
 
 const ROLES = [
   { value: 'alumno', label: 'Alumno' },
@@ -35,8 +35,6 @@ export default function Perfil() {
   const bannerFileRef = useRef();
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  
-  // 💡 NUEVO ESTADO: Guarda si el usuario logueado es una cuenta de colegio
   const [isSchool, setIsSchool] = useState(false);
 
   useEffect(() => {
@@ -47,9 +45,9 @@ export default function Perfil() {
       }
 
       setLoading(true);
-      setIsSchool(false); // Reiniciamos el estado por seguridad
+      setIsSchool(false); 
 
-      // 💡 1. COMPROBACIÓN INTELIGENTE: ¿Este ID existe en la tabla de colegios?
+      // 1. Miramos si este ID de usuario está en la tabla de los colegios
       const { data: schoolData } = await supabase
         .from('school_profiles')
         .select('id')
@@ -59,10 +57,10 @@ export default function Perfil() {
       if (schoolData) {
         setIsSchool(true);
         setLoading(false);
-        return; // Detenemos la función aquí. Al ser un colegio, no necesitamos cargar el perfil normal.
+        return; 
       }
 
-      // 2. Si no es un colegio, seguimos con la carga del perfil de usuario normal
+      // 2. Si no es colegio, cargamos la cuenta normal de la comunidad
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -205,12 +203,10 @@ export default function Perfil() {
     );
   }
 
-  // 🚀 ¡BUM! SI ES UN COLEGIO, SE ATRAVIESA AQUÍ Y RENDERIZA EL DISEÑO DE COLEGIO DIRECTAMENTE
   if (isSchool) {
     return <SchoolProfile />;
   }
 
-  // RENDERIZADO DEL PERFIL NORMAL DE USUARIO (Si no es colegio)
   const displayName = profile?.display_name || user.email.split('@')[0];
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -247,7 +243,6 @@ export default function Perfil() {
         {/* CONTENEDOR INFERIOR DE DETALLES */}
         <div className="p-5 pt-0">
           <div className="flex items-end justify-between mb-2 relative">
-            {/* Foto de perfil */}
             <div className="relative w-24 h-24 flex-shrink-0 -mt-12">
               <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border-4 border-card shadow-md">
                 {currentAvatarUrl ? (
@@ -270,7 +265,6 @@ export default function Perfil() {
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
-            {/* CONTENEDOR DE BOTONES (Ruedita Ajustes + Lápiz Edición) */}
             <div className="flex gap-1 items-center self-start mt-2">
               <button
                 onClick={() => setPasswordModalOpen(true)}
@@ -289,7 +283,6 @@ export default function Perfil() {
             </div>
           </div>
 
-          {/* Bloque de Textos principales */}
           <div className="mb-4">
             <h2 className="font-cormorant text-2xl font-semibold text-foreground">{displayName}</h2>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -317,7 +310,6 @@ export default function Perfil() {
             </div>
           )}
 
-          {/* Edit form */}
           {editing && (
             <div className="space-y-4 mt-2 pt-4 border-t border-border">
               <div>
