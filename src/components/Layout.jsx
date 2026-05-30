@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, School, Users, User, PlusCircle, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient'; 
@@ -9,14 +9,45 @@ const navItems = [
   { path: '/colegios', icon: School, label: 'Colegios' },
   { path: '/comunidad', icon: Users, label: 'Comunidad' },
   { path: '/hilo', icon: MessageSquare, label: 'Hilo' }, 
-  { path: '/perfil', icon: User, label: 'Mi Perfil' },
+  { path: '/perfil', icon: User, label: 'Mi Perfil' }, // Este lo interceptamos abajo
 ];
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+
+  // LA FUNCIÓN MÁGICA DE REDIRECCIÓN EN RUTAS REALES
+  const handleMiPerfilClick = async (e) => {
+    if (e) e.preventDefault(); // Evitamos que el enlace actúe de forma estática
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      // Buscamos si el usuario logueado es manager de algún colegio
+      const { data: school } = await supabase
+        .from('school_profiles')
+        .eq('manager_id', user.id)
+        .maybeSingle();
+
+      if (school) {
+        // Si es un colegio, lo mandamos a su vista profesional de school_profiles
+        navigate(`/colegios/${school.id}`);
+      } else {
+        // Si es un usuario común, va a la ruta de perfil personal estándar
+        navigate('/perfil'); 
+      }
+    } catch (error) {
+      console.error("Error al redireccionar perfil:", error);
+      navigate('/login');
+    }
+  };
 
   useEffect(() => {
     const getSession = async () => {
@@ -73,7 +104,6 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground text-xs font-cormorant font-semibold">W</span>
             </div>
-            {/* 💡 REVERTIDO AL NOMBRE ORIGINAL SOLICITADO */}
             <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connection</span>
           </Link>
           
@@ -100,16 +130,25 @@ export default function Layout() {
           <div className="flex items-center justify-around h-16">
             {navItems.map(({ path, icon: Icon, label }) => {
               const isActive = location.pathname === path;
+              const isProfile = path === '/perfil';
+              
+              const itemStyles = `flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              }`;
+
+              // SI ES EL BOTÓN DE MI PERFIL, INTERCEPTAMOS EL CLICK CON TU FUNCIÓN
+              if (isProfile) {
+                return (
+                  <button key={path} onClick={handleMiPerfilClick} className={itemStyles}>
+                    <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
+                    <span className="text-[10px] font-medium">{label}</span>
+                  </button>
+                );
+              }
+
+              // PARA LOS DEMÁS BOTONES, SIGUE CON EL COMPORTAMIENTO NORMAL
               return (
-                <Link
-                  key={path}
-                  to={path}
-                  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
-                    isActive
-                      ? 'text-primary'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
+                <Link key={path} to={path} className={itemStyles}>
                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
                   <span className="text-[10px] font-medium">{label}</span>
                 </Link>
