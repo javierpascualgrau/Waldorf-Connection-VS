@@ -9,7 +9,7 @@ const navItems = [
   { path: '/colegios', icon: School, label: 'Colegios' },
   { path: '/comunidad', icon: Users, label: 'Comunidad' },
   { path: '/hilo', icon: MessageSquare, label: 'Hilo' }, 
-  { path: '/perfil', icon: User, label: 'Mi Perfil' }, // Este lo interceptamos abajo
+  { path: '/perfil', icon: User, label: 'Mi Perfil' }, 
 ];
 
 export default function Layout() {
@@ -21,7 +21,7 @@ export default function Layout() {
 
   // LA FUNCIÓN MÁGICA DE REDIRECCIÓN EN RUTAS REALES
   const handleMiPerfilClick = async (e) => {
-    if (e) e.preventDefault(); // Evitamos que el enlace actúe de forma estática
+    if (e) e.preventDefault(); 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -30,10 +30,11 @@ export default function Layout() {
         return;
       }
 
-      // Buscamos si el usuario logueado es manager de algún colegio
+      // 💡 ¡CORREGIDO! Añadido el .select('*') y blindada la búsqueda por ID o manager_id
       const { data: school } = await supabase
         .from('school_profiles')
-        .eq('manager_id', user.id)
+        .select('*')
+        .or(`id.eq.${user.id},manager_id.eq.${user.id}`)
         .maybeSingle();
 
       if (school) {
@@ -136,7 +137,6 @@ export default function Layout() {
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`;
 
-              // SI ES EL BOTÓN DE MI PERFIL, INTERCEPTAMOS EL CLICK CON TU FUNCIÓN
               if (isProfile) {
                 return (
                   <button key={path} onClick={handleMiPerfilClick} className={itemStyles}>
@@ -146,9 +146,8 @@ export default function Layout() {
                 );
               }
 
-              // PARA LOS DEMÁS BOTONES, SIGUE CON EL COMPORTAMIENTO NORMAL
               return (
-                <Link key={path} to={path} className={itemStyles}>
+                <Link key={path} to={path} className={path} className={itemStyles}>
                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
                   <span className="text-[10px] font-medium">{label}</span>
                 </Link>
