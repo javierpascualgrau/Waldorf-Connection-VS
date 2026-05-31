@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings } from 'lucide-react'; // 💡 Añadido Settings
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings } from 'lucide-react'; 
 import PostCard from '@/components/PostCard';
-import ChangePasswordModal from '@/components/ChangePasswordModal'; // 💡 Importamos el modal de seguridad
+import ChangePasswordModal from '@/components/ChangePasswordModal'; 
+import SchoolProfile from './SchoolProfile'; 
 
 const ROLES = [
   { value: 'alumno', label: 'Alumno' },
@@ -33,8 +34,8 @@ export default function Perfil() {
   const fileRef = useRef();
   const bannerFileRef = useRef();
 
-  // 💡 NUEVO ESTADO: Controla la apertura del modal de contraseña
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [isSchool, setIsSchool] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -44,7 +45,22 @@ export default function Perfil() {
       }
 
       setLoading(true);
-      
+      setIsSchool(false); 
+
+      // 1. Miramos si este ID de usuario está en la tabla de los colegios
+      const { data: schoolData } = await supabase
+        .from('school_profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (schoolData) {
+        setIsSchool(true);
+        setLoading(false);
+        return; 
+      }
+
+      // 2. Si no es colegio, cargamos la cuenta normal de la comunidad
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -90,7 +106,6 @@ export default function Perfil() {
     if (!file) return;
 
     setUploadingAvatar(true);
-
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}-${Math.random()}.${fileExt}`;
 
@@ -106,7 +121,6 @@ export default function Perfil() {
     }
 
     const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-    
     setForm(f => ({ ...f, avatar_url: data.publicUrl }));
     setUploadingAvatar(false);
   };
@@ -116,7 +130,6 @@ export default function Perfil() {
     if (!file) return;
 
     setUploadingBanner(true);
-
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}-banner-${Math.random()}.${fileExt}`;
 
@@ -132,14 +145,12 @@ export default function Perfil() {
     }
 
     const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-    
     setForm(f => ({ ...f, banner_url: data.publicUrl }));
     setUploadingBanner(false);
   };
 
   const handleSave = async () => {
     setSaving(true);
-    
     const { error } = await supabase
       .from('profiles')
       .upsert({
@@ -192,6 +203,10 @@ export default function Perfil() {
     );
   }
 
+  if (isSchool) {
+    return <SchoolProfile />;
+  }
+
   const displayName = profile?.display_name || user.email.split('@')[0];
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -227,9 +242,7 @@ export default function Perfil() {
 
         {/* CONTENEDOR INFERIOR DE DETALLES */}
         <div className="p-5 pt-0">
-          
           <div className="flex items-end justify-between mb-2 relative">
-            {/* Foto de perfil */}
             <div className="relative w-24 h-24 flex-shrink-0 -mt-12">
               <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/15 flex items-center justify-center border-4 border-card shadow-md">
                 {currentAvatarUrl ? (
@@ -252,7 +265,6 @@ export default function Perfil() {
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
-            {/* 💡 CONTENEDOR DE BOTONES (Ruedita Ajustes + Lápiz Edición) */}
             <div className="flex gap-1 items-center self-start mt-2">
               <button
                 onClick={() => setPasswordModalOpen(true)}
@@ -271,7 +283,6 @@ export default function Perfil() {
             </div>
           </div>
 
-          {/* Bloque de Textos principales */}
           <div className="mb-4">
             <h2 className="font-cormorant text-2xl font-semibold text-foreground">{displayName}</h2>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -299,7 +310,6 @@ export default function Perfil() {
             </div>
           )}
 
-          {/* Edit form */}
           {editing && (
             <div className="space-y-4 mt-2 pt-4 border-t border-border">
               <div>
@@ -380,7 +390,7 @@ export default function Perfil() {
         </div>
       )}
 
-      {/* 💡 MODAL DE CAMBIO DE CONTRASEÑA */}
+      {/* MODAL DE CAMBIO DE CONTRASEÑA */}
       {passwordModalOpen && (
         <ChangePasswordModal 
           userEmail={user?.email} 

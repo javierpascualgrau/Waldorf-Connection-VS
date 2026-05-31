@@ -7,8 +7,8 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [location, setLocation] = useState(''); // Recuperado: Dirección física
-  const [mapLink, setMapLink] = useState('');    // Recuperado: Enlace de Google Maps
+  const [location, setLocation] = useState('');
+  const [mapLink, setMapLink] = useState('');
   
   // Estados para la gestión de la foto del evento
   const [imageUrl, setImageUrl] = useState('');
@@ -30,7 +30,6 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
       setImageUrl(data.publicUrl);
-      alert('¡Imagen del evento subida con éxito!');
     } catch (error) {
       alert('Error al subir imagen: ' + error.message);
     } finally {
@@ -38,7 +37,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada al 100% con todos tus campos)
+  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada con vuestras columnas reales de Supabase)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -48,18 +47,21 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
     setIsSubmitting(true);
 
+    // Si el usuario añade enlace de Google Maps, lo sumamos limpiamente a la descripción
+    const finalDescription = mapLink 
+      ? `${description}\n\n🔗 Enlace al mapa: ${mapLink}`
+      : description;
+
     try {
-      // Insertamos absolutamente todos los datos de tu formulario largo
       const { error } = await supabase.from('school_events').insert([{
         title: title,
-        description: description,
+        description: finalDescription,
         date: date,
         time: time,
-        location: location,            // Dirección física
-        map_link: mapLink,            // Link de GPS
-        image_url: imageUrl,
-        school_name: defaultSchoolName, // AUTOMÁTICO: No se le pide al usuario
-        school_id: defaultSchoolId,     // AUTOMÁTICO: No se le pide al usuario
+        map_link: location, // Mapeado correcto a vuestra columna real
+        image_url: imageUrl || null,
+        school_name: defaultSchoolName,
+        school_id: defaultSchoolId,
         created_date: new Date().toISOString()
       }]);
 
@@ -69,12 +71,12 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
       }
 
       alert('¡Evento publicado con éxito en el tablón!');
-      onCreated(); // Cierra el modal y refresca la lista
+      onCreated();
     } catch (error) {
       console.error('Error al insertar evento:', error);
       alert('Hubo un error al publicar el evento: ' + error.message);
     } finally {
-      setIsSubmitting(false); // Nos aseguramos de apagar el estado de carga siempre
+      setIsSubmitting(false);
     }
   };
 
@@ -86,7 +88,6 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Nuevo evento del colegio</h2>
-            {/* Como ves, aquí ya sale de forma automática el nombre de la escuela sin inputs */}
             <p className="text-xs text-muted-foreground mt-0.5">Publicando como: <span className="font-bold text-primary">{defaultSchoolName}</span></p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-xl text-muted-foreground transition-colors">
@@ -127,8 +128,8 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
           {/* Enlace al Mapa */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps</label>
-            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace para abrir en GPS (opcional)" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps (Opcional)</label>
+            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace para abrir en GPS" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
           </div>
 
           {/* SUBIR IMAGEN ASOCIADA */}
