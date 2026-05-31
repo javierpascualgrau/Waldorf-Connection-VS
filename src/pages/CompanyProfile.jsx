@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom'; // 💡 NUEVO: Captura el ID de la empresa desde la barra de navegación
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText } from 'lucide-react';
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, Loader2 } from 'lucide-react';
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
 export default function CompanyProfile() {
+  const { id } = useParams(); // 💡 NUEVO: Almacena el ID si se accede de forma externa
   const [company, setCompany] = useState(null);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,11 +46,14 @@ export default function CompanyProfile() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      if (authUser) {
+      // 💡 CLAVE: Si hay un ID en la URL, cargamos esa empresa; si no hay, la empresa está viendo su propio perfil
+      const targetId = id || authUser?.id;
+
+      if (targetId) {
         const { data, error } = await supabase
           .from('company_profiles')
           .select('*')
-          .eq('id', authUser.id)
+          .eq('id', targetId)
           .maybeSingle();
 
         if (error) console.error("Error al leer perfil de empresa:", error);
@@ -62,9 +67,13 @@ export default function CompanyProfile() {
       setLoading(false);
     };
     loadCompanyData();
-  }, []);
+  }, [id]);
+
+  // 💡 COMPROBACIÓN INTELIGENTE DE DUEÑO: Compara si la cuenta autenticada coincide con el perfil visualizado
+  const isOwner = user && (company?.id === user.id);
 
   const uploadFile = async (event, type) => {
+    if (!isOwner) return; // Protección perimetral
     try {
       if (type === 'logo') setUploadingLogo(true);
       if (type === 'banner') setUploadingBanner(true);
@@ -95,6 +104,7 @@ export default function CompanyProfile() {
   };
 
   const handleSaveProfile = async () => {
+    if (!isOwner) return;
     const { error } = await supabase
       .from('company_profiles')
       .update({
@@ -120,6 +130,7 @@ export default function CompanyProfile() {
 
   const handleCreateOffer = async (e) => {
     e.preventDefault();
+    if (!isOwner) return;
     if (!newOffer.title || !newOffer.description) {
       alert("Por favor, rellena el título y la descripción.");
       return;
@@ -151,6 +162,7 @@ export default function CompanyProfile() {
   };
 
   const handleDeleteOffer = async (offerId) => {
+    if (!isOwner) return;
     if (window.confirm("¿Seguro que deseas eliminar esta oferta?")) {
       await supabase.from('company_offers').delete().eq('id', offerId);
       await loadOffers(company.id);
@@ -169,28 +181,30 @@ export default function CompanyProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
       
-      {/* HEADER DE ACCIONES */}
+      {/* HEADER DE ACCIONES: Solo se renderiza si el usuario es dueño del perfil */}
       <div className="flex justify-end mb-4">
-        {!isEditing ? (
-          <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-            <Edit3 className="w-4 h-4" /> Gestionar Empresa
-          </button>
-        ) : (
-          <div className="flex gap-2">
-            <button onClick={() => { setEditForm(company); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
-            <button onClick={handleSaveProfile} className="flex items-center gap-1.5 bg-primary text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-md"><Save className="w-4 h-4" /> Guardar Perfil</button>
-          </div>
+        {isOwner && (
+          !isEditing ? (
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
+              <Edit3 className="w-4 h-4" /> Gestionar Empresa
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => { setEditForm(company); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
+              <button onClick={handleSaveProfile} className="flex items-center gap-1.5 bg-primary text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-md"><Save className="w-4 h-4" /> Guardar Perfil</button>
+            </div>
+          )
         )}
       </div>
 
       {/* CABECERA VISUAL (BANNER Y LOGO) */}
-      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
+      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8 text-left">
         <div className="h-44 bg-muted/60 relative overflow-hidden group">
           <img src={isEditing ? editForm.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab' : company.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-          {isEditing && (
+          {isEditing && isOwner && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
-              {uploadingBanner ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
+              {uploadingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'banner')} disabled={uploadingBanner} />
             </label>
           )}
@@ -199,7 +213,7 @@ export default function CompanyProfile() {
         <div className="p-8 relative pt-20">
           <div className="absolute -top-16 left-8 w-32 h-32">
             <img src={isEditing ? editForm.logo_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3' : company.logo_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3'} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
-            {isEditing && (
+            {isEditing && isOwner && (
               <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 hover:opacity-100 transition-opacity">
                  <span className="text-white text-xs font-bold text-center px-2">{uploadingLogo ? 'Subiendo...' : 'Cambiar Logo'}</span>
                  <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'logo')} disabled={uploadingLogo} />
@@ -244,7 +258,7 @@ export default function CompanyProfile() {
       </div>
 
       {/* BLOQUE DE CONTENIDOS DIVIDIDO EN DOS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
         
         {/* CONEXIÓN WALDORF */}
         <div className="md:col-span-1 space-y-6">
@@ -272,12 +286,15 @@ export default function CompanyProfile() {
               <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4 text-primary" /> Ofertas y Oportunidades
               </h2>
-              <button 
-                onClick={() => setShowOfferModal(true)} 
-                className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" /> Publicar Vacante
-              </button>
+              {/* Ocultamos el botón de crear vacantes a visitantes externos */}
+              {isOwner && (
+                <button 
+                  onClick={() => setShowOfferModal(true)} 
+                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Publicar Vacante
+                </button>
+              )}
             </div>
             
             <div className="space-y-4">
@@ -304,18 +321,21 @@ export default function CompanyProfile() {
                       </div>
                     </div>
 
-                    <button 
-                      onClick={() => handleDeleteOffer(off.id)} 
-                      className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                      title="Eliminar vacante"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {/* El botón de borrar vacantes solo aparece si eres el dueño real */}
+                    {isOwner && (
+                      <button 
+                        onClick={() => handleDeleteOffer(off.id)} 
+                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        title="Eliminar vacante"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))
               ) : (
                 <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                  Actualmente no tenéis ninguna oferta de empleo, prácticas o voluntariado activa.
+                  Actualmente no hay ninguna oferta de empleo, prácticas o voluntariado activa.
                 </p>
               )}
             </div>
@@ -323,8 +343,8 @@ export default function CompanyProfile() {
         </div>
       </div>
 
-      {/* MODAL INTEGRADO PARA CREAR NUEVA OFERTA */}
-      {showOfferModal && (
+      {/* MODAL INTEGRADO PARA CREAR NUEVA OFERTA (Doble candado de seguridad con isOwner) */}
+      {showOfferModal && isOwner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card border border-border w-full max-w-lg rounded-3xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-6 border-b border-border">
@@ -332,7 +352,7 @@ export default function CompanyProfile() {
               <button onClick={() => setShowOfferModal(false)} className="text-muted-foreground hover:text-foreground p-1 bg-muted rounded-full"><X className="w-4 h-4" /></button>
             </div>
             
-            <form onSubmit={handleCreateOffer} className="p-6 space-y-4">
+            <form onSubmit={handleCreateOffer} className="p-6 space-y-4 text-left">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">Título del Puesto</label>
                 <input value={newOffer.title} onChange={e => setNewOffer({...newOffer, title: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="Ej: Profesor de Carpintería de apoyo" />

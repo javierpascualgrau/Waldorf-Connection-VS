@@ -240,7 +240,7 @@ export default function Comunidad() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredEmpresas.length > 0 ? (
                 filteredEmpresas.map(emp => {
-                  const isFollowingCompany = followingIds.has(emp.id); // 💡 Comprobamos si seguimos a la empresa
+                  const isFollowingCompany = followingIds.has(emp.id); 
                   const initials = emp.name?.slice(0, 2).toUpperCase() || 'EM';
                   return (
                     <div 
@@ -265,10 +265,9 @@ export default function Comunidad() {
                         </div>
                       </div>
                       
-                      {/* 💡 CORREGIDO: Botón dinámico de Seguir / Siguiendo idéntico al de la pestaña Raíz */}
                       <button
                         onClick={(e) => { 
-                          e.stopPropagation(); // 💡 Evita que al pulsar el botón se abra la página del perfil
+                          e.stopPropagation(); 
                           toggleFollow(emp.id); 
                         }} 
                         className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
