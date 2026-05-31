@@ -190,9 +190,13 @@ export default function Comunidad() {
                 const isFollowing = followingIds.has(m.id);
                 const initials = m.display_name?.slice(0, 2).toUpperCase() || 'W';
                 return (
-                  <div key={m.id} className="p-4 bg-card border border-border rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-primary/10">
+                  <div 
+                    key={m.id} 
+                    onClick={() => navigate(`/usuario/${m.id}`)} // 💡 NUEVO: Redirección al perfil público
+                    className="p-4 bg-card border border-border rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-primary/20 hover:shadow-md cursor-pointer group"
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0 group-hover:border-primary/30 transition-colors">
                         {m.avatar_url ? (
                           <img src={m.avatar_url} className="w-full h-full object-cover" alt="avatar" />
                         ) : (
@@ -200,7 +204,7 @@ export default function Comunidad() {
                         )}
                       </div>
                       <div className="text-left">
-                        <h3 className="font-semibold text-foreground text-sm leading-tight">{m.display_name}</h3>
+                        <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">{m.display_name}</h3>
                         <p className="text-[11px] text-muted-foreground capitalize mt-0.5">{m.role || 'Simpatizante'}</p>
                         {m.location && (
                           <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1 mt-1">
@@ -211,7 +215,10 @@ export default function Comunidad() {
                     </div>
                     
                     <button
-                      onClick={() => toggleFollow(m.id)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // 💡 NUEVO: Evita que al seguir te redirija al perfil
+                        toggleFollow(m.id);
+                      }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                         isFollowing 
                           ? 'bg-muted text-muted-foreground border-border' 
@@ -317,7 +324,7 @@ export default function Comunidad() {
               ))
             ) : (
               <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay oportunidades disponibles en este momento.</p>
-            ) // ¡AQUÍ ESTABA EL ERROR! Ahora está corregido
+            )
           )}
 
         </div>

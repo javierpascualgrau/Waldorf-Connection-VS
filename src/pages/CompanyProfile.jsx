@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom'; // 💡 NUEVO: Captura el ID de la empresa desde la barra de navegación
+import { useParams } from 'react-router-dom'; // 💡 Mantenido para que funcione el enrutador desde Comunidad
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, Loader2 } from 'lucide-react';
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2 } from 'lucide-react';
+import PostCard from '@/components/PostCard'; // 💡 IMPORTAMOS EL POSTCARD GLOBAL
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
 export default function CompanyProfile() {
-  const { id } = useParams(); // 💡 NUEVO: Almacena el ID si se accede de forma externa
+  const { id } = useParams(); 
   const [company, setCompany] = useState(null);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,14 @@ export default function CompanyProfile() {
   
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  // 💡 ESTADOS PARA LAS PESTAÑAS DEL PERFIL
+  const [profileTab, setProfileTab] = useState('ofertas'); // 'ofertas' | 'posts'
+  
+  // 💡 ESTADOS PARA EL DÍA A DÍA (POSTS)
+  const [companyPosts, setCompanyPosts] = useState([]);
+  const [postContent, setPostContent] = useState('');
+  const [publishingPost, setPublishingPost] = useState(false);
   
   // Estados para el Modal de nueva oferta
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -39,6 +48,17 @@ export default function CompanyProfile() {
     setOffers(offs || []);
   };
 
+  // 💡 CARGAR POSTS DE LA EMPRESA
+  const loadCompanyPosts = async (companyName) => {
+    if (!companyName) return;
+    const { data: posts } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('author_name', companyName)
+      .order('created_date', { ascending: false });
+    setCompanyPosts(posts || []);
+  };
+
   useEffect(() => {
     const loadCompanyData = async () => {
       setLoading(true);
@@ -46,7 +66,7 @@ export default function CompanyProfile() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      // 💡 CLAVE: Si hay un ID en la URL, cargamos esa empresa; si no hay, la empresa está viendo su propio perfil
+      // Si hay un ID en la URL cargamos esa empresa, si no, es nuestro propio perfil
       const targetId = id || authUser?.id;
 
       if (targetId) {
@@ -62,6 +82,7 @@ export default function CompanyProfile() {
           setCompany(data);
           setEditForm(data);
           await loadOffers(data.id);
+          await loadCompanyPosts(data.name); // Cargamos sus posts al inicio
         }
       }
       setLoading(false);
@@ -69,11 +90,11 @@ export default function CompanyProfile() {
     loadCompanyData();
   }, [id]);
 
-  // 💡 COMPROBACIÓN INTELIGENTE DE DUEÑO: Compara si la cuenta autenticada coincide con el perfil visualizado
+  // 💡 REGLA DE ORO PARA LA EDICIÓN: Solo el dueño de la empresa ve los botones
   const isOwner = user && (company?.id === user.id);
 
   const uploadFile = async (event, type) => {
-    if (!isOwner) return; // Protección perimetral
+    if (!isOwner) return;
     try {
       if (type === 'logo') setUploadingLogo(true);
       if (type === 'banner') setUploadingBanner(true);
@@ -169,6 +190,33 @@ export default function CompanyProfile() {
     }
   };
 
+  // 💡 FUNCIÓN PARA CREAR POSTS DEL DÍA A DÍA AL FEED
+  const handleCreatePost = async (e) => {
+    e.preventDefault();
+    if (!isOwner || !postContent.trim()) return;
+
+    setPublishingPost(true);
+    const { error } = await supabase
+      .from('posts')
+      .insert({
+        author_email: user.email, 
+        author_name: company.name,
+        author_avatar: company.logo_url,
+        author_role: 'empresa', 
+        content: postContent,
+        created_date: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error("Error al publicar en el feed:", error);
+      alert("Hubo un error al crear la publicación.");
+    } else {
+      setPostContent(''); // Limpiamos la caja
+      await loadCompanyPosts(company.name); // Recargamos para que aparezca abajo
+    }
+    setPublishingPost(false);
+  };
+
   const getIconType = (type) => {
     if (type === 'Prácticas') return <GraduationCap className="w-4 h-4 text-amber-600" />;
     if (type === 'Voluntariado') return <Heart className="w-4 h-4 text-emerald-600" />;
@@ -181,7 +229,7 @@ export default function CompanyProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
       
-      {/* HEADER DE ACCIONES: Solo se renderiza si el usuario es dueño del perfil */}
+      {/* HEADER DE ACCIONES */}
       <div className="flex justify-end mb-4">
         {isOwner && (
           !isEditing ? (
@@ -198,13 +246,13 @@ export default function CompanyProfile() {
       </div>
 
       {/* CABECERA VISUAL (BANNER Y LOGO) */}
-      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8 text-left">
+      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
         <div className="h-44 bg-muted/60 relative overflow-hidden group">
           <img src={isEditing ? editForm.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab' : company.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
           {isEditing && isOwner && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
-              {uploadingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
+              {uploadingBanner ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'banner')} disabled={uploadingBanner} />
             </label>
           )}
@@ -223,14 +271,14 @@ export default function CompanyProfile() {
           
           {!isEditing ? (
             <>
-              <h1 className="font-cormorant text-4xl font-semibold text-foreground">{company.name}</h1>
+              <h1 className="font-cormorant text-4xl font-semibold text-foreground text-left">{company.name}</h1>
               <div className="flex gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
                 <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-primary" /> {company.location || 'Ubicación no definida'}</p>
                 {company.website && (
                   <a href={company.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-primary hover:underline"><Globe className="w-4 h-4" /> Visitar Web</a>
                 )}
               </div>
-              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description || 'Sin descripción corporativa.'}</p>
+              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl text-left">{company.description || 'Sin descripción corporativa.'}</p>
             </>
           ) : (
             <div className="space-y-4 mt-2 max-w-xl text-left">
@@ -279,66 +327,128 @@ export default function CompanyProfile() {
           </div>
         </div>
 
-        {/* TABLÓN DE EMPLEO / PRÁCTICAS */}
+        {/* CONTENEDOR CENTRAL: PESTAÑAS DINÁMICAS (OFERTAS VS DÍA A DÍA) */}
         <div className="md:col-span-2 space-y-6">
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6 border-b border-border pb-3">
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4 text-primary" /> Ofertas y Oportunidades
-              </h2>
-              {/* Ocultamos el botón de crear vacantes a visitantes externos */}
-              {isOwner && (
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm min-h-[400px]">
+            
+            {/* Cabecera de Pestañas */}
+            <div className="flex items-center justify-between mb-6 border-b border-border pb-0">
+              <div className="flex gap-6">
+                <button
+                  onClick={() => setProfileTab('ofertas')}
+                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
+                    profileTab === 'ofertas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" /> Oportunidades
+                </button>
+                <button
+                  onClick={() => setProfileTab('posts')}
+                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
+                    profileTab === 'posts' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" /> Día a Día
+                </button>
+              </div>
+
+              {/* Botón de publicar vacantes solo visible en su pestaña y si eres el dueño */}
+              {profileTab === 'ofertas' && isOwner && (
                 <button 
                   onClick={() => setShowOfferModal(true)} 
-                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
+                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all mb-2"
                 >
                   <Plus className="w-3.5 h-3.5" /> Publicar Vacante
                 </button>
               )}
             </div>
             
-            <div className="space-y-4">
-              {offers.length > 0 ? (
-                offers.map(off => (
-                  <div key={off.id} className="p-5 bg-muted/30 border border-border rounded-2xl relative group hover:border-primary/30 transition-all">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-card border border-border rounded-xl shadow-sm">
-                        {getIconType(off.type)}
+            {/* --- CONTENIDO: PESTAÑA OFERTAS --- */}
+            {profileTab === 'ofertas' && (
+              <div className="space-y-4">
+                {offers.length > 0 ? (
+                  offers.map(off => (
+                    <div key={off.id} className="p-5 bg-muted/30 border border-border rounded-2xl relative group hover:border-primary/30 transition-all">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-card border border-border rounded-xl shadow-sm">
+                          {getIconType(off.type)}
+                        </div>
+                        <div className="space-y-1 pr-6">
+                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{off.type}</span>
+                          <h3 className="text-lg font-semibold text-foreground pt-1">{off.title}</h3>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
+                          <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
+                          
+                          {off.link_apply && (
+                            <div className="pt-3">
+                              <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                                <LinkIcon className="w-3 h-3" /> Cómo inscribirse / Más detalles
+                              </a>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-1 pr-6">
-                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{off.type}</span>
-                        <h3 className="text-lg font-semibold text-foreground pt-1">{off.title}</h3>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
-                        <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
-                        
-                        {off.link_apply && (
-                          <div className="pt-3">
-                            <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-                              <LinkIcon className="w-3 h-3" /> Cómo inscribirse / Más detalles
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* El botón de borrar vacantes solo aparece si eres el dueño real */}
-                    {isOwner && (
-                      <button 
-                        onClick={() => handleDeleteOffer(off.id)} 
-                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                        title="Eliminar vacante"
+                      {isOwner && (
+                        <button 
+                          onClick={() => handleDeleteOffer(off.id)} 
+                          className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                          title="Eliminar vacante"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
+                    Actualmente no hay ninguna oferta de empleo, prácticas o voluntariado activa.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* --- CONTENIDO: PESTAÑA DÍA A DÍA (POSTS) --- */}
+            {profileTab === 'posts' && (
+              <div className="space-y-6">
+                
+                {/* Caja de publicación rápida solo visible para el dueño */}
+                {isOwner && (
+                  <form onSubmit={handleCreatePost} className="p-4 bg-muted/30 border border-border rounded-2xl flex flex-col gap-3">
+                    <textarea
+                      value={postContent}
+                      onChange={e => setPostContent(e.target.value)}
+                      placeholder="¿Qué ha pasado hoy en la empresa? Compártelo con la comunidad..."
+                      className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={publishingPost || !postContent.trim()}
+                        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        {publishingPost ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Publicar en el Inicio
                       </button>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                  Actualmente no hay ninguna oferta de empleo, prácticas o voluntariado activa.
-                </p>
-              )}
-            </div>
+                    </div>
+                  </form>
+                )}
+
+                {/* Lista de PostCards generadas por la empresa */}
+                <div className="space-y-4">
+                  {companyPosts.length > 0 ? (
+                    companyPosts.map(post => (
+                      <PostCard key={post.id} post={post} userEmail={user?.email} likedIds={new Set()} />
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
+                      Aún no hay publicaciones sobre el día a día corporativo.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </div>
