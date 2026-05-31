@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut } from 'lucide-react'; // 💡 Añadido LogOut
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft } from 'lucide-react'; // 💡 Añadido ArrowLeft
 import PostCard from '@/components/PostCard'; 
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
-  const navigate = useNavigate(); // 💡 Inicializamos navigate para redirigir tras salir
+  const navigate = useNavigate(); 
   const [company, setCompany] = useState(null);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +90,6 @@ export default function CompanyProfile() {
 
   const isOwner = user && (company?.id === user.id);
 
-  // 💡 NUEVO: Función para cerrar sesión rápidamente
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -263,12 +262,17 @@ export default function CompanyProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
       
-      {/* HEADER DE ACCIONES CON BOTÓN DE CERRAR SESIÓN */}
-      <div className="flex justify-end mb-4">
+      {/* HEADER: BOTÓN DE VOLVER + ACCIONES (SI ES DUEÑO) */}
+      <div className="flex items-center justify-between mb-4">
+        
+        {/* 💡 NUEVO: Botón de Volver atrás visible para todos */}
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+          <ArrowLeft className="w-4 h-4" /> Volver atrás
+        </button>
+
         {isOwner && (
           !isEditing ? (
             <div className="flex gap-2">
-              {/* 💡 Botón rojo para deslogueo rápido */}
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 bg-destructive/10 text-destructive border border-destructive/20 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-destructive hover:text-white transition-all"

@@ -72,12 +72,6 @@ export default function Comunidad() {
     setFollowingIds(next);
   };
 
-  const getOfferIcon = (type) => {
-    if (type === 'Prácticas') return <GraduationCap className="w-4 h-4 text-amber-600" />;
-    if (type === 'Voluntariado') return <Heart className="w-4 h-4 text-emerald-600" />;
-    return <Briefcase className="w-4 h-4 text-blue-600" />;
-  };
-
   // Filtrados inteligentes
   const filteredMiembros = miembros.filter(m => {
     const isNotMe = m.id !== currentUser?.id;
@@ -192,7 +186,7 @@ export default function Comunidad() {
                 return (
                   <div 
                     key={m.id} 
-                    onClick={() => navigate(`/usuario/${m.id}`)} // 💡 NUEVO: Redirección al perfil público
+                    onClick={() => navigate(`/usuario/${m.id}`)}
                     className="p-4 bg-card border border-border rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-primary/20 hover:shadow-md cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
@@ -216,7 +210,7 @@ export default function Comunidad() {
                     
                     <button
                       onClick={(e) => {
-                        e.stopPropagation(); // 💡 NUEVO: Evita que al seguir te redirija al perfil
+                        e.stopPropagation();
                         toggleFollow(m.id);
                       }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
@@ -298,30 +292,48 @@ export default function Comunidad() {
           {/* Sub-Pestaña de Ofertas de Trabajo */}
           {activeSubTab === 'ofertas' && (
             filteredOfertas.length > 0 ? (
-              filteredOfertas.map(off => (
-                <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200">
-                  <div className="p-2.5 bg-muted rounded-2xl border border-border/40 shadow-sm flex-shrink-0">
-                    {getOfferIcon(off.type)}
-                  </div>
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded-md">{off.type}</span>
-                      <span className="text-xs font-medium text-muted-foreground">publicado por <strong className="text-foreground">{off.company_name}</strong></span>
-                    </div>
-                    <h3 className="text-base font-semibold text-foreground pt-0.5">{off.title}</h3>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
-                    <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
+              filteredOfertas.map(off => {
+                // 💡 MAGIA AQUÍ: Buscamos el logo de la empresa dueña de la oferta
+                const offerCompany = empresas.find(e => e.id === off.company_id);
+                const logoUrl = offerCompany?.logo_url;
+                const initials = off.company_name?.slice(0, 2).toUpperCase() || 'EM';
+
+                return (
+                  <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200 hover:border-primary/20 transition-colors">
                     
-                    {off.link_apply && (
-                      <div className="pt-2">
-                        <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-                          Inscribirse u obtener detalles <ExternalLink className="w-3 h-3" />
-                        </a>
+                    {/* 💡 CONTENEDOR DEL LOGO DE LA EMPRESA */}
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0 shadow-sm">
+                      {logoUrl ? (
+                        <img src={logoUrl} className="w-full h-full object-cover" alt={`Logo de ${off.company_name}`} />
+                      ) : (
+                        <span className="text-sm font-bold text-primary">{initials}</span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded-md">
+                          {off.type}
+                        </span>
+                        <span className="text-xs font-medium text-muted-foreground">publicado por <strong className="text-foreground">{off.company_name}</strong></span>
                       </div>
-                    )}
+                      <h3 className="text-base font-semibold text-foreground leading-tight">{off.title}</h3>
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                        <MapPin className="w-3 h-3 text-primary/70" /> {off.location}
+                      </p>
+                      <p className="text-sm text-foreground/80 pt-2 pb-1 leading-relaxed">{off.description}</p>
+                      
+                      {off.link_apply && (
+                        <div className="pt-2 border-t border-border/50 mt-2">
+                          <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                            Inscribirse u obtener detalles <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay oportunidades disponibles en este momento.</p>
             )
