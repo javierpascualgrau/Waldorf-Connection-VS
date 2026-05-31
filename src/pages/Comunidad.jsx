@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
 import { Search, MapPin, Users, Building, Briefcase, GraduationCap, Heart, ExternalLink, Globe, ArrowRight, UserCheck, UserPlus } from 'lucide-react';
 
@@ -12,9 +13,8 @@ const ROLE_FILTERS = [
 ];
 
 export default function Comunidad() {
+  const navigate = useNavigate(); 
   const [activeTab, setActiveTab] = useState('raiz');
-  
-  // 💡 CORREGIDO: Ahora 'perfiles' (Empresas) es la pestaña por defecto al entrar
   const [activeSubTab, setActiveSubTab] = useState('perfiles');
   const [selectedRole, setSelectedRole] = useState('Todos');
 
@@ -25,7 +25,6 @@ export default function Comunidad() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // 💡 NUEVO ESTADO: Guarda el usuario que está logueado actualmente
   const [currentUser, setCurrentUser] = useState(null);
   const [followingIds, setFollowingIds] = useState(new Set());
 
@@ -33,11 +32,10 @@ export default function Comunidad() {
     const loadComunidadData = async () => {
       setLoading(true);
       try {
-        // 💡 Recuperamos el usuario de la sesión actual
         const { data: { user: authUser } } = await supabase.auth.getUser();
         setCurrentUser(authUser);
 
-        // 1. Cargar los miembros de la comunidad
+        // 1. Cargar miembros
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
@@ -80,7 +78,7 @@ export default function Comunidad() {
     return <Briefcase className="w-4 h-4 text-blue-600" />;
   };
 
-  // 🔍 Lógica de Filtrado Raíz: ¡Excluimos al usuario logueado con m.id !== currentUser?.id!
+  // Filtrados inteligentes
   const filteredMiembros = miembros.filter(m => {
     const isNotMe = m.id !== currentUser?.id;
     const matchesSearch = m.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || m.location?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -109,31 +107,31 @@ export default function Comunidad() {
         <p className="text-sm text-muted-foreground">Conecta con la comunidad Waldorf</p>
       </div>
 
-      {/* SELECTOR DE PESTAÑAS PRINCIPALES */}
-      <div className="flex justify-center gap-2 mb-6">
+      {/* BOTONES PRINCIPALES GRANDES */}
+      <div className="flex justify-center gap-3 mb-8">
         <button
           onClick={() => { setActiveTab('raiz'); setSearchQuery(''); }}
-          className={`flex items-center gap-1.5 px-5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all ${
+          className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'raiz' 
-              ? 'bg-primary text-white shadow-md' 
+              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
-          <Users className="w-3.5 h-3.5" /> Raíz
+          <Users className="w-4 h-4" /> Raíz
         </button>
         <button
           onClick={() => { setActiveTab('empresas'); setSearchQuery(''); }}
-          className={`flex items-center gap-1.5 px-5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all ${
+          className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'empresas' 
-              ? 'bg-primary text-white shadow-md' 
+              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
-          <Building className="w-3.5 h-3.5" /> Empresas
+          <Building className="w-4 h-4" /> Empresas
         </button>
       </div>
 
-      {/* 💡 SUB-APARTADOS DE EMPRESAS ORDENADOS: Perfiles (Izquierda) | Ofertas (Derecha) */}
+      {/* SUB-APARTADOS DE EMPRESAS */}
       {activeTab === 'empresas' && (
         <div className="flex gap-2 mb-6 bg-muted/40 p-1 rounded-2xl max-w-xs mx-auto border border-border/40">
           <button
@@ -237,47 +235,61 @@ export default function Comunidad() {
       {activeTab === 'empresas' && (
         <div className="space-y-4">
           
-          {/* Sub-Pestaña Izquierda: Perfiles de Empresa */}
+          {/* Sub-Pestaña de Perfiles de Empresa */}
           {activeSubTab === 'perfiles' && (
-            filteredEmpresas.length > 0 ? (
-              filteredEmpresas.map(emp => (
-                <div key={emp.id} className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden flex flex-col sm:flex-row text-left animate-in fade-in duration-200">
-                  <div className="sm:w-32 h-24 sm:h-auto bg-muted relative flex-shrink-0">
-                    <img src={emp.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab'} className="w-full h-full object-cover" alt="banner" />
-                    <div className="absolute -bottom-6 left-4 sm:top-4 sm:left-4 w-12 h-12 rounded-xl border-2 border-card bg-card overflow-hidden shadow">
-                      <img src={emp.logo_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3'} className="w-full h-full object-cover" alt="logo" />
-                    </div>
-                  </div>
-
-                  <div className="p-5 pt-8 sm:pt-5 flex-1 space-y-2">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">{emp.name}</h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {emp.location || 'Sede no definida'}</p>
-                    </div>
-                    <p className="text-xs text-foreground/70 leading-relaxed line-clamp-2">{emp.description || 'Sin descripción corporativa.'}</p>
-                    
-                    {emp.waldorf_connection && (
-                      <p className="text-[11px] text-primary bg-primary/5 px-3 py-1.5 rounded-xl border border-primary/10 italic">
-                        Unión Waldorf: "{emp.waldorf_connection}"
-                      </p>
-                    )}
-
-                    {emp.website && (
-                      <div className="pt-1 flex justify-end">
-                        <a href={emp.website} target="_blank" rel="noreferrer" className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors">
-                          <Globe className="w-3 h-3" /> Sitio Web <ArrowRight className="w-3 h-3" />
-                        </a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filteredEmpresas.length > 0 ? (
+                filteredEmpresas.map(emp => {
+                  const isFollowingCompany = followingIds.has(emp.id); // 💡 Comprobamos si seguimos a la empresa
+                  const initials = emp.name?.slice(0, 2).toUpperCase() || 'EM';
+                  return (
+                    <div 
+                      key={emp.id} 
+                      onClick={() => navigate(`/colegios/${emp.id}`)} 
+                      className="p-4 bg-card border border-border rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-primary/20 hover:shadow-md cursor-pointer group animate-in fade-in duration-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0">
+                          {emp.logo_url ? (
+                            <img src={emp.logo_url} className="w-full h-full object-cover" alt="logo de la empresa" />
+                          ) : (
+                            <span className="text-xs font-bold text-primary">{initials}</span>
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">{emp.name}</h3>
+                          <p className="text-[11px] text-primary font-medium mt-0.5">Empresa Colaboradora</p>
+                          <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1 mt-1">
+                            <MapPin className="w-2.5 h-2.5 text-primary" /> {emp.location || 'Sede no definida'}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay empresas registradas con ese criterio.</p>
-            )
+                      
+                      {/* 💡 CORREGIDO: Botón dinámico de Seguir / Siguiendo idéntico al de la pestaña Raíz */}
+                      <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); // 💡 Evita que al pulsar el botón se abra la página del perfil
+                          toggleFollow(emp.id); 
+                        }} 
+                        className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
+                          isFollowingCompany 
+                            ? 'bg-muted text-muted-foreground border-border' 
+                            : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
+                        }`}
+                      >
+                        {isFollowingCompany ? <UserCheck className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
+                        {isFollowingCompany ? 'Siguiendo' : 'Seguir'}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-muted-foreground italic text-center col-span-2 py-8 bg-card border border-dashed border-border rounded-2xl">No hay empresas registradas con ese criterio.</p>
+              )}
+            </div>
           )}
 
-          {/* Sub-Pestaña Derecha: Ofertas de Trabajo */}
+          {/* Sub-Pestaña de Ofertas de Trabajo */}
           {activeSubTab === 'ofertas' && (
             filteredOfertas.length > 0 ? (
               filteredOfertas.map(off => (
