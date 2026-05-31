@@ -9,7 +9,7 @@ const navItems = [
   { path: '/colegios', icon: School, label: 'Colegios' },
   { path: '/comunidad', icon: Users, label: 'Comunidad' },
   { path: '/hilo', icon: MessageSquare, label: 'Hilo' }, 
-  { path: '/perfil', icon: User, label: 'Mi Perfil' }, // Este lo interceptamos abajo
+  { path: '/perfil', icon: User, label: 'Mi Perfil' }, 
 ];
 
 export default function Layout() {
@@ -19,9 +19,9 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
 
-  // LA FUNCIÓN MÁGICA DE REDIRECCIÓN EN RUTAS REALES
+  // LA FUNCIÓN DE REDIRECCIÓN REPARADA Y AMPLIADA PARA EMPRESAS
   const handleMiPerfilClick = async (e) => {
-    if (e) e.preventDefault(); // Evitamos que el enlace actúe de forma estática
+    if (e) e.preventDefault(); 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -30,19 +30,34 @@ export default function Layout() {
         return;
       }
 
-      // Buscamos si el usuario logueado es manager de algún colegio
+      // 1. ¡CORREGIDO! Añadido .select('*') para evitar el error de crash en la app
       const { data: school } = await supabase
         .from('school_profiles')
-        .eq('manager_id', user.id)
+        .select('*')
+        .or(`id.eq.${user.id},manager_id.eq.${user.id}`)
         .maybeSingle();
 
       if (school) {
-        // Si es un colegio, lo mandamos a su vista profesional de school_profiles
+        // Si es un colegio, va a su directorio/perfil dinámico
         navigate(`/colegios/${school.id}`);
-      } else {
-        // Si es un usuario común, va a la ruta de perfil personal estándar
-        navigate('/perfil'); 
+        return;
       }
+
+      // 2. 💡 NUEVO: Buscamos si el usuario que hace clic es una empresa
+      const { data: company } = await supabase
+        .from('company_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (company) {
+        // Si es una empresa, la mandamos a /perfil (donde el Perfil.jsx inteligente cargará su panel de control)
+        navigate('/perfil');
+        return;
+      }
+
+      // 3. Si es un usuario común, va a la ruta de perfil personal estándar
+      navigate('/perfil'); 
     } catch (error) {
       console.error("Error al redireccionar perfil:", error);
       navigate('/login');
@@ -136,7 +151,6 @@ export default function Layout() {
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`;
 
-              // SI ES EL BOTÓN DE MI PERFIL, INTERCEPTAMOS EL CLICK CON TU FUNCIÓN
               if (isProfile) {
                 return (
                   <button key={path} onClick={handleMiPerfilClick} className={itemStyles}>
@@ -146,7 +160,6 @@ export default function Layout() {
                 );
               }
 
-              // PARA LOS DEMÁS BOTONES, SIGUE CON EL COMPORTAMIENTO NORMAL
               return (
                 <Link key={path} to={path} className={itemStyles}>
                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
