@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom'; // 💡 NUEVO: Para redirigir tras cerrar sesión
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings } from 'lucide-react'; 
+// 💡 NUEVO: Añadido el icono 'LogOut' de lucide-react
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut } from 'lucide-react'; 
 import PostCard from '@/components/PostCard';
 import ChangePasswordModal from '@/components/ChangePasswordModal'; 
 import SchoolProfile from './SchoolProfile'; 
+import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
 const ROLES = [
   { value: 'alumno', label: 'Alumno' },
@@ -23,6 +26,7 @@ const INTERESTS = [
 
 export default function Perfil() {
   const { user } = useAuth(); 
+  const navigate = useNavigate(); // 💡 NUEVO: Inicializamos el enrutador
   const [profile, setProfile] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const [editing, setEditing] = useState(false);
@@ -36,6 +40,7 @@ export default function Perfil() {
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [isSchool, setIsSchool] = useState(false);
+  const [isCompany, setIsCompany] = useState(false); // 💡 NUEVO: Estado para identificar empresas
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,6 +51,7 @@ export default function Perfil() {
 
       setLoading(true);
       setIsSchool(false); 
+      setIsCompany(false); // 💡 Limpiamos el estado al iniciar la carga
 
       // 1. Miramos si este ID de usuario está en la tabla de los colegios
       const { data: schoolData } = await supabase
@@ -60,7 +66,20 @@ export default function Perfil() {
         return; 
       }
 
-      // 2. Si no es colegio, cargamos la cuenta normal de la comunidad
+      // 2. 💡 NUEVO: Miramos si este ID de usuario está en la tabla de las empresas
+      const { data: companyData } = await supabase
+        .from('company_profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (companyData) {
+        setIsCompany(true);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Si no es colegio ni empresa, cargamos la cuenta normal de la comunidad
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -100,6 +119,20 @@ export default function Perfil() {
 
     loadData();
   }, [user]);
+
+  // 💡 NUEVA FUNCIÓN: Manejador del cierre de sesión rápido
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      navigate('/'); // Redirigimos al inicio estático
+      window.location.reload(); // Forzamos recarga para limpiar memoria y caché del auth
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error.message);
+      alert("Error al intentar cerrar la sesión.");
+    }
+  };
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
@@ -207,6 +240,11 @@ export default function Perfil() {
     return <SchoolProfile />;
   }
 
+  // 💡 NUEVO: Retorno rápido si el usuario logueado es una empresa
+  if (isCompany) {
+    return <CompanyProfile />;
+  }
+
   const displayName = profile?.display_name || user.email.split('@')[0];
   const roleLabel = ROLES.find(r => r.value === (profile?.role || 'simpatizante'))?.label;
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -265,6 +303,7 @@ export default function Perfil() {
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
 
+            {/* BOTONERA ACCIONES DE AJUSTES */}
             <div className="flex gap-1 items-center self-start mt-2">
               <button
                 onClick={() => setPasswordModalOpen(true)}
@@ -273,6 +312,16 @@ export default function Perfil() {
               >
                 <Settings className="w-4 h-4" />
               </button>
+              
+              {/* 💡 NUEVO: Botón de Cerrar Sesión integrado */}
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+
               <button
                 onClick={() => setEditing(!editing)}
                 className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
