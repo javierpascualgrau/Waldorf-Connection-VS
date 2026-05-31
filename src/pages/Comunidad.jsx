@@ -12,30 +12,32 @@ const ROLE_FILTERS = [
 ];
 
 export default function Comunidad() {
-  // Pestañas principales de vuestro diseño ('raiz' o 'empresas')
   const [activeTab, setActiveTab] = useState('raiz');
   
-  // Sub-apartados exclusivos para el bloque de empresas ('ofertas' o 'perfiles')
-  const [activeSubTab, setActiveSubTab] = useState('ofertas');
-
-  // Filtro de roles exclusivo de vuestra pestaña Raíz
+  // 💡 CORREGIDO: Ahora 'perfiles' (Empresas) es la pestaña por defecto al entrar
+  const [activeSubTab, setActiveSubTab] = useState('perfiles');
   const [selectedRole, setSelectedRole] = useState('Todos');
 
-  // Estados de carga de datos de Supabase
+  // Estados de datos
   const [miembros, setMiembros] = useState([]);
   const [empresas, setEmpresas] = useState([]);
-  const [ofertas, setOfertas] = useState([]);
+  const [ofertas, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Estado local para simular o manejar el botón de "Siguiendo" de vuestras tarjetas
+  
+  // 💡 NUEVO ESTADO: Guarda el usuario que está logueado actualmente
+  const [currentUser, setCurrentUser] = useState(null);
   const [followingIds, setFollowingIds] = useState(new Set());
 
   useEffect(() => {
     const loadComunidadData = async () => {
       setLoading(true);
       try {
-        // 1. Cargar los miembros de la comunidad para la pestaña Raíz
+        // 💡 Recuperamos el usuario de la sesión actual
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        setCurrentUser(authUser);
+
+        // 1. Cargar los miembros de la comunidad
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
@@ -49,12 +51,12 @@ export default function Comunidad() {
           .order('name', { ascending: true });
         setEmpresas(companies || []);
 
-        // 3. Cargar ofertas del marketplace
+        // 3. Cargar ofertas
         const { data: offers } = await supabase
           .from('company_offers')
           .select('*')
           .order('created_at', { ascending: false });
-        setOfertas(offers || []);
+        setOffers(offers || []);
 
       } catch (error) {
         console.error("Error sincronizando el ecosistema:", error);
@@ -78,20 +80,19 @@ export default function Comunidad() {
     return <Briefcase className="w-4 h-4 text-blue-600" />;
   };
 
-  // 🔍 Lógica de Filtrado para vuestra pestaña "Raíz" original
+  // 🔍 Lógica de Filtrado Raíz: ¡Excluimos al usuario logueado con m.id !== currentUser?.id!
   const filteredMiembros = miembros.filter(m => {
+    const isNotMe = m.id !== currentUser?.id;
     const matchesSearch = m.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || m.location?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = selectedRole === 'Todos' || m.role === selectedRole;
-    return matchesSearch && matchesRole;
+    return isNotMe && matchesSearch && matchesRole;
   });
 
-  // 🔍 Lógica de Filtrado para las Ofertas de Empresa
   const filteredOfertas = ofertas.filter(o => 
     o.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.company_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 🔍 Lógica de Filtrado para los Perfiles de Empresa
   const filteredEmpresas = empresas.filter(e => 
     e.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.location?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -102,13 +103,13 @@ export default function Comunidad() {
   return (
     <div className="max-w-3xl mx-auto pb-20 animate-in fade-in duration-300">
       
-      {/* ENCABEZADO IDÉNTICO AL TUYO */}
+      {/* ENCABEZADO */}
       <div className="text-center my-6 space-y-1">
         <h1 className="font-cormorant text-4xl font-semibold text-foreground tracking-wide">Comunidad</h1>
         <p className="text-sm text-muted-foreground">Conecta con la comunidad Waldorf</p>
       </div>
 
-      {/* SELECTOR DE PESTAÑAS PRINCIPALES (Estilo cápsula de vuestra captura) */}
+      {/* SELECTOR DE PESTAÑAS PRINCIPALES */}
       <div className="flex justify-center gap-2 mb-6">
         <button
           onClick={() => { setActiveTab('raiz'); setSearchQuery(''); }}
@@ -132,17 +133,9 @@ export default function Comunidad() {
         </button>
       </div>
 
-      {/* SUB-APARTADOS DE LA PESTAÑA EMPRESAS (Aparece solo si seleccionas Empresas) */}
+      {/* 💡 SUB-APARTADOS DE EMPRESAS ORDENADOS: Perfiles (Izquierda) | Ofertas (Derecha) */}
       {activeTab === 'empresas' && (
         <div className="flex gap-2 mb-6 bg-muted/40 p-1 rounded-2xl max-w-xs mx-auto border border-border/40">
-          <button
-            onClick={() => { setActiveSubTab('ofertas'); setSearchQuery(''); }}
-            className={`flex-1 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-              activeSubTab === 'ofertas' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Briefcase className="w-3.5 h-3.5" /> Ofertas de Trabajo
-          </button>
           <button
             onClick={() => { setActiveSubTab('perfiles'); setSearchQuery(''); }}
             className={`flex-1 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
@@ -151,10 +144,18 @@ export default function Comunidad() {
           >
             <Building className="w-3.5 h-3.5" /> Perfiles de Empresa
           </button>
+          <button
+            onClick={() => { setActiveSubTab('ofertas'); setSearchQuery(''); }}
+            className={`flex-1 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              activeSubTab === 'ofertas' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" /> Ofertas de Trabajo
+          </button>
         </div>
       )}
 
-      {/* BUSCADOR DINÁMICO (Modifica el placeholder según la vista) */}
+      {/* BUSCADOR DINÁMICO */}
       <div className="relative mb-6 max-w-2xl mx-auto">
         <Search className="absolute left-4 top-3.5 h-4 w-4 text-muted-foreground/60" />
         <input
@@ -166,10 +167,9 @@ export default function Comunidad() {
         />
       </div>
 
-      {/* 👤 VISTA DE TU TAB RAÍZ ORIGINAL */}
+      {/* 👤 CONTENIDO DE PESTAÑA RAÍZ */}
       {activeTab === 'raiz' && (
         <>
-          {/* Fila de píldoras de filtrado idéntica a tu captura */}
           <div className="flex flex-wrap gap-1.5 mb-6 justify-start overflow-x-auto pb-1">
             {ROLE_FILTERS.map(f => (
               <button
@@ -186,7 +186,6 @@ export default function Comunidad() {
             ))}
           </div>
 
-          {/* Rejilla de contactos de dos columnas idéntica a la tuya */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredMiembros.length > 0 ? (
               filteredMiembros.map(m => {
@@ -228,53 +227,21 @@ export default function Comunidad() {
                 );
               })
             ) : (
-              <p className="text-xs text-muted-foreground italic text-center col-span-2 py-6">No hay perfiles que coincidan con la búsqueda.</p>
+              <p className="text-xs text-muted-foreground italic text-center col-span-2 py-6">No hay otros perfiles en este momento.</p>
             )}
           </div>
         </>
       )}
 
-      {/* 💼 VISTA DEL NUEVO APARTADO DE EMPRESAS */}
+      {/* 💼 CONTENIDO DE PESTAÑA EMPRESAS */}
       {activeTab === 'empresas' && (
         <div className="space-y-4">
           
-          {/* Sub-Pestaña 1: Tablón de Vacantes y Empleo */}
-          {activeSubTab === 'ofertas' && (
-            filteredOfertas.length > 0 ? (
-              filteredOfertas.map(off => (
-                <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left">
-                  <div className="p-2.5 bg-muted rounded-2xl border border-border/40 shadow-sm flex-shrink-0">
-                    {getOfferIcon(off.type)}
-                  </div>
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded-md">{off.type}</span>
-                      <span className="text-xs font-medium text-muted-foreground">publicado por <strong className="text-foreground">{off.company_name}</strong></span>
-                    </div>
-                    <h3 className="text-base font-semibold text-foreground pt-0.5">{off.title}</h3>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
-                    <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
-                    
-                    {off.link_apply && (
-                      <div className="pt-2">
-                        <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-                          Inscribirse u obtener detalles <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay oportunidades disponibles en este momento.</p>
-            )
-          )}
-
-          {/* Sub-Pestaña 2: Directorio Profesional de Empresas */}
+          {/* Sub-Pestaña Izquierda: Perfiles de Empresa */}
           {activeSubTab === 'perfiles' && (
             filteredEmpresas.length > 0 ? (
               filteredEmpresas.map(emp => (
-                <div key={emp.id} className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden flex flex-col sm:flex-row text-left">
+                <div key={emp.id} className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden flex flex-col sm:flex-row text-left animate-in fade-in duration-200">
                   <div className="sm:w-32 h-24 sm:h-auto bg-muted relative flex-shrink-0">
                     <img src={emp.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab'} className="w-full h-full object-cover" alt="banner" />
                     <div className="absolute -bottom-6 left-4 sm:top-4 sm:left-4 w-12 h-12 rounded-xl border-2 border-card bg-card overflow-hidden shadow">
@@ -307,6 +274,38 @@ export default function Comunidad() {
               ))
             ) : (
               <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay empresas registradas con ese criterio.</p>
+            )
+          )}
+
+          {/* Sub-Pestaña Derecha: Ofertas de Trabajo */}
+          {activeSubTab === 'ofertas' && (
+            filteredOfertas.length > 0 ? (
+              filteredOfertas.map(off => (
+                <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200">
+                  <div className="p-2.5 bg-muted rounded-2xl border border-border/40 shadow-sm flex-shrink-0">
+                    {getOfferIcon(off.type)}
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded-md">{off.type}</span>
+                      <span className="text-xs font-medium text-muted-foreground">publicado por <strong className="text-foreground">{off.company_name}</strong></span>
+                    </div>
+                    <h3 className="text-base font-semibold text-foreground pt-0.5">{off.title}</h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
+                    <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
+                    
+                    {off.link_apply && (
+                      <div className="pt-2">
+                        <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                          Inscribirse u obtener detalles <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay oportunidades disponibles en este momento.</p>
             )
           )}
 
