@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom'; // 💡 Mantenido para que funcione el enrutador desde Comunidad
+import { useParams } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2 } from 'lucide-react';
-import PostCard from '@/components/PostCard'; // 💡 IMPORTAMOS EL POSTCARD GLOBAL
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon } from 'lucide-react';
+import PostCard from '@/components/PostCard'; 
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
@@ -19,12 +19,14 @@ export default function CompanyProfile() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  // 💡 ESTADOS PARA LAS PESTAÑAS DEL PERFIL
-  const [profileTab, setProfileTab] = useState('ofertas'); // 'ofertas' | 'posts'
+  // 💡 ESTADO PARA LAS PESTAÑAS DEL PERFIL
+  const [profileTab, setProfileTab] = useState('ofertas'); // 'ofertas' | 'actividad'
   
-  // 💡 ESTADOS PARA EL DÍA A DÍA (POSTS)
+  // 💡 ESTADOS PARA LA ACTIVIDAD (POSTS Y FOTOS)
   const [companyPosts, setCompanyPosts] = useState([]);
   const [postContent, setPostContent] = useState('');
+  const [postImage, setPostImage] = useState(''); // 💡 NUEVO: Guardar URL de la foto del post
+  const [uploadingPostImage, setUploadingPostImage] = useState(false); // 💡 NUEVO: Estado de carga
   const [publishingPost, setPublishingPost] = useState(false);
   
   // Estados para el Modal de nueva oferta
@@ -48,7 +50,6 @@ export default function CompanyProfile() {
     setOffers(offs || []);
   };
 
-  // 💡 CARGAR POSTS DE LA EMPRESA
   const loadCompanyPosts = async (companyName) => {
     if (!companyName) return;
     const { data: posts } = await supabase
@@ -66,7 +67,6 @@ export default function CompanyProfile() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       setUser(authUser);
 
-      // Si hay un ID en la URL cargamos esa empresa, si no, es nuestro propio perfil
       const targetId = id || authUser?.id;
 
       if (targetId) {
@@ -82,7 +82,7 @@ export default function CompanyProfile() {
           setCompany(data);
           setEditForm(data);
           await loadOffers(data.id);
-          await loadCompanyPosts(data.name); // Cargamos sus posts al inicio
+          await loadCompanyPosts(data.name); 
         }
       }
       setLoading(false);
@@ -90,7 +90,6 @@ export default function CompanyProfile() {
     loadCompanyData();
   }, [id]);
 
-  // 💡 REGLA DE ORO PARA LA EDICIÓN: Solo el dueño de la empresa ve los botones
   const isOwner = user && (company?.id === user.id);
 
   const uploadFile = async (event, type) => {
@@ -121,6 +120,30 @@ export default function CompanyProfile() {
     } finally {
       setUploadingLogo(false);
       setUploadingBanner(false);
+    }
+  };
+
+  // 💡 NUEVO: Función para subir la foto específica de la publicación (Actividad)
+  const handleUploadPostImage = async (e) => {
+    if (!isOwner) return;
+    try {
+      setUploadingPostImage(true);
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `company_posts/${user.id}-${Math.random()}.${fileExt}`;
+
+      let { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      setPostImage(data.publicUrl);
+
+    } catch (error) {
+      alert('Error al subir la imagen: ' + error.message);
+    } finally {
+      setUploadingPostImage(false);
     }
   };
 
@@ -190,10 +213,10 @@ export default function CompanyProfile() {
     }
   };
 
-  // 💡 FUNCIÓN PARA CREAR POSTS DEL DÍA A DÍA AL FEED
+  // 💡 ACTUALIZADO: Función de crear posts ahora incluye la `image_url`
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!isOwner || !postContent.trim()) return;
+    if (!isOwner || (!postContent.trim() && !postImage)) return;
 
     setPublishingPost(true);
     const { error } = await supabase
@@ -204,6 +227,7 @@ export default function CompanyProfile() {
         author_avatar: company.logo_url,
         author_role: 'empresa', 
         content: postContent,
+        image_url: postImage, // 💡 Metemos la imagen en la base de datos
         created_date: new Date().toISOString()
       });
 
@@ -211,8 +235,9 @@ export default function CompanyProfile() {
       console.error("Error al publicar en el feed:", error);
       alert("Hubo un error al crear la publicación.");
     } else {
-      setPostContent(''); // Limpiamos la caja
-      await loadCompanyPosts(company.name); // Recargamos para que aparezca abajo
+      setPostContent(''); 
+      setPostImage(''); // 💡 Limpiamos la imagen
+      await loadCompanyPosts(company.name); 
     }
     setPublishingPost(false);
   };
@@ -246,13 +271,13 @@ export default function CompanyProfile() {
       </div>
 
       {/* CABECERA VISUAL (BANNER Y LOGO) */}
-      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
+      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8 text-left">
         <div className="h-44 bg-muted/60 relative overflow-hidden group">
           <img src={isEditing ? editForm.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab' : company.banner_url || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
           {isEditing && isOwner && (
             <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
-              {uploadingBanner ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
+              {uploadingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'banner')} disabled={uploadingBanner} />
             </label>
           )}
@@ -271,14 +296,14 @@ export default function CompanyProfile() {
           
           {!isEditing ? (
             <>
-              <h1 className="font-cormorant text-4xl font-semibold text-foreground text-left">{company.name}</h1>
+              <h1 className="font-cormorant text-4xl font-semibold text-foreground">{company.name}</h1>
               <div className="flex gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
                 <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-primary" /> {company.location || 'Ubicación no definida'}</p>
                 {company.website && (
                   <a href={company.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-primary hover:underline"><Globe className="w-4 h-4" /> Visitar Web</a>
                 )}
               </div>
-              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl text-left">{company.description || 'Sin descripción corporativa.'}</p>
+              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description || 'Sin descripción corporativa.'}</p>
             </>
           ) : (
             <div className="space-y-4 mt-2 max-w-xl text-left">
@@ -327,7 +352,7 @@ export default function CompanyProfile() {
           </div>
         </div>
 
-        {/* CONTENEDOR CENTRAL: PESTAÑAS DINÁMICAS (OFERTAS VS DÍA A DÍA) */}
+        {/* CONTENEDOR CENTRAL: PESTAÑAS DINÁMICAS */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm min-h-[400px]">
             
@@ -343,16 +368,15 @@ export default function CompanyProfile() {
                   <FileText className="w-4 h-4" /> Oportunidades
                 </button>
                 <button
-                  onClick={() => setProfileTab('posts')}
+                  onClick={() => setProfileTab('actividad')}
                   className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
-                    profileTab === 'posts' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                    profileTab === 'actividad' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <MessageSquare className="w-4 h-4" /> Día a Día
+                  <MessageSquare className="w-4 h-4" /> Actividad
                 </button>
               </div>
 
-              {/* Botón de publicar vacantes solo visible en su pestaña y si eres el dueño */}
               {profileTab === 'ofertas' && isOwner && (
                 <button 
                   onClick={() => setShowOfferModal(true)} 
@@ -408,27 +432,50 @@ export default function CompanyProfile() {
               </div>
             )}
 
-            {/* --- CONTENIDO: PESTAÑA DÍA A DÍA (POSTS) --- */}
-            {profileTab === 'posts' && (
+            {/* --- CONTENIDO: PESTAÑA ACTIVIDAD (POSTS CON FOTO) --- */}
+            {profileTab === 'actividad' && (
               <div className="space-y-6">
                 
-                {/* Caja de publicación rápida solo visible para el dueño */}
                 {isOwner && (
-                  <form onSubmit={handleCreatePost} className="p-4 bg-muted/30 border border-border rounded-2xl flex flex-col gap-3">
+                  <form onSubmit={handleCreatePost} className="p-4 bg-muted/30 border border-border rounded-2xl flex flex-col gap-3 shadow-sm">
                     <textarea
                       value={postContent}
                       onChange={e => setPostContent(e.target.value)}
                       placeholder="¿Qué ha pasado hoy en la empresa? Compártelo con la comunidad..."
                       className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
                     />
-                    <div className="flex justify-end">
+
+                    {/* 💡 VISTA PREVIA DE LA IMAGEN SUBIDA */}
+                    {postImage && (
+                      <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-border mt-1">
+                        <img src={postImage} className="w-full h-full object-cover" alt="Preview" />
+                        <button 
+                          type="button" 
+                          onClick={() => setPostImage('')} 
+                          className="absolute top-1 right-1 bg-black/60 hover:bg-black text-white rounded-full p-1 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      
+                      {/* 💡 BOTÓN DE SUBIR FOTO AL POST */}
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${uploadingPostImage ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                        {uploadingPostImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                        {uploadingPostImage ? 'Subiendo foto...' : 'Añadir foto'}
+                        <input type="file" accept="image/*" className="hidden" onChange={handleUploadPostImage} disabled={uploadingPostImage} />
+                      </label>
+
+                      {/* BOTÓN DE PUBLICAR */}
                       <button
                         type="submit"
-                        disabled={publishingPost || !postContent.trim()}
-                        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
+                        disabled={publishingPost || uploadingPostImage || (!postContent.trim() && !postImage)}
+                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-xl text-xs font-semibold shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
                       >
                         {publishingPost ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                        Publicar en el Inicio
+                        Publicar 
                       </button>
                     </div>
                   </form>
@@ -442,7 +489,7 @@ export default function CompanyProfile() {
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                      Aún no hay publicaciones sobre el día a día corporativo.
+                      Aún no hay publicaciones recientes.
                     </p>
                   )}
                 </div>
@@ -453,7 +500,7 @@ export default function CompanyProfile() {
         </div>
       </div>
 
-      {/* MODAL INTEGRADO PARA CREAR NUEVA OFERTA (Doble candado de seguridad con isOwner) */}
+      {/* MODAL INTEGRADO PARA CREAR NUEVA OFERTA */}
       {showOfferModal && isOwner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card border border-border w-full max-w-lg rounded-3xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
