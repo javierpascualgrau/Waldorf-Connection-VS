@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom'; 
+import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut } from 'lucide-react'; // 💡 Añadido LogOut
 import PostCard from '@/components/PostCard'; 
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
+  const navigate = useNavigate(); // 💡 Inicializamos navigate para redirigir tras salir
   const [company, setCompany] = useState(null);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,17 +20,14 @@ export default function CompanyProfile() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  // 💡 ESTADO PARA LAS PESTAÑAS DEL PERFIL
-  const [profileTab, setProfileTab] = useState('ofertas'); // 'ofertas' | 'actividad'
+  const [profileTab, setProfileTab] = useState('ofertas'); 
   
-  // 💡 ESTADOS PARA LA ACTIVIDAD (POSTS Y FOTOS)
   const [companyPosts, setCompanyPosts] = useState([]);
   const [postContent, setPostContent] = useState('');
-  const [postImage, setPostImage] = useState(''); // 💡 NUEVO: Guardar URL de la foto del post
-  const [uploadingPostImage, setUploadingPostImage] = useState(false); // 💡 NUEVO: Estado de carga
+  const [postImage, setPostImage] = useState(''); 
+  const [uploadingPostImage, setUploadingPostImage] = useState(false); 
   const [publishingPost, setPublishingPost] = useState(false);
   
-  // Estados para el Modal de nueva oferta
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [publishingOffer, setPublishingOffer] = useState(false);
   const [newOffer, setNewOffer] = useState({
@@ -92,6 +90,19 @@ export default function CompanyProfile() {
 
   const isOwner = user && (company?.id === user.id);
 
+  // 💡 NUEVO: Función para cerrar sesión rápidamente
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/');
+      window.location.reload(); 
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error.message);
+      alert("No se pudo cerrar sesión correctamente.");
+    }
+  };
+
   const uploadFile = async (event, type) => {
     if (!isOwner) return;
     try {
@@ -123,7 +134,6 @@ export default function CompanyProfile() {
     }
   };
 
-  // 💡 NUEVO: Función para subir la foto específica de la publicación (Actividad)
   const handleUploadPostImage = async (e) => {
     if (!isOwner) return;
     try {
@@ -213,7 +223,6 @@ export default function CompanyProfile() {
     }
   };
 
-  // 💡 ACTUALIZADO: Función de crear posts ahora incluye la `image_url`
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!isOwner || (!postContent.trim() && !postImage)) return;
@@ -227,7 +236,7 @@ export default function CompanyProfile() {
         author_avatar: company.logo_url,
         author_role: 'empresa', 
         content: postContent,
-        image_url: postImage, // 💡 Metemos la imagen en la base de datos
+        image_url: postImage, 
         created_date: new Date().toISOString()
       });
 
@@ -236,7 +245,7 @@ export default function CompanyProfile() {
       alert("Hubo un error al crear la publicación.");
     } else {
       setPostContent(''); 
-      setPostImage(''); // 💡 Limpiamos la imagen
+      setPostImage(''); 
       await loadCompanyPosts(company.name); 
     }
     setPublishingPost(false);
@@ -254,13 +263,24 @@ export default function CompanyProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
       
-      {/* HEADER DE ACCIONES */}
+      {/* HEADER DE ACCIONES CON BOTÓN DE CERRAR SESIÓN */}
       <div className="flex justify-end mb-4">
         {isOwner && (
           !isEditing ? (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-              <Edit3 className="w-4 h-4" /> Gestionar Empresa
-            </button>
+            <div className="flex gap-2">
+              {/* 💡 Botón rojo para deslogueo rápido */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-destructive/10 text-destructive border border-destructive/20 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-destructive hover:text-white transition-all"
+                title="Cerrar sesión de empresa"
+              >
+                <LogOut className="w-4 h-4" /> Salir
+              </button>
+
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
+                <Edit3 className="w-4 h-4" /> Gestionar Empresa
+              </button>
+            </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => { setEditForm(company); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
@@ -445,7 +465,6 @@ export default function CompanyProfile() {
                       className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
                     />
 
-                    {/* 💡 VISTA PREVIA DE LA IMAGEN SUBIDA */}
                     {postImage && (
                       <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-border mt-1">
                         <img src={postImage} className="w-full h-full object-cover" alt="Preview" />
@@ -461,14 +480,12 @@ export default function CompanyProfile() {
 
                     <div className="flex items-center justify-between pt-1">
                       
-                      {/* 💡 BOTÓN DE SUBIR FOTO AL POST */}
                       <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${uploadingPostImage ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                         {uploadingPostImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                         {uploadingPostImage ? 'Subiendo foto...' : 'Añadir foto'}
                         <input type="file" accept="image/*" className="hidden" onChange={handleUploadPostImage} disabled={uploadingPostImage} />
                       </label>
 
-                      {/* BOTÓN DE PUBLICAR */}
                       <button
                         type="submit"
                         disabled={publishingPost || uploadingPostImage || (!postContent.trim() && !postImage)}
