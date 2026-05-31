@@ -245,7 +245,7 @@ export default function Comunidad() {
                   return (
                     <div 
                       key={emp.id} 
-                      onClick={() => navigate(`/colegios/${emp.id}`)} 
+                      onClick={() => navigate(`/empresas/${emp.id}`)} 
                       className="p-4 bg-card border border-border rounded-2xl shadow-sm flex items-center justify-between transition-all hover:border-primary/20 hover:shadow-md cursor-pointer group animate-in fade-in duration-200"
                     >
                       <div className="flex items-center gap-3">
@@ -317,7 +317,7 @@ export default function Comunidad() {
               ))
             ) : (
               <p className="text-xs text-muted-foreground italic text-center py-8 bg-card border border-dashed border-border rounded-2xl">No hay oportunidades disponibles en este momento.</p>
-            )
+            ) // ¡AQUÍ ESTABA EL ERROR! Ahora está corregido
           )}
 
         </div>
