@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { X, Upload, Calendar, Clock, MapPin, AlignLeft, Type, Grid } from 'lucide-react';
 
-const CATEGORIAS_DISPONIBLES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
+// 💡 NUEVO: Añadida la opción 'Otro' al listado oficial de categorías
+const CATEGORIAS_DISPONIBLES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo', 'Otro'];
 
 export default function CreateSchoolEventModal({ onClose, onCreated, defaultSchoolName, defaultSchoolId }) {
   const [title, setTitle] = useState('');
@@ -10,8 +11,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
   const [category, setCategory] = useState('Taller'); 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [location, setLocation] = useState(''); 
-  const [mapLink, setMapLink] = useState(''); 
+  const [location, setLocation] = useState(''); // Solo conservamos la dirección de texto física
   
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -48,20 +48,19 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     setIsSubmitting(true);
 
     try {
-      // 💡 SINCRONIZACIÓN TOTAL: Mapeado idéntico a vuestras columnas de Supabase
+      // Sincronización total con las columnas de vuestra tabla en Supabase
       const { error } = await supabase.from('school_events').insert([{
         title: title,
         description: description,
-        event_type: category.toLowerCase(), // Guarda 'taller', 'mercadillo', etc.
-        date: date,                          // Columna 'date' (text)
-        event_date: date,                    // Columna 'event_date' (date)
-        time: time || null,                  // Columna 'time' (text)
-        event_time: time || null,            // Columna 'event_time' (time)
-        location: location,                  // Columna 'location' (text)
-        map_link: mapLink,                   // Columna 'map_link' (text)
+        event_type: category.toLowerCase(), // Guardará 'puertas abiertas', 'taller', ..., 'otro'
+        date: date,                          
+        event_date: date,                    
+        time: time || null,                  
+        event_time: time || null,            
+        location: location,                  
         image_url: imageUrl || null,
-        school_name: defaultSchoolName,      // Se vincula automáticamente en segundo plano
-        school_id: defaultSchoolId,          // Se vincula automáticamente en segundo plano
+        school_name: defaultSchoolName,      
+        school_id: defaultSchoolId,          
         created_date: new Date().toISOString()
       }]);
 
@@ -81,7 +80,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-card border border-border w-full max-w-lg rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[90vh] text-left">
         
-        {/* Cabecera dinámica sin input redundante */}
+        {/* Cabecera */}
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Nuevo evento del colegio</h2>
@@ -138,11 +137,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: Calle de la Escuela, 14, Las Rozas" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
           </div>
 
-          {/* Enlace al Mapa */}
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps (Opcional)</label>
-            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace de ubicación" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
-          </div>
+          {/* 💡 ELIMINADO: El bloque del input de Google Maps ha sido completamente fulminado de aquí */}
 
           {/* Fotografía */}
           <div className="pt-2">
