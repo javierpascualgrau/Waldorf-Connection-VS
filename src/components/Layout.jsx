@@ -18,6 +18,7 @@ export default function Layout() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [schoolId, setSchoolId] = useState(null); // 💡 NUEVO: Guardamos el ID del colegio si el usuario lo es
 
   const handleMiPerfilClick = async (e) => {
     if (e) e.preventDefault(); 
@@ -64,6 +65,17 @@ export default function Layout() {
       
       if (authUser) {
         setUser(authUser);
+        
+        // 💡 NUEVO: Traemos el id del colegio de forma reactiva nada más cargar la app
+        const { data: schoolData } = await supabase
+          .from('school_profiles')
+          .select('id')
+          .or(`id.eq.${authUser.id},manager_id.eq.${authUser.id}`)
+          .maybeSingle();
+
+        if (schoolData) {
+          setSchoolId(schoolData.id);
+        }
         
         let profileData = null;
 
@@ -135,8 +147,20 @@ export default function Layout() {
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-around h-16">
             {navItems.map(({ path, icon: Icon, label }) => {
-              const isActive = location.pathname === path;
               const isProfile = path === '/perfil';
+              const isColegios = path === '/colegios';
+              
+              // 💡 REGLAS DE ILUMINACIÓN INTELIGENTE:
+              let isActive = location.pathname === path;
+
+              if (isProfile) {
+                // "Mi Perfil" se ilumina en su ruta base o si estás viendo TU perfil de colegio
+                isActive = location.pathname === '/perfil' || (schoolId && location.pathname === `/colegios/${schoolId}`);
+              } else if (isColegios) {
+                // "Colegios" se ilumina si empieza por /colegios pero NO es tu propia página
+                const isOwnSchoolPage = schoolId && location.pathname === `/colegios/${schoolId}`;
+                isActive = location.pathname.startsWith('/colegios') && !isOwnSchoolPage;
+              }
               
               const itemStyles = `flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
