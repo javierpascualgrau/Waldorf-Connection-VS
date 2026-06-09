@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
-import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
+// 💡 CORREGIDO: Importación local para usar el modal sin input de nombre
+import CreateSchoolEventModal from './CreateSchoolEventModal';
 import { Link, useNavigate } from 'react-router-dom';
 
 const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
@@ -15,6 +16,9 @@ export default function Colegios() {
   const [events, setEvents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // 💡 NUEVO: Guardar perfil del colegio logueado si publica desde el tablón general
+  const [currentUserSchool, setCurrentUserSchool] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,6 +30,18 @@ export default function Colegios() {
 
       setSchools(sData || []);
       setEvents(eData || []);
+
+      // 💡 NUEVO: Cargar sesión para que el modal sepa quién publica automáticamente
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: userSchool } = await supabase
+          .from('school_profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        setCurrentUserSchool(userSchool);
+      }
+
       setLoading(false);
     };
     fetchData();
@@ -38,9 +54,10 @@ export default function Colegios() {
 
   const filteredEvents = events.filter(e => {
     const coincideTexto = e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase());
+    
+    // 💡 CORREGIDO: Filtrado inteligente usando la columna real 'event_type'
     const coincideCategoria = eventoFiltro === 'Todos' || 
-                              e.title.toLowerCase().includes(eventoFiltro.toLowerCase()) || 
-                              (e.description && e.description.toLowerCase().includes(eventoFiltro.toLowerCase()));
+                              e.event_type?.toLowerCase() === eventoFiltro.toLowerCase();
     return coincideTexto && coincideCategoria;
   });
 
@@ -135,7 +152,6 @@ export default function Colegios() {
           
           {filteredEvents.length > 0 ? (
             filteredEvents.map(event => {
-              // 💡 SINCRONIZACIÓN: Buscamos el colegio dueño de este evento concreto
               const targetSchool = schools.find(s => s.id === event.school_id || s.name === event.school_name);
               const logoUrl = targetSchool?.avatar_url;
               const initials = (event.school_name || 'CL').slice(0, 2).toUpperCase();
@@ -143,7 +159,7 @@ export default function Colegios() {
               return (
                 <div key={event.id} className="p-6 bg-card border border-border rounded-3xl shadow-sm text-left transition-all hover:border-primary/20">
                   
-                  {/* CABECERA VINCULADA: Logo + Navegación al Perfil del Colegio */}
+                  {/* CABECERA VINCULADA */}
                   <div 
                     onClick={() => targetSchool && navigate(`/colegios/${targetSchool.id}`)}
                     className="flex items-center gap-3 cursor-pointer group mb-4 inline-flex"
@@ -160,13 +176,14 @@ export default function Colegios() {
                       <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">
                         {event.school_name || targetSchool?.name}
                       </h3>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded-md mt-1 inline-block">
-                        {event.category || 'Otro'}
+                      {/* 💡 CORREGIDO: Inyección de event_type sincronizada con base de datos */}
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
+                        {event.event_type || 'Evento'}
                       </span>
                     </div>
                   </div>
 
-                  {/* CONTENIDO REDIRIGIBLE AL EVENTO INDIVIDUAL */}
+                  {/* CONTENIDO REDIRIGIBLE */}
                   <Link to={`/eventos/${event.id}`} className="block group space-y-2">
                     <h2 className="font-cormorant text-2xl font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
                       {event.title}
@@ -176,7 +193,7 @@ export default function Colegios() {
                     </p>
                   </Link>
 
-                  {/* PIE DE TARJETA CON METADATOS */}
+                  {/* METADATOS */}
                   <div className="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border/50 mt-4 text-xs text-muted-foreground">
                     <div className="flex gap-4">
                       <span className="flex items-center gap-1.5">
@@ -199,7 +216,15 @@ export default function Colegios() {
         </div>
       )}
 
-      {showModal && <CreateSchoolEventModal onClose={() => setShowModal(false)} onCreated={() => window.location.reload()} />}
+      {/* 💡 CORREGIDO: El modal ahora recibe las propiedades de sesión automáticas en el tablón general */}
+      {showModal && (
+        <CreateSchoolEventModal 
+          onClose={() => setShowModal(false)} 
+          onCreated={() => window.location.reload()} 
+          defaultSchoolName={currentUserSchool?.name || 'Mi Colegio'}
+          defaultSchoolId={currentUserSchool?.id}
+        />
+      )}
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
-import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
+// 💡 CORREGIDO: Importación apuntando al archivo real de la carpeta pages
+import CreateSchoolEventModal from './CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -28,7 +29,6 @@ export default function SchoolProfile() {
 
   const currentSchoolId = id || user?.id;
 
-  // 💡 MEJORA: Filtramos de forma relacional por school_id
   const loadEvents = async (schoolId) => {
     if (!schoolId) return;
     const { data: evs } = await supabase
@@ -324,7 +324,8 @@ export default function SchoolProfile() {
                 schoolEvents.map(e => (
                   <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{e.category || 'Evento'}</span>
+                      {/* 💡 CORREGIDO: e.category pasa a e.event_type para leer la columna real de Supabase */}
+                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
                       <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
                       <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground pt-3">
@@ -337,7 +338,7 @@ export default function SchoolProfile() {
                         onClick={async () => {
                           if (window.confirm("¿Seguro que quieres borrar este evento?")) {
                             await supabase.from('school_events').delete().eq('id', e.id);
-                            loadEvents(targetId);
+                            loadEvents(currentSchoolId);
                           }
                         }} 
                         className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
@@ -362,10 +363,10 @@ export default function SchoolProfile() {
           onClose={() => setShowEventModal(false)} 
           onCreated={() => {
             setShowEventModal(false);
-            loadEvents(targetId);
+            loadEvents(currentSchoolId);
           }} 
           defaultSchoolName={school?.name} 
-          defaultSchoolId={currentSchoolId}             
+          defaultSchoolId={currentSchoolId}              
         />
       )}
     </div>
