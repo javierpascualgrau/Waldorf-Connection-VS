@@ -7,18 +7,16 @@ const CATEGORIAS_DISPONIBLES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta'
 export default function CreateSchoolEventModal({ onClose, onCreated, defaultSchoolName, defaultSchoolId }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Taller'); // 💡 NUEVO: Estado para clasificar el evento
+  const [category, setCategory] = useState('Taller'); 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [location, setLocation] = useState(''); // Dirección física
-  const [mapLink, setMapLink] = useState(''); // Enlace URL de Google Maps
+  const [location, setLocation] = useState(''); 
+  const [mapLink, setMapLink] = useState(''); 
   
-  // Estados para la gestión de la foto del evento
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // FUNCIÓN PARA SUBIR LA FOTO DEL EVENTO A SUPABASE
   const handleUploadPhoto = async (e) => {
     try {
       setUploading(true);
@@ -40,7 +38,6 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -51,26 +48,24 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     setIsSubmitting(true);
 
     try {
+      // 💡 Sincronización automática de metadatos del colegio en segundo plano
       const { error } = await supabase.from('school_events').insert([{
         title: title,
         description: description,
-        category: category, // 💡 Guardamos la categoría seleccionada
+        category: category, 
         date: date,
         time: time,
-        location: location, // 💡 CORREGIDO: La dirección va a su columna correspondiente
-        map_link: mapLink,   // 💡 CORREGIDO: El enlace GPS va a su columna correspondiente
+        location: location, 
+        map_link: mapLink,   
         image_url: imageUrl || null,
-        school_name: defaultSchoolName,
-        school_id: defaultSchoolId,
+        school_name: defaultSchoolName, // Se inyecta automáticamente sin pedirlo en el formulario
+        school_id: defaultSchoolId,     // Se inyecta automáticamente sin pedirlo en el formulario
         created_date: new Date().toISOString()
       }]);
 
-      if (error) {
-        console.error("Detalle del error de Supabase:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      alert('¡Evento publicado con éxito en el tablón!');
+      alert('¡Evento publicado con éxito!');
       onCreated();
     } catch (error) {
       console.error('Error al insertar evento:', error);
@@ -84,11 +79,11 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-card border border-border w-full max-w-lg rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[90vh] text-left">
         
-        {/* Cabecera */}
+        {/* CABECERA: Muestra de forma elegante quién publica, eliminando el input redundante */}
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-xl font-semibold text-foreground">Nuevo evento del colegio</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Publicando como: <span className="font-bold text-primary">{defaultSchoolName}</span></p>
+            <p className="text-xs text-muted-foreground mt-0.5">Publicando en nombre de: <span className="font-bold text-primary">{defaultSchoolName}</span></p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-xl text-muted-foreground transition-colors">
             <X className="w-5 h-5" />
@@ -103,7 +98,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             <input value={title} onChange={e => setTitle(e.target.value)} required placeholder="Ej: Mercadillo de Primavera" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
           </div>
 
-          {/* 💡 NUEVO: Selector de Categoría */}
+          {/* Categoría */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><Grid className="w-3.5 h-3.5" /> Tipo de Evento / Categoría</label>
             <select 
@@ -123,7 +118,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Explica detalladamente de qué va el evento, talleres disponibles..." className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 resize-none" />
           </div>
 
-          {/* Fecha y Hora en paralelo */}
+          {/* Fecha y Hora */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><Calendar className="w-3.5 h-3.5" /> Fecha *</label>
@@ -135,7 +130,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             </div>
           </div>
 
-          {/* Lugar físico */}
+          {/* Ubicación */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><MapPin className="w-3.5 h-3.5" /> Dirección / Ubicación</label>
             <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: Calle de la Escuela, 14, Las Rozas" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
@@ -147,7 +142,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace HTTPS para abrir en el mapa" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
           </div>
 
-          {/* SUBIR IMAGEN ASOCIADA */}
+          {/* Subir foto */}
           <div className="pt-2">
             <label className="text-xs font-bold text-muted-foreground uppercase block mb-1.5">Fotografía promocional</label>
             {imageUrl ? (
@@ -164,7 +159,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
             )}
           </div>
 
-          {/* Botones de acción */}
+          {/* Botones */}
           <div className="flex gap-2 pt-3 border-t border-border mt-2">
             <button type="button" onClick={onClose} className="flex-1 bg-muted text-muted-foreground py-2.5 rounded-xl text-sm font-semibold">
               Cancelar
