@@ -12,8 +12,11 @@ import Perfil from '@/pages/Perfil';
 import Login from '@/pages/Login';
 import PerfilPublico from '@/pages/PerfilPublico';
 import SchoolProfile from './pages/SchoolProfile';
-import Hilo from '@/pages/Hilo'; // 💡 1. IMPORTAMOS LA NUEVA PÁGINA DE DMs
+import Hilo from '@/pages/Hilo'; 
 import EventDetail from './pages/EventDetail';
+
+// 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
+import CompanyProfile from './pages/CompanyProfile'; 
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
@@ -44,9 +47,10 @@ const AuthenticatedApp = () => {
       <Route path="/comunidad" element={<Comunidad />} />
       <Route path="/eventos/:id" element={<EventDetail />} />
       
-      {/* 💡 2. AÑADIMOS LA RUTA DE HILO */}
-      <Route path="/hilo" element={<Hilo />} /> 
+      {/* 💡 AÑADIMOS LA RUTA PARA CARGAR EL PERFIL DE LAS EMPRESAS */}
+      <Route path="/empresas/:id" element={<CompanyProfile />} />
       
+      <Route path="/hilo" element={<Hilo />} /> 
       <Route path="/perfil" element={<Perfil />} />
       <Route path="/usuario/:id" element={<PerfilPublico />} />
     </Route>

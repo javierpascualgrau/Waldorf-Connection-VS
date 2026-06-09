@@ -101,14 +101,47 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // LÓGICA DE NAVEGACIÓN INTELIGENTE
-  const handleAuthorClick = (e) => {
+  // NAVEGACIÓN INTELIGENTE CORREGIDA ESTILO LINKEDIN
+  const handleAuthorClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (userEmail && userEmail.toLowerCase().trim() === authorEmailClean) {
       navigate('/perfil');
-    } else {
+      return;
+    }
+
+    try {
+      let userId = authorProfile?.id;
+
+      // Fallback: Si el perfil aún no se ha terminado de cargar en el estado, lo buscamos en caliente
+      if (!userId && authorEmailClean) {
+        const { data: fallbackProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('user_email', authorEmailClean)
+          .maybeSingle();
+        if (fallbackProfile) userId = fallbackProfile.id;
+      }
+
+      if (userId) {
+        // Comprobamos si este ID gestiona alguna página de colegio/empresa corporativa
+        const { data: school } = await supabase
+          .from('school_profiles')
+          .eq('manager_id', userId)
+          .maybeSingle();
+
+        if (school) {
+          // ¡Es una cuenta corporativa! Mandamos a su tablón profesional
+          navigate(`/colegios/${school.id}`);
+          return;
+        }
+      }
+
+      // Si es un miembro común o no tiene perfil de empresa asignado, va a la vista de usuario estándar
+      navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
+    } catch (error) {
+      console.error("Error en la redirección del autor:", error);
       navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
     }
   };
@@ -317,7 +350,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
 
   return (
     <>
-      <div className={`rounded-2xl p-4 hover:shadow-md transition-shadow animate-fade-up ${
+      <div className={`rounded-2xl p-4 hover:shadow-md transition-shadow text-left animate-fade-up ${
         displayRole === 'colegio'
           ? 'bg-gradient-to-br from-primary/5 to-primary/10 border-2 border-primary/30 shadow-sm shadow-primary/10'
           : 'bg-card border border-border'
@@ -468,7 +501,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                   const isEditingThis = editingCommentId === comment.id;
 
                   return (
-                    <div key={comment.id} className="bg-muted/40 rounded-xl p-3 text-xs space-y-1 relative group transition-all">
+                    <div key={comment.id} className="bg-muted/40 rounded-xl p-3 text-xs space-y-1 relative group transition-all text-left">
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-foreground/90">{comment.author_name}</span>
                         <div className="flex items-center gap-2">

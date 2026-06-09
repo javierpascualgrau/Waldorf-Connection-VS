@@ -19,7 +19,6 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
 
-  // LA FUNCIÓN MÁGICA DE REDIRECCIÓN EN RUTAS REALES
   const handleMiPerfilClick = async (e) => {
     if (e) e.preventDefault(); 
     try {
@@ -30,7 +29,6 @@ export default function Layout() {
         return;
       }
 
-      // 💡 ¡CORREGIDO! Añadido el .select('*') y blindada la búsqueda por ID o manager_id
       const { data: school } = await supabase
         .from('school_profiles')
         .select('*')
@@ -38,12 +36,22 @@ export default function Layout() {
         .maybeSingle();
 
       if (school) {
-        // Si es un colegio, lo mandamos a su vista profesional de school_profiles
         navigate(`/colegios/${school.id}`);
-      } else {
-        // Si es un usuario común, va a la ruta de perfil personal estándar
-        navigate('/perfil'); 
+        return;
       }
+
+      const { data: company } = await supabase
+        .from('company_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (company) {
+        navigate('/perfil');
+        return;
+      }
+
+      navigate('/perfil'); 
     } catch (error) {
       console.error("Error al redireccionar perfil:", error);
       navigate('/login');
@@ -98,7 +106,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top header */}
       <header className="sticky top-0 z-40 bg-card/90 backdrop-blur-md border-b border-border">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <Link to="/" className="flex items-center gap-1.5 flex-shrink-0">
@@ -120,12 +127,10 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-4 pb-24">
         <Outlet />
       </main>
 
-      {/* Bottom navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border">
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-around h-16">
@@ -147,7 +152,7 @@ export default function Layout() {
               }
 
               return (
-                <Link key={path} to={path} className={path} className={itemStyles}>
+                <Link key={path} to={path} className={itemStyles}>
                   <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
                   <span className="text-[10px] font-medium">{label}</span>
                 </Link>
