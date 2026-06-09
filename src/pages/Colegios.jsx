@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import SchoolEventCard from '@/components/SchoolEventCard';
-import { Search, PlusCircle, MapPin, Filter } from 'lucide-react';
+import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
 
 export default function Colegios() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('directorio'); 
   const [search, setSearch] = useState('');
   const [eventoFiltro, setEventoFiltro] = useState('Todos'); 
@@ -19,7 +19,6 @@ export default function Colegios() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      // Corregido: Apuntamos a 'school_profiles' en lugar de 'schools'
       const { data: sData, error: sError } = await supabase.from('school_profiles').select('*');
       const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
       
@@ -133,12 +132,65 @@ export default function Colegios() {
                <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
              </button>
           </div>
+          
           {filteredEvents.length > 0 ? (
-            filteredEvents.map(event => (
-              <Link to={`/eventos/${event.id}`} key={event.id} className="block transition-transform hover:-translate-y-0.5">
-                <SchoolEventCard event={event} />
-              </Link>
-            ))
+            filteredEvents.map(event => {
+              // 💡 SINCRONIZACIÓN: Buscamos el colegio dueño de este evento concreto
+              const targetSchool = schools.find(s => s.id === event.school_id || s.name === event.school_name);
+              const logoUrl = targetSchool?.avatar_url;
+              const initials = (event.school_name || 'CL').slice(0, 2).toUpperCase();
+
+              return (
+                <div key={event.id} className="p-6 bg-card border border-border rounded-3xl shadow-sm text-left transition-all hover:border-primary/20">
+                  
+                  {/* CABECERA VINCULADA: Logo + Navegación al Perfil del Colegio */}
+                  <div 
+                    onClick={() => targetSchool && navigate(`/colegios/${targetSchool.id}`)}
+                    className="flex items-center gap-3 cursor-pointer group mb-4 inline-flex"
+                  >
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0 group-hover:border-primary/40 transition-colors">
+                      {logoUrl ? (
+                        <img src={logoUrl} className="w-full h-full object-cover" alt="logo colegio" />
+                      ) : (
+                        <span className="text-xs font-bold text-primary">{initials}</span>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">
+                        {event.school_name || targetSchool?.name}
+                      </h3>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded-md mt-1 inline-block">
+                        {event.category || 'Otro'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CONTENIDO REDIRIGIBLE AL EVENTO INDIVIDUAL */}
+                  <Link to={`/eventos/${event.id}`} className="block group space-y-2">
+                    <h2 className="font-cormorant text-2xl font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
+                      {event.title}
+                    </h2>
+                    <p className="text-sm text-foreground/80 leading-relaxed">
+                      {event.description}
+                    </p>
+                  </Link>
+
+                  {/* PIE DE TARJETA CON METADATOS */}
+                  <div className="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border/50 mt-4 text-xs text-muted-foreground">
+                    <div className="flex gap-4">
+                      <span className="flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-primary/70" /> {event.date || 'Sin fecha'}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-primary/70" /> {event.time || 'Sin hora'}
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })
           ) : (
             <div className="text-center py-12 bg-card rounded-3xl border border-border">
               <p className="text-muted-foreground">No se han encontrado eventos de este tipo.</p>

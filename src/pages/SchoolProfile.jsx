@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
-import SchoolEventCard from '@/components/SchoolEventCard';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
 import CreateSchoolEventModal from '@/components/CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
@@ -27,15 +26,16 @@ export default function SchoolProfile() {
   
   const isSuperAdmin = true; 
 
-  // 💡 CORREGIDO: Definimos la ID aquí arriba para que funcione en cualquier rincón del archivo
   const currentSchoolId = id || user?.id;
 
-  const loadEvents = async (schoolName) => {
-    if (!schoolName) return;
+  // 💡 MEJORA: Filtramos de forma relacional por school_id
+  const loadEvents = async (schoolId) => {
+    if (!schoolId) return;
     const { data: evs } = await supabase
       .from('school_events')
       .select('*')
-      .ilike('school_name', `%${schoolName}%`);
+      .eq('school_id', schoolId)
+      .order('date', { ascending: true });
     setSchoolEvents(evs || []);
   };
 
@@ -70,7 +70,7 @@ export default function SchoolProfile() {
         };
         setSchool(schoolData);
         setEditForm(schoolData);
-        await loadEvents(schoolData.name);
+        await loadEvents(targetId);
       }
       setLoading(false);
     };
@@ -155,7 +155,7 @@ export default function SchoolProfile() {
   if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado en el sistema.</div>;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
       <div className="flex items-center justify-between mb-5">
         <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Directorio
@@ -278,7 +278,7 @@ export default function SchoolProfile() {
           </div>
         </div>
 
-        {/* COLUMNA DER: GALERÍA Y TABLÓN */}
+        {/* COLUMNA DER: GALERÍA Y TABLÓN CORREGIDO */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -322,17 +322,25 @@ export default function SchoolProfile() {
             <div className="space-y-4">
               {schoolEvents.length > 0 ? (
                 schoolEvents.map(e => (
-                  <div key={e.id} className="relative group/event">
-                    <SchoolEventCard event={e} />
+                  <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{e.category || 'Evento'}</span>
+                      <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
+                      <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
+                      <div className="flex gap-4 text-xs text-muted-foreground pt-3">
+                        <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
+                      </div>
+                    </div>
                     {isSuperAdmin && (
                       <button 
                         onClick={async () => {
                           if (window.confirm("¿Seguro que quieres borrar este evento?")) {
                             await supabase.from('school_events').delete().eq('id', e.id);
-                            loadEvents(school.name);
+                            loadEvents(targetId);
                           }
                         }} 
-                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover/event:opacity-100 z-10"
+                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -340,7 +348,7 @@ export default function SchoolProfile() {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-muted-foreground italic bg-muted/20 p-4 rounded-xl border border-dashed border-border text-center">
+                <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
                   Este centro educativo no tiene eventos activos en cartelera.
                 </p>
               )}
@@ -354,10 +362,10 @@ export default function SchoolProfile() {
           onClose={() => setShowEventModal(false)} 
           onCreated={() => {
             setShowEventModal(false);
-            loadEvents(school.name);
+            loadEvents(targetId);
           }} 
           defaultSchoolName={school?.name} 
-          defaultSchoolId={currentSchoolId} // 💡 ARREGLADO: Ahora sí está en el contexto global             
+          defaultSchoolId={currentSchoolId}             
         />
       )}
     </div>

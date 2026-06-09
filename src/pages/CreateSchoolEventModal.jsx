@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { X, Upload, Calendar, Clock, MapPin, AlignLeft, Type } from 'lucide-react';
+import { X, Upload, Calendar, Clock, MapPin, AlignLeft, Type, Grid } from 'lucide-react';
+
+const CATEGORIAS_DISPONIBLES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
 
 export default function CreateSchoolEventModal({ onClose, onCreated, defaultSchoolName, defaultSchoolId }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Taller'); // 💡 NUEVO: Estado para clasificar el evento
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [mapLink, setMapLink] = useState('');
+  const [location, setLocation] = useState(''); // Dirección física
+  const [mapLink, setMapLink] = useState(''); // Enlace URL de Google Maps
   
   // Estados para la gestión de la foto del evento
   const [imageUrl, setImageUrl] = useState('');
@@ -37,7 +40,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
     }
   };
 
-  // FUNCIÓN PRINCIPAL DE ENVÍO (Sincronizada con vuestras columnas reales de Supabase)
+  // FUNCIÓN PRINCIPAL DE ENVÍO
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !date) {
@@ -47,18 +50,15 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
 
     setIsSubmitting(true);
 
-    // Si el usuario añade enlace de Google Maps, lo sumamos limpiamente a la descripción
-    const finalDescription = mapLink 
-      ? `${description}\n\n🔗 Enlace al mapa: ${mapLink}`
-      : description;
-
     try {
       const { error } = await supabase.from('school_events').insert([{
         title: title,
-        description: finalDescription,
+        description: description,
+        category: category, // 💡 Guardamos la categoría seleccionada
         date: date,
         time: time,
-        map_link: location, // Mapeado correcto a vuestra columna real
+        location: location, // 💡 CORREGIDO: La dirección va a su columna correspondiente
+        map_link: mapLink,   // 💡 CORREGIDO: El enlace GPS va a su columna correspondiente
         image_url: imageUrl || null,
         school_name: defaultSchoolName,
         school_id: defaultSchoolId,
@@ -96,16 +96,31 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          
           {/* Título */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><Type className="w-3.5 h-3.5" /> Título del evento *</label>
             <input value={title} onChange={e => setTitle(e.target.value)} required placeholder="Ej: Mercadillo de Primavera" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
           </div>
 
+          {/* 💡 NUEVO: Selector de Categoría */}
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><Grid className="w-3.5 h-3.5" /> Tipo de Evento / Categoría</label>
+            <select 
+              value={category} 
+              onChange={e => setCategory(e.target.value)}
+              className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none outline-none text-foreground"
+            >
+              {CATEGORIAS_DISPONIBLES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Descripción */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1"><AlignLeft className="w-3.5 h-3.5" /> Descripción detallada</label>
-            <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Explica detalladamente de qué va el evento, talleres disponibles, precios si los hay..." className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 resize-none" />
+            <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Explica detalladamente de qué va el evento, talleres disponibles..." className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 resize-none" />
           </div>
 
           {/* Fecha y Hora en paralelo */}
@@ -129,7 +144,7 @@ export default function CreateSchoolEventModal({ onClose, onCreated, defaultScho
           {/* Enlace al Mapa */}
           <div>
             <label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-1.5 mb-1">Enlace de Google Maps (Opcional)</label>
-            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace para abrir en GPS" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+            <input value={mapLink} onChange={e => setMapLink(e.target.value)} placeholder="Pega el enlace HTTPS para abrir en el mapa" className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
           </div>
 
           {/* SUBIR IMAGEN ASOCIADA */}
