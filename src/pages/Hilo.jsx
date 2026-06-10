@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Send, Loader2, MessageSquare, Pencil, Trash2, X, Check, Search, ArrowLeft } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Hilo() {
@@ -30,7 +30,7 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos disponibles
+  // 1. Cargar lista de hilos disponibles con cruce de perfiles corporativos reales
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -45,11 +45,47 @@ export default function Hilo() {
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
             const otherEmail = chat.user_1_email === myEmail ? chat.user_2_email : chat.user_1_email;
+            
+            // A. Traer perfil base del usuario por email
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
               .ilike('user_email', otherEmail)
               .maybeSingle();
+
+            // Valores por defecto basados en el perfil base
+            let displayName = profile?.display_name || otherEmail.split('@')[0];
+            let avatarUrl = profile?.avatar_url || null;
+            let role = profile?.role || 'Miembro';
+
+            // 💡 SINCRONIZACIÓN CRUZADA: Si el usuario existe, buscamos su nombre comercial real
+            if (profile?.id) {
+              // 1. Comprobar si es un Colegio
+              const { data: schoolProf } = await supabase
+                .from('school_profiles')
+                .select('name, avatar_url')
+                .or(`id.eq.${profile.id},manager_id.eq.${profile.id}`)
+                .maybeSingle();
+
+              if (schoolProf) {
+                displayName = schoolProf.name; // "Escuela Libre Micael" en vez de "pruebaswaldorf"
+                if (schoolProf.avatar_url) avatarUrl = schoolProf.avatar_url;
+                role = 'Colegio';
+              } else {
+                // 2. Comprobar si es una Empresa
+                const { data: companyProf } = await supabase
+                  .from('company_profiles')
+                  .select('name, avatar_url')
+                  .eq('id', profile.id)
+                  .maybeSingle();
+
+                if (companyProf) {
+                  displayName = companyProf.name;
+                  if (companyProf.avatar_url) avatarUrl = companyProf.avatar_url;
+                  role = 'Empresa';
+                }
+              }
+            }
 
             const { count } = await supabase
               .from('chat_messages')
@@ -61,7 +97,13 @@ export default function Hilo() {
             return { 
               ...chat, 
               unread_count: count || 0,
-              otherUser: profile || { id: null, display_name: otherEmail.split('@')[0], user_email: otherEmail } 
+              otherUser: { 
+                id: profile?.id || null, 
+                display_name: displayName, 
+                avatar_url: avatarUrl,
+                user_email: otherEmail,
+                role: role
+              } 
             };
           })
         );
@@ -134,7 +176,7 @@ export default function Hilo() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 3. Enviar mensaje directo (Ultra simplificado, sin duplicación)
+  // 3. Enviar mensaje directo
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
@@ -143,7 +185,6 @@ export default function Hilo() {
     setNewMessage('');
     const nowIso = new Date().toISOString();
 
-    // Enviamos directamente a base de datos, el Realtime de arriba lo pintará al instante de forma segura
     const { error } = await supabase
       .from('chat_messages')
       .insert([{ chat_id: activeChat.id, sender_email: myEmail, content: messageText }]);
@@ -174,10 +215,7 @@ export default function Hilo() {
   }
 
   return (
-    // 💡 AJUSTADO: El contenedor principal se adapta a pantalla completa sin pisar el logo ni barras
     <div className="w-full max-w-2xl mx-auto bg-card md:border md:border-border md:rounded-3xl h-[calc(100vh-145px)] flex flex-col overflow-hidden relative shadow-sm">
-      
-      {/* Ocultar barras de scroll estéticamente */}
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
       {/* LISTA DE CHATS ABIERTOS */}
@@ -201,7 +239,7 @@ export default function Hilo() {
             {loadingChats ? (
               <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary w-6 h-6" /></div>
             ) : filteredChats.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center p-8 italic">No hay conversaciones activos.</p>
+              <p className="text-xs text-muted-foreground text-center p-8 italic">No hay conversaciones activas.</p>
             ) : (
               filteredChats.map((chat) => {
                 const initials = chat.otherUser.display_name?.slice(0, 2).toUpperCase() || 'U';
@@ -223,7 +261,9 @@ export default function Hilo() {
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
                           {chat.otherUser.display_name}
                         </p>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{chat.otherUser.role || 'Miembro'}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded font-bold uppercase tracking-wider mt-1 inline-block">
+                          {chat.otherUser.role}
+                        </span>
                       </div>
                     </div>
                     {chat.unread_count > 0 && <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
@@ -235,16 +275,14 @@ export default function Hilo() {
         </div>
       ) : (
         
-        /* PANTALLA COMPLETA TOTAL DENTRO DEL CHAT (Estilo image_14b5cb.png) */
+        /* CUERPO DEL CHAT ACTIVO */
         <div className="absolute inset-0 flex flex-col bg-card animate-fade-in overflow-hidden">
-          
-          {/* Cabecera del Chat fija en el techo */}
           <div className="h-16 border-b border-border flex items-center gap-2 bg-muted/5 z-10 px-3 flex-shrink-0 select-none">
             <button onClick={() => setActiveChat(null)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors mr-1">
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div onClick={() => navigate(`/usuario/${activeChat.otherUser.id || encodeURIComponent(activeChat.otherUser.user_email)}`)} className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
+            <div onClick={() => navigate(`/colegios/${activeChat.otherUser.id}`)} className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
                 {activeChat.otherUser.avatar_url ? (
                   <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
@@ -254,12 +292,11 @@ export default function Hilo() {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
-                <p className="text-[10px] text-muted-foreground truncate">Ver perfil de la comunidad ↗</p>
+                <p className="text-[10px] text-muted-foreground truncate">Ver perfil del centro ↗</p>
               </div>
             </div>
           </div>
 
-          {/* Burbujas de mensajes con scroll autónomo */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5 no-scrollbar">
             {loadingMessages ? (
               <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
@@ -288,7 +325,6 @@ export default function Hilo() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Formulario fijo en el suelo de la ventana */}
           <form onSubmit={handleSendMessage} className="h-[73px] p-4 border-t border-border flex gap-2 bg-card z-10 flex-shrink-0">
             <input
               type="text"
