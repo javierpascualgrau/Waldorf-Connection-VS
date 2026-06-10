@@ -29,7 +29,7 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos con soporte nativo para la tabla school_profiles
+  // 1. Cargar lista de hilos buscando de forma igualitaria por email en ambas tablas
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -47,53 +47,38 @@ export default function Hilo() {
             const u2 = chat.user_2_email?.toLowerCase().trim();
             const otherEmail = u1 === myEmail ? u2 : u1;
             
-            // Intentamos buscar en la tabla estándar profiles
-            const { data: profile } = await supabase
-              .from('profiles')
+            let displayName = otherEmail.split('@')[0];
+            let avatarUrl = null;
+            let role = 'Miembro';
+            let targetId = null;
+            let isSchool = false;
+
+            // 💡 CAMINO A: Buscamos en la tabla de colegios usando la nueva columna school_email
+            const { data: schoolProfile } = await supabase
+              .from('school_profiles')
               .select('*')
-              .ilike('user_email', otherEmail)
+              .ilike('school_email', otherEmail)
               .maybeSingle();
 
-            let displayName = profile?.display_name || otherEmail.split('@')[0];
-            let avatarUrl = profile?.avatar_url || null;
-            let role = profile?.role || 'Miembro';
-            let targetSchoolId = null;
-
-            // 💡 SOLUCIÓN MAESTRA: Si no existe en profiles, es un colegio independiente
-            if (!profile) {
-              const { data: eventSchool } = await supabase
-                .from('school_events')
-                .select('school_id')
-                .ilike('school_email', otherEmail)
-                .limit(1)
+            if (schoolProfile) {
+              displayName = schoolProfile.name;
+              avatarUrl = schoolProfile.avatar_url;
+              role = 'Colegio';
+              targetId = schoolProfile.id;
+              isSchool = true;
+            } else {
+              // 💡 CAMINO B: Si no es un colegio, buscamos en la tabla profiles de personas físicas
+              const { data: normalProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .ilike('user_email', otherEmail)
                 .maybeSingle();
 
-              if (eventSchool?.school_id) {
-                targetSchoolId = eventSchool.school_id;
-              }
-            } else if (profile?.id) {
-              // Si existía el usuario pero tiene un colegio vinculado por su ID de gestor
-              const { data: schoolProf } = await supabase
-                .from('school_profiles')
-                .select('id')
-                .eq('manager_id', profile.id)
-                .maybeSingle();
-              
-              if (schoolProf) targetSchoolId = schoolProf.id;
-            }
-
-            // Si hemos interceptado un ID de colegio válido, extraemos sus datos reales
-            if (targetSchoolId) {
-              const { data: school } = await supabase
-                .from('school_profiles')
-                .select('name, avatar_url')
-                .eq('id', targetSchoolId)
-                .maybeSingle();
-
-              if (school) {
-                displayName = school.name; // "Escuela Libre Micael"
-                if (school.avatar_url) avatarUrl = school.avatar_url;
-                role = 'Colegio';
+              if (normalProfile) {
+                displayName = normalProfile.display_name;
+                avatarUrl = normalProfile.avatar_url;
+                role = normalProfile.role || 'Miembro';
+                targetId = normalProfile.id;
               }
             }
 
@@ -108,11 +93,12 @@ export default function Hilo() {
               ...chat, 
               unread_count: count || 0,
               otherUser: { 
-                id: targetSchoolId || profile?.id || null, 
+                id: targetId, 
                 display_name: displayName, 
                 avatar_url: avatarUrl,
                 user_email: otherEmail,
-                role: role
+                role: role,
+                isSchool: isSchool
               } 
             };
           })
@@ -292,7 +278,11 @@ export default function Hilo() {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
+            {/* Redirección limpia al perfil correcto según el tipo de cuenta */}
+            <div 
+              onClick={() => navigate(activeChat.otherUser.isSchool ? `/colegios/${activeChat.otherUser.id}` : `/usuario/${activeChat.otherUser.id}`)} 
+              className="flex items-center gap-2 cursor-pointer min-w-0 flex-1"
+            >
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
                 {activeChat.otherUser.avatar_url ? (
                   <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
@@ -302,7 +292,7 @@ export default function Hilo() {
               </div>
               <div className="min-w-0 flex-1 text-left">
                 <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
-                <p className="text-[10px] text-muted-foreground truncate">{activeChat.otherUser.role}</p>
+                <p className="text-[10px] text-muted-foreground truncate">Ver perfil ↗</p>
               </div>
             </div>
           </div>
