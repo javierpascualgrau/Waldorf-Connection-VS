@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
-// 💡 CORREGIDO: Importación apuntando al archivo real de la carpeta pages
 import CreateSchoolEventModal from './CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
@@ -24,8 +23,6 @@ export default function SchoolProfile() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
-  
-  const isSuperAdmin = true; 
 
   const currentSchoolId = id || user?.id;
 
@@ -77,6 +74,7 @@ export default function SchoolProfile() {
     loadSchoolData();
   }, [id]);
 
+  // 💡 CLAVE: Comprueba de verdad si el usuario logueado es el dueño de este perfil de colegio
   const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
 
   const uploadFile = async (event, type) => {
@@ -278,7 +276,7 @@ export default function SchoolProfile() {
           </div>
         </div>
 
-        {/* COLUMNA DER: GALERÍA Y TABLÓN CORREGIDO */}
+        {/* COLUMNA DER: GALERÍA Y TABLÓN PROTEGIDO */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -324,7 +322,6 @@ export default function SchoolProfile() {
                 schoolEvents.map(e => (
                   <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
                     <div className="space-y-1">
-                      {/* 💡 CORREGIDO: e.category pasa a e.event_type para leer la columna real de Supabase */}
                       <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
                       <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
                       <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
@@ -333,11 +330,14 @@ export default function SchoolProfile() {
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
                       </div>
                     </div>
-                    {isSuperAdmin && (
+                    
+                    {/* 💡 BLINDAJE CORREGIDO: Cambiado 'isSuperAdmin' por 'isManager' para proteger el borrado */}
+                    {isManager && (
                       <button 
                         onClick={async () => {
                           if (window.confirm("¿Seguro que quieres borrar este evento?")) {
                             await supabase.from('school_events').delete().eq('id', e.id);
+                            // Corregido también el refresco reactivo del listado con el ID global de la cuenta
                             loadEvents(currentSchoolId);
                           }
                         }} 
