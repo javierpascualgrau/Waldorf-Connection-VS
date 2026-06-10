@@ -53,26 +53,37 @@ export default function Hilo() {
               .ilike('user_email', otherEmail)
               .maybeSingle();
 
-            // Valores por defecto basados en el perfil base
+            // Valores por defecto basados en el perfil de Gmail
             let displayName = profile?.display_name || otherEmail.split('@')[0];
             let avatarUrl = profile?.avatar_url || null;
             let role = profile?.role || 'Miembro';
 
-            // 💡 SINCRONIZACIÓN CRUZADA: Si el usuario existe, buscamos su nombre comercial real
+            // 💡 SOBREESCRITURA RELACIONAL: Forzamos la búsqueda en las tablas corporativas reales
             if (profile?.id) {
-              // 1. Comprobar si es un Colegio
-              const { data: schoolProf } = await supabase
+              // 1. Verificar si es un centro educativo por su ID principal
+              let { data: schoolProf } = await supabase
                 .from('school_profiles')
                 .select('name, avatar_url')
-                .or(`id.eq.${profile.id},manager_id.eq.${profile.id}`)
+                .eq('id', profile.id)
                 .maybeSingle();
 
+              // 2. Si no lo encuentra, verificar si coincide con el manager_id
+              if (!schoolProf) {
+                const { data: schoolProfManager } = await supabase
+                  .from('school_profiles')
+                  .select('name, avatar_url')
+                  .eq('manager_id', profile.id)
+                  .maybeSingle();
+                schoolProf = schoolProfManager;
+              }
+
+              // Si localiza el colegio, suplantamos el nombre de Gmail por el oficial de la app
               if (schoolProf) {
-                displayName = schoolProf.name; // "Escuela Libre Micael" en vez de "pruebaswaldorf"
+                displayName = schoolProf.name; 
                 if (schoolProf.avatar_url) avatarUrl = schoolProf.avatar_url;
                 role = 'Colegio';
               } else {
-                // 2. Comprobar si es una Empresa
+                // 3. Verificar si corresponde a una Empresa
                 const { data: companyProf } = await supabase
                   .from('company_profiles')
                   .select('name, avatar_url')
@@ -257,14 +268,17 @@ export default function Hilo() {
                           <span className="text-primary font-semibold text-xs">{initials}</span>
                         )}
                       </div>
+                      
+                      {/* 💡 REVERTIDO COMPLETAMENTE: Volvemos al diseño estético y limpio original de texto plano */}
                       <div className="min-w-0">
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
                           {chat.otherUser.display_name}
                         </p>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded font-bold uppercase tracking-wider mt-1 inline-block">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
                           {chat.otherUser.role}
-                        </span>
+                        </p>
                       </div>
+
                     </div>
                     {chat.unread_count > 0 && <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
                   </div>
