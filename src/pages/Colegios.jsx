@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
-// 💡 CORREGIDO: Importación local para usar el modal sin input de nombre
 import CreateSchoolEventModal from './CreateSchoolEventModal';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -17,7 +16,6 @@ export default function Colegios() {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // 💡 NUEVO: Guardar perfil del colegio logueado si publica desde el tablón general
   const [currentUserSchool, setCurrentUserSchool] = useState(null);
 
   useEffect(() => {
@@ -31,7 +29,7 @@ export default function Colegios() {
       setSchools(sData || []);
       setEvents(eData || []);
 
-      // 💡 NUEVO: Cargar sesión para que el modal sepa quién publica automáticamente
+      // Cargamos la sesión para verificar si el rol del usuario corresponde a un colegio registrado
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         const { data: userSchool } = await supabase
@@ -54,8 +52,6 @@ export default function Colegios() {
 
   const filteredEvents = events.filter(e => {
     const coincideTexto = e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase());
-    
-    // 💡 CORREGIDO: Filtrado inteligente usando la columna real 'event_type'
     const coincideCategoria = eventoFiltro === 'Todos' || 
                               e.event_type?.toLowerCase() === eventoFiltro.toLowerCase();
     return coincideTexto && coincideCategoria;
@@ -144,11 +140,15 @@ export default function Colegios() {
         </div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="flex justify-end mb-4">
-             <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
-               <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
-             </button>
-          </div>
+          
+          {/* 💡 RESTRICCIÓN DE SEGURIDAD: Solo los perfiles de colegios validados verán el botón de publicar */}
+          {currentUserSchool && (
+            <div className="flex justify-end mb-4">
+               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
+                 <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
+               </button>
+            </div>
+          )}
           
           {filteredEvents.length > 0 ? (
             filteredEvents.map(event => {
@@ -176,7 +176,6 @@ export default function Colegios() {
                       <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">
                         {event.school_name || targetSchool?.name}
                       </h3>
-                      {/* 💡 CORREGIDO: Inyección de event_type sincronizada con base de datos */}
                       <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
                         {event.event_type || 'Evento'}
                       </span>
@@ -216,7 +215,6 @@ export default function Colegios() {
         </div>
       )}
 
-      {/* 💡 CORREGIDO: El modal ahora recibe las propiedades de sesión automáticas en el tablón general */}
       {showModal && (
         <CreateSchoolEventModal 
           onClose={() => setShowModal(false)} 
