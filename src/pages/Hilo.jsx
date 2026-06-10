@@ -20,7 +20,6 @@ export default function Hilo() {
 
   const myEmail = user?.email?.toLowerCase().trim() || '';
 
-  // Bloqueo de scroll exterior para comportamiento nativo
   useEffect(() => {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
@@ -30,7 +29,6 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos disponibles con cruce de perfiles corporativos reales
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -44,45 +42,31 @@ export default function Hilo() {
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
-            // 💡 SOLUCIÓN: Limpiamos y comparamos en minúsculas para evitar el fallo de mapeo
-            const u1 = chat.user_1_email?.toLowerCase().trim();
-            const u2 = chat.user_2_email?.toLowerCase().trim();
-            const otherEmail = u1 === myEmail ? u2 : u1;
+            const otherEmail = chat.user_1_email?.toLowerCase().trim() === myEmail 
+              ? chat.user_2_email?.toLowerCase().trim() 
+              : chat.user_1_email?.toLowerCase().trim();
             
-            // Traer perfil base del usuario por email
+            // 1. Buscamos el perfil base en la tabla profiles
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
               .ilike('user_email', otherEmail)
               .maybeSingle();
 
-            // Cadena de fallbacks limpia: prioridad al nombre del colegio real
-            let displayName = profile?.school_name || profile?.display_name || otherEmail.split('@')[0];
+            let displayName = profile?.display_name || otherEmail.split('@')[0];
             let avatarUrl = profile?.avatar_url || null;
 
-            // Si localizamos el ID del perfil, cruzamos con la tabla school_profiles de tus capturas
+            // 2. Si existe el usuario, buscamos si tiene un colegio asociado mediante el manager_id
             if (profile?.id) {
               const { data: schoolProf } = await supabase
                 .from('school_profiles')
                 .select('name, avatar_url')
-                .eq('id', profile.id)
+                .eq('manager_id', profile.id) // Vinculación limpia por ID de gestor
                 .maybeSingle();
 
               if (schoolProf) {
-                displayName = schoolProf.name; // Ej: "Escuela Libre Micael"
+                displayName = schoolProf.name;
                 if (schoolProf.avatar_url) avatarUrl = schoolProf.avatar_url;
-              } else {
-                // Si no es colegio, verificamos si es empresa
-                const { data: companyProf } = await supabase
-                  .from('company_profiles')
-                  .select('name, avatar_url')
-                  .eq('id', profile.id)
-                  .maybeSingle();
-
-                if (companyProf) {
-                  displayName = companyProf.name;
-                  if (companyProf.avatar_url) avatarUrl = companyProf.avatar_url;
-                }
               }
             }
 
@@ -101,7 +85,7 @@ export default function Hilo() {
                 display_name: displayName, 
                 avatar_url: avatarUrl,
                 user_email: otherEmail,
-                role: profile?.role || 'Miembro' // Conserva tu rol original textualmente
+                role: profile?.role || 'Miembro'
               } 
             };
           })
@@ -118,7 +102,6 @@ export default function Hilo() {
     loadChats();
   }, [myEmail, location.state]);
 
-  // 2. Escuchar tiempo real de la conversación seleccionada
   useEffect(() => {
     if (!activeChat) return;
 
@@ -134,7 +117,6 @@ export default function Hilo() {
       setLoadingMessages(false);
       setTimeout(scrollToBottom, 50);
 
-      // Marcar como leídos
       await supabase
         .from('chat_messages')
         .update({ is_read: true })
@@ -175,7 +157,6 @@ export default function Hilo() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 3. Enviar mensaje directo
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
@@ -257,7 +238,6 @@ export default function Hilo() {
                         )}
                       </div>
                       
-                      {/* 💡 ESTILO ORIGINAL RESTAURADO: Texto plano limpio sin cajas de colores */}
                       <div className="min-w-0 text-left">
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
                           {chat.otherUser.display_name}
@@ -284,7 +264,7 @@ export default function Hilo() {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div onClick={() => navigate(`/colegios/${activeChat.otherUser.id}`)} className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
                 {activeChat.otherUser.avatar_url ? (
                   <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
@@ -294,7 +274,7 @@ export default function Hilo() {
               </div>
               <div className="min-w-0 flex-1 text-left">
                 <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
-                <p className="text-[10px] text-muted-foreground truncate">Ver perfil del centro ↗</p>
+                <p className="text-[10px] text-muted-foreground truncate">{activeChat.otherUser.role}</p>
               </div>
             </div>
           </div>
