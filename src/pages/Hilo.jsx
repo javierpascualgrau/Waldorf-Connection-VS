@@ -29,6 +29,7 @@ export default function Hilo() {
     };
   }, []);
 
+  // 1. Cargar lista de hilos con soporte nativo para la tabla school_profiles
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -42,11 +43,11 @@ export default function Hilo() {
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
-            const otherEmail = chat.user_1_email?.toLowerCase().trim() === myEmail 
-              ? chat.user_2_email?.toLowerCase().trim() 
-              : chat.user_1_email?.toLowerCase().trim();
+            const u1 = chat.user_1_email?.toLowerCase().trim();
+            const u2 = chat.user_2_email?.toLowerCase().trim();
+            const otherEmail = u1 === myEmail ? u2 : u1;
             
-            // 1. Buscamos el perfil base en la tabla profiles
+            // Intentamos buscar en la tabla estándar profiles
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
@@ -55,18 +56,44 @@ export default function Hilo() {
 
             let displayName = profile?.display_name || otherEmail.split('@')[0];
             let avatarUrl = profile?.avatar_url || null;
+            let role = profile?.role || 'Miembro';
+            let targetSchoolId = null;
 
-            // 2. Si existe el usuario, buscamos si tiene un colegio asociado mediante el manager_id
-            if (profile?.id) {
-              const { data: schoolProf } = await supabase
-                .from('school_profiles')
-                .select('name, avatar_url')
-                .eq('manager_id', profile.id) // Vinculación limpia por ID de gestor
+            // 💡 SOLUCIÓN MAESTRA: Si no existe en profiles, es un colegio independiente
+            if (!profile) {
+              const { data: eventSchool } = await supabase
+                .from('school_events')
+                .select('school_id')
+                .ilike('school_email', otherEmail)
+                .limit(1)
                 .maybeSingle();
 
-              if (schoolProf) {
-                displayName = schoolProf.name;
-                if (schoolProf.avatar_url) avatarUrl = schoolProf.avatar_url;
+              if (eventSchool?.school_id) {
+                targetSchoolId = eventSchool.school_id;
+              }
+            } else if (profile?.id) {
+              // Si existía el usuario pero tiene un colegio vinculado por su ID de gestor
+              const { data: schoolProf } = await supabase
+                .from('school_profiles')
+                .select('id')
+                .eq('manager_id', profile.id)
+                .maybeSingle();
+              
+              if (schoolProf) targetSchoolId = schoolProf.id;
+            }
+
+            // Si hemos interceptado un ID de colegio válido, extraemos sus datos reales
+            if (targetSchoolId) {
+              const { data: school } = await supabase
+                .from('school_profiles')
+                .select('name, avatar_url')
+                .eq('id', targetSchoolId)
+                .maybeSingle();
+
+              if (school) {
+                displayName = school.name; // "Escuela Libre Micael"
+                if (school.avatar_url) avatarUrl = school.avatar_url;
+                role = 'Colegio';
               }
             }
 
@@ -81,11 +108,11 @@ export default function Hilo() {
               ...chat, 
               unread_count: count || 0,
               otherUser: { 
-                id: profile?.id || null, 
+                id: targetSchoolId || profile?.id || null, 
                 display_name: displayName, 
                 avatar_url: avatarUrl,
                 user_email: otherEmail,
-                role: profile?.role || 'Miembro'
+                role: role
               } 
             };
           })
@@ -102,6 +129,7 @@ export default function Hilo() {
     loadChats();
   }, [myEmail, location.state]);
 
+  // 2. Escuchar tiempo real de la conversación seleccionada
   useEffect(() => {
     if (!activeChat) return;
 
@@ -264,7 +292,7 @@ export default function Hilo() {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 cursor-pointer min-w-0 flex-1">
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
                 {activeChat.otherUser.avatar_url ? (
                   <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" />
