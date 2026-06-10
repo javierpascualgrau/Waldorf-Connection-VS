@@ -44,46 +44,35 @@ export default function Hilo() {
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
-            const otherEmail = chat.user_1_email === myEmail ? chat.user_2_email : chat.user_1_email;
+            // 💡 SOLUCIÓN: Limpiamos y comparamos en minúsculas para evitar el fallo de mapeo
+            const u1 = chat.user_1_email?.toLowerCase().trim();
+            const u2 = chat.user_2_email?.toLowerCase().trim();
+            const otherEmail = u1 === myEmail ? u2 : u1;
             
-            // A. Traer perfil base del usuario por email
+            // Traer perfil base del usuario por email
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
               .ilike('user_email', otherEmail)
               .maybeSingle();
 
-            // Valores por defecto basados en el perfil de Gmail
-            let displayName = profile?.display_name || otherEmail.split('@')[0];
+            // Cadena de fallbacks limpia: prioridad al nombre del colegio real
+            let displayName = profile?.school_name || profile?.display_name || otherEmail.split('@')[0];
             let avatarUrl = profile?.avatar_url || null;
-            let role = profile?.role || 'Miembro';
 
-            // 💡 SOBREESCRITURA RELACIONAL: Forzamos la búsqueda en las tablas corporativas reales
+            // Si localizamos el ID del perfil, cruzamos con la tabla school_profiles de tus capturas
             if (profile?.id) {
-              // 1. Verificar si es un centro educativo por su ID principal
-              let { data: schoolProf } = await supabase
+              const { data: schoolProf } = await supabase
                 .from('school_profiles')
                 .select('name, avatar_url')
                 .eq('id', profile.id)
                 .maybeSingle();
 
-              // 2. Si no lo encuentra, verificar si coincide con el manager_id
-              if (!schoolProf) {
-                const { data: schoolProfManager } = await supabase
-                  .from('school_profiles')
-                  .select('name, avatar_url')
-                  .eq('manager_id', profile.id)
-                  .maybeSingle();
-                schoolProf = schoolProfManager;
-              }
-
-              // Si localiza el colegio, suplantamos el nombre de Gmail por el oficial de la app
               if (schoolProf) {
-                displayName = schoolProf.name; 
+                displayName = schoolProf.name; // Ej: "Escuela Libre Micael"
                 if (schoolProf.avatar_url) avatarUrl = schoolProf.avatar_url;
-                role = 'Colegio';
               } else {
-                // 3. Verificar si corresponde a una Empresa
+                // Si no es colegio, verificamos si es empresa
                 const { data: companyProf } = await supabase
                   .from('company_profiles')
                   .select('name, avatar_url')
@@ -93,7 +82,6 @@ export default function Hilo() {
                 if (companyProf) {
                   displayName = companyProf.name;
                   if (companyProf.avatar_url) avatarUrl = companyProf.avatar_url;
-                  role = 'Empresa';
                 }
               }
             }
@@ -113,7 +101,7 @@ export default function Hilo() {
                 display_name: displayName, 
                 avatar_url: avatarUrl,
                 user_email: otherEmail,
-                role: role
+                role: profile?.role || 'Miembro' // Conserva tu rol original textualmente
               } 
             };
           })
@@ -269,8 +257,8 @@ export default function Hilo() {
                         )}
                       </div>
                       
-                      {/* 💡 REVERTIDO COMPLETAMENTE: Volvemos al diseño estético y limpio original de texto plano */}
-                      <div className="min-w-0">
+                      {/* 💡 ESTILO ORIGINAL RESTAURADO: Texto plano limpio sin cajas de colores */}
+                      <div className="min-w-0 text-left">
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
                           {chat.otherUser.display_name}
                         </p>
@@ -304,7 +292,7 @@ export default function Hilo() {
                   <span className="text-primary font-semibold text-xs">{activeChat.otherUser.display_name?.slice(0, 2).toUpperCase()}</span>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 text-left">
                 <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
                 <p className="text-[10px] text-muted-foreground truncate">Ver perfil del centro ↗</p>
               </div>
