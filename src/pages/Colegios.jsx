@@ -29,7 +29,7 @@ export default function Colegios() {
       setSchools(sData || []);
       setEvents(eData || []);
 
-      // Cargamos la sesión para verificar si el rol del usuario corresponde a un colegio registrado
+      // Verificamos la sesión del usuario actual de forma segura
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         const { data: userSchool } = await supabase
@@ -37,7 +37,11 @@ export default function Colegios() {
           .select('*')
           .eq('id', authUser.id)
           .maybeSingle();
+        
+        // Si no se localiza el perfil de colegio, userSchool vendrá como null
         setCurrentUserSchool(userSchool);
+      } else {
+        setCurrentUserSchool(null);
       }
 
       setLoading(false);
@@ -141,8 +145,8 @@ export default function Colegios() {
       ) : (
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
           
-          {/* 💡 RESTRICCIÓN DE SEGURIDAD: Solo los perfiles de colegios validados verán el botón de publicar */}
-          {currentUserSchool && (
+          {/* 💡 BLINDAJE ESTRICTO: Comprobamos la existencia real de la ID del perfil del colegio */}
+          {currentUserSchool?.id && (
             <div className="flex justify-end mb-4">
                <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
                  <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
