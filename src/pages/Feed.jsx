@@ -30,17 +30,17 @@ export default function Feed() {
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      // 💡 LA SOLUCIÓN MAESTRA: Cambiamos el select('*') por un JOIN relacional '*, school_profiles(*)'
-      // Esto trae los datos del evento junto con el logo y nombre fresco del colegio, tal como hace tu Tablón.
-      const [postsRes, eventsRes, followsRes, likesRes] = await Promise.all([
+      // 💡 CONSULTAS UNITARIAS PLANAS: Volvemos al select('*') limpio para asegurar que los eventos no desaparezcan
+      const [postsRes, eventsRes, followsRes, likesRes, schoolsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
-        supabase.from('school_events').select('*, school_profiles(*)').order('created_date', { ascending: false }),
+        supabase.from('school_events').select('*').order('created_date', { ascending: false }),
         myEmailClean 
           ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
         myEmailClean
           ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
-          : Promise.resolve({ data: [], error: null })
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from('school_profiles').select('*') // Cargamos los perfiles escolares reales en paralelo
       ]);
 
       if (followsRes.data) {
@@ -53,8 +53,23 @@ export default function Feed() {
         setLikedIds(idsConLike);
       }
 
+      // Mapeamos los colegios en un diccionario por ID para un cruce ultra-rápido
+      const schoolsMap = {};
+      if (schoolsRes.data) {
+        schoolsRes.data.forEach(s => {
+          schoolsMap[s.id] = s;
+        });
+      }
+
+      // 💡 EL TRUCO MAESTRO: Creamos manualmente el objeto anidado 'school_profiles' que devorará 
+      // el componente SchoolEventCard, clonando exactamente el comportamiento de tu tablón.
+      const enrichedEvents = (eventsRes.data || []).map(ev => ({
+        ...ev,
+        school_profiles: schoolsMap[ev.school_id] || null
+      }));
+
       setPosts(postsRes.data || []);
-      setEvents(eventsRes.data || []);
+      setEvents(enrichedEvents);
       setLoading(false);
     };
     load();
