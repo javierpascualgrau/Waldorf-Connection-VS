@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { Search, MapPin, Users, Building, Briefcase, GraduationCap, Heart, ExternalLink, Globe, ArrowRight, UserCheck, UserPlus } from 'lucide-react';
 
+// 💡 CORREGIDO: Eliminada la categoría 'Colegios' para limpiar el filtrado de perfiles personales
 const ROLE_FILTERS = [
   { label: 'Todos', value: 'Todos' },
   { label: 'Profesores', value: 'profesor' },
   { label: 'Alumnos', value: 'alumno' },
   { label: 'Padres', value: 'padre_madre' },
-  { label: 'Exalumnos', value: 'exalumno' },
-  { label: 'Colegios', value: 'colegio' }
+  { label: 'Exalumnos', value: 'exalumno' }
 ];
 
 export default function Comunidad() {
@@ -57,7 +57,7 @@ export default function Comunidad() {
           .order('created_at', { ascending: false });
         setOffers(offers || []);
 
-        // 💡 SOLUCIÓN A: Cargar los seguimientos reales de la base de datos al arrancar
+        // Cargar los seguimientos reales de la base de datos al arrancar
         if (myEmailClean) {
           const { data: follows } = await supabase
             .from('user_follows')
@@ -79,7 +79,7 @@ export default function Comunidad() {
     loadComunidadData();
   }, []);
 
-  // 💡 SOLUCIÓN B: Mutación asíncrona real en Supabase mapeada por correos electrónicos
+  // Mutación asíncrona real en Supabase mapeada por correos electrónicos
   const toggleFollow = async (targetIdentifier) => {
     if (!currentUser || !targetIdentifier) return;
     
@@ -241,7 +241,6 @@ export default function Comunidad() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredMiembros.length > 0 ? (
               filteredMiembros.map(m => {
-                // 💡 COMPROBACIÓN REPARADA: Evaluamos por su email limpio para sincronizar con el Feed
                 const memberEmail = m.user_email?.toLowerCase().trim() || '';
                 const isFollowing = followingIds.has(memberEmail);
                 const initials = m.display_name?.slice(0, 2).toUpperCase() || 'W';
@@ -273,7 +272,7 @@ export default function Comunidad() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleFollow(memberEmail); // Ejecutamos la acción real con su email
+                        toggleFollow(memberEmail);
                       }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                         isFollowing 
@@ -303,7 +302,6 @@ export default function Comunidad() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredEmpresas.length > 0 ? (
                 filteredEmpresas.map(emp => {
-                  // 💡 COMPROBACIÓN REPARADA PARA EMPRESAS: Usamos su email o ID de respaldo
                   const companyIdentifier = (emp.email || emp.company_email || emp.id)?.toLowerCase().trim() || '';
                   const isFollowingCompany = followingIds.has(companyIdentifier); 
                   const initials = emp.name?.slice(0, 2).toUpperCase() || 'EM';
@@ -357,7 +355,7 @@ export default function Comunidad() {
           {activeSubTab === 'ofertas' && (
             filteredOfertas.length > 0 ? (
               filteredOfertas.map(off => {
-                const offerCompany = empresas.find(e => e.id === off.company_id);
+                const offerCompany = breweries.find(e => e.id === off.company_id);
                 const logoUrl = offerCompany?.logo_url;
                 const initials = off.company_name?.slice(0, 2).toUpperCase() || 'EM';
 
