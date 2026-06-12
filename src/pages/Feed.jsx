@@ -30,7 +30,6 @@ export default function Feed() {
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      // 💡 CONSULTAS UNITARIAS PLANAS: Volvemos al select('*') limpio para asegurar que los eventos no desaparezcan
       const [postsRes, eventsRes, followsRes, likesRes, schoolsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }),
@@ -40,7 +39,7 @@ export default function Feed() {
         myEmailClean
           ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
-        supabase.from('school_profiles').select('*') // Cargamos los perfiles escolares reales en paralelo
+        supabase.from('school_profiles').select('*')
       ]);
 
       if (followsRes.data) {
@@ -53,7 +52,6 @@ export default function Feed() {
         setLikedIds(idsConLike);
       }
 
-      // Mapeamos los colegios en un diccionario por ID para un cruce ultra-rápido
       const schoolsMap = {};
       if (schoolsRes.data) {
         schoolsRes.data.forEach(s => {
@@ -61,12 +59,30 @@ export default function Feed() {
         });
       }
 
-      // 💡 EL TRUCO MAESTRO: Creamos manualmente el objeto anidado 'school_profiles' que devorará 
-      // el componente SchoolEventCard, clonando exactamente el comportamiento de tu tablón.
-      const enrichedEvents = (eventsRes.data || []).map(ev => ({
-        ...ev,
-        school_profiles: schoolsMap[ev.school_id] || null
-      }));
+      // 💡 EL MAPEO CAMALEÓNICO: Cubrimos todas las opciones posibles de lectura
+      const enrichedEvents = (eventsRes.data || []).map(ev => {
+        const schoolInfo = schoolsMap[ev.school_id];
+        if (schoolInfo) {
+          // Creamos un Array real para componentes que usan school_profiles[0]
+          const schoolDataCombo = [schoolInfo];
+          // Le añadimos propiedades directas por si el componente lo lee como objeto (school_profiles.avatar_url)
+          schoolDataCombo.avatar_url = schoolInfo.avatar_url;
+          schoolDataCombo.name = schoolInfo.name;
+          schoolDataCombo.id = schoolInfo.id;
+
+          return {
+            ...ev,
+            school_profiles: schoolDataCombo,
+            school_profile: schoolDataCombo, // Por si acaso se llama en singular
+            // Inyecciones planas en la raíz del evento por si lee directo de ev.school_avatar
+            avatar_url: schoolInfo.avatar_url,
+            school_avatar: schoolInfo.avatar_url,
+            author_avatar: schoolInfo.avatar_url,
+            school_logo: schoolInfo.avatar_url
+          };
+        }
+        return ev;
+      });
 
       setPosts(postsRes.data || []);
       setEvents(enrichedEvents);
