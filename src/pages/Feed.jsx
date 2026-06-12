@@ -30,7 +30,8 @@ export default function Feed() {
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
-      const [postsRes, eventsRes, followsRes, likesRes] = await Promise.all([
+      // 💡 SOLUCIÓN: Sumamos la tabla school_profiles a la carga masiva inicial
+      const [postsRes, eventsRes, followsRes, likesRes, schoolsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }),
         myEmailClean 
@@ -38,7 +39,8 @@ export default function Feed() {
           : Promise.resolve({ data: [], error: null }),
         myEmailClean
           ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
-          : Promise.resolve({ data: [], error: null })
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from('school_profiles').select('id, name, avatar_url') // Traemos nombres y logos corporativos reales
       ]);
 
       if (followsRes.data) {
@@ -47,13 +49,33 @@ export default function Feed() {
       }
 
       if (likesRes.data) {
-        // 👈 ¡CLAVE AQUI! Forzamos a que el ID sea texto para evitar fallos de Javascript
         const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
         setLikedIds(idsConLike);
       }
 
+      // Mapeamos los colegios en un diccionario rápido para cruzarlos por ID
+      const schoolsMap = {};
+      if (schoolsRes.data) {
+        schoolsRes.data.forEach(s => {
+          schoolsMap[s.id] = s;
+        });
+      }
+
+      // 💡 ENRIQUECIMIENTO RELACIONAL: Inyectamos el avatar corporativo real al objeto del evento
+      const enrichedEvents = (eventsRes.data || []).map(ev => {
+        const schoolInfo = schoolsMap[ev.school_id];
+        return {
+          ...ev,
+          // Blindamos todas las variantes de propiedad posibles para que SchoolEventCard la lea sí o sí
+          avatar_url: schoolInfo?.avatar_url || ev.avatar_url,
+          author_avatar: schoolInfo?.avatar_url || ev.author_avatar,
+          school_avatar: schoolInfo?.avatar_url || ev.school_avatar,
+          school_name: schoolInfo?.name || ev.school_name
+        };
+      });
+
       setPosts(postsRes.data || []);
-      setEvents(eventsRes.data || []);
+      setEvents(enrichedEvents); // Guardamos los eventos con los logos e identidades reales en el estado
       setLoading(false);
     };
     load();
