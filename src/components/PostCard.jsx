@@ -56,15 +56,39 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setFollowing(followingIds?.has(authorEmailClean));
   }, [followingIds, authorEmailClean]);
 
+  // 💡 SOLUCIÓN: Búsqueda paralela igualitaria para rellenar el avatar y nombre del colegio
   useEffect(() => {
     const loadAuthorProfile = async () => {
       if (!authorEmailClean) return;
-      const { data } = await supabase
+
+      // 1. Intentamos buscar en la tabla profiles de personas físicas
+      const { data: normalProfile } = await supabase
         .from('profiles')
         .select('*')
         .ilike('user_email', authorEmailClean)
         .maybeSingle();
-      if (data) setAuthorProfile(data);
+
+      if (normalProfile) {
+        setAuthorProfile(normalProfile);
+      } else {
+        // 2. Si no existe ahí, buscamos en la tabla school_profiles por su school_email
+        const { data: schoolProfile } = await supabase
+          .from('school_profiles')
+          .select('*')
+          .ilike('school_email', authorEmailClean)
+          .maybeSingle();
+
+        if (schoolProfile) {
+          setAuthorProfile({
+            id: schoolProfile.id,
+            display_name: schoolProfile.name,
+            avatar_url: schoolProfile.avatar_url,
+            role: 'colegio',
+            user_email: authorEmailClean,
+            isSchool: true // Bandera de control para la navegación inteligente
+          });
+        }
+      }
     };
     loadAuthorProfile();
   }, [authorEmailClean]);
@@ -101,7 +125,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // NAVEGACIÓN INTELIGENTE CORREGIDA ESTILO LINKEDIN
+  // 💡 NAVEGACIÓN CORREGIDA: Eliminado el filtro por manager_id que provocaba fallos de SQL
   const handleAuthorClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -111,39 +135,29 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       return;
     }
 
-    try {
-      let userId = authorProfile?.id;
-
-      // Fallback: Si el perfil aún no se ha terminado de cargar en el estado, lo buscamos en caliente
-      if (!userId && authorEmailClean) {
-        const { data: fallbackProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .ilike('user_email', authorEmailClean)
-          .maybeSingle();
-        if (fallbackProfile) userId = fallbackProfile.id;
+    // Si el perfil corresponde a un centro educativo, redirigimos directo a su página de colegio
+    if (authorProfile?.isSchool || displayRole === 'colegio') {
+      const schoolId = authorProfile?.id || currentPost.school_id;
+      if (schoolId) {
+        navigate(`/colegios/${schoolId}`);
+        return;
       }
 
-      if (userId) {
-        // Comprobamos si este ID gestiona alguna página de colegio/empresa corporativa
-        const { data: school } = await supabase
-          .from('school_profiles')
-          .eq('manager_id', userId)
-          .maybeSingle();
+      // Fallback de seguridad en caliente por email si los estados asíncronos están cargando
+      const { data: fallbackSchool } = await supabase
+        .from('school_profiles')
+        .select('id')
+        .ilike('school_email', authorEmailClean)
+        .maybeSingle();
 
-        if (school) {
-          // ¡Es una cuenta corporativa! Mandamos a su tablón profesional
-          navigate(`/colegios/${school.id}`);
-          return;
-        }
+      if (fallbackSchool) {
+        navigate(`/colegios/${fallbackSchool.id}`);
+        return;
       }
-
-      // Si es un miembro común o no tiene perfil de empresa asignado, va a la vista de usuario estándar
-      navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
-    } catch (error) {
-      console.error("Error en la redirección del autor:", error);
-      navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
     }
+
+    // Si es un miembro común de la comunidad, va a la vista de usuario estándar
+    navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
   };
 
   const handleLike = async () => {
