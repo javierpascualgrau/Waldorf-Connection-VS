@@ -9,12 +9,12 @@ import ChangePasswordModal from '@/components/ChangePasswordModal';
 import SchoolProfile from './SchoolProfile'; 
 import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
+// 💡 CORREGIDO: Eliminada la opción 'colegio' para evitar usurpaciones de identidad corporativa
 const ROLES = [
   { value: 'alumno', label: 'Alumno' },
   { value: 'padre_madre', label: 'Padre / Madre' },
   { value: 'profesor', label: 'Profesor' },
   { value: 'exalumno', label: 'Exalumno' },
-  { value: 'colegio', label: 'Colegio' },
   { value: 'simpatizante', label: 'Simpatizante' },
 ];
 
@@ -171,7 +171,7 @@ export default function Perfil() {
       .upload(fileName, file);
 
     if (uploadError) {
-      console.error("Error al subir la portada:", uploadError);
+      console.error("Error al subir el portada:", uploadError);
       alert("Error al subir la portada: " + uploadError.message);
       setUploadingBanner(false);
       return;
