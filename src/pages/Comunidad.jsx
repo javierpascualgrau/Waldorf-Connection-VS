@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { Search, MapPin, Users, Building, Briefcase, GraduationCap, Heart, ExternalLink, Globe, ArrowRight, UserCheck, UserPlus } from 'lucide-react';
 
-// 💡 CORREGIDO: Eliminada la categoría 'Colegios' para limpiar el filtrado de perfiles personales
+// 💡 CORREGIDO: Añadido el filtro 'Simpatizantes' para dar soporte completo a todos los miembros
 const ROLE_FILTERS = [
   { label: 'Todos', value: 'Todos' },
   { label: 'Profesores', value: 'profesor' },
   { label: 'Alumnos', value: 'alumno' },
   { label: 'Padres', value: 'padre_madre' },
-  { label: 'Exalumnos', value: 'exalumno' }
+  { label: 'Exalumnos', value: 'exalumno' },
+  { label: 'Simpatizantes', value: 'simpatizante' }
 ];
 
 export default function Comunidad() {
@@ -355,7 +356,7 @@ export default function Comunidad() {
           {activeSubTab === 'ofertas' && (
             filteredOfertas.length > 0 ? (
               filteredOfertas.map(off => {
-                const offerCompany = breweries.find(e => e.id === off.company_id);
+                const offerCompany = empresas.find(e => e.id === off.company_id);
                 const logoUrl = offerCompany?.logo_url;
                 const initials = off.company_name?.slice(0, 2).toUpperCase() || 'EM';
 
