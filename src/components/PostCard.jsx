@@ -21,8 +21,13 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
   
+  // Mapeamos los posibles campos de correos e IDs según si es Post o Evento
   const authorEmailClean = post.author_email?.toLowerCase().trim();
-  const isFollowing = followingIds?.has(authorEmailClean);
+  const schoolEmailClean = post.school_email?.toLowerCase().trim();
+  const schoolId = post.school_id;
+  const lookupEmail = authorEmailClean || schoolEmailClean;
+
+  const isFollowing = followingIds?.has(lookupEmail);
 
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
@@ -53,29 +58,18 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   }, [likedIds, postId]);
 
   useEffect(() => {
-    setFollowing(followingIds?.has(authorEmailClean));
-  }, [followingIds, authorEmailClean]);
+    setFollowing(followingIds?.has(lookupEmail));
+  }, [followingIds, lookupEmail]);
 
-  // 💡 SOLUCIÓN: Búsqueda paralela igualitaria para rellenar el avatar y nombre del colegio
+  // 💡 COMPROBACIÓN HÍBRIDA: Buscamos por ID directo de colegio (para eventos) o por email (para posts)
   useEffect(() => {
     const loadAuthorProfile = async () => {
-      if (!authorEmailClean) return;
-
-      // 1. Intentamos buscar en la tabla profiles de personas físicas
-      const { data: normalProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .ilike('user_email', authorEmailClean)
-        .maybeSingle();
-
-      if (normalProfile) {
-        setAuthorProfile(normalProfile);
-      } else {
-        // 2. Si no existe ahí, buscamos en la tabla school_profiles por su school_email
+      // Caso A: Si el elemento viene directamente con un school_id (Evento del tablón)
+      if (schoolId) {
         const { data: schoolProfile } = await supabase
           .from('school_profiles')
           .select('*')
-          .ilike('school_email', authorEmailClean)
+          .eq('id', schoolId)
           .maybeSingle();
 
         if (schoolProfile) {
@@ -84,14 +78,46 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             display_name: schoolProfile.name,
             avatar_url: schoolProfile.avatar_url,
             role: 'colegio',
-            user_email: authorEmailClean,
-            isSchool: true // Bandera de control para la navegación inteligente
+            user_email: schoolProfile.school_email || schoolEmailClean,
+            isSchool: true
+          });
+          return; // Encontrado con éxito, cerramos la ejecución
+        }
+      }
+
+      // Caso B: Si no hay ID directo pero tenemos email (Publicación clásica)
+      if (!lookupEmail) return;
+
+      const { data: normalProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('user_email', lookupEmail)
+        .maybeSingle();
+
+      if (normalProfile) {
+        setAuthorProfile(normalProfile);
+      } else {
+        // Probamos en la tabla de colegios por si el post fue subido por cuenta escolar
+        const { data: schoolProfile } = await supabase
+          .from('school_profiles')
+          .select('*')
+          .ilike('school_email', lookupEmail)
+          .maybeSingle();
+
+        if (schoolProfile) {
+          setAuthorProfile({
+            id: schoolProfile.id,
+            display_name: schoolProfile.name,
+            avatar_url: schoolProfile.avatar_url,
+            role: 'colegio',
+            user_email: lookupEmail,
+            isSchool: true
           });
         }
       }
     };
     loadAuthorProfile();
-  }, [authorEmailClean]);
+  }, [authorEmailClean, schoolEmailClean, schoolId, lookupEmail]);
 
   useEffect(() => {
     if (showComments) {
@@ -110,11 +136,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     }
   }, [showComments, postId]);
 
-  const isOwner = userEmail && userEmail.toLowerCase().trim() === authorEmailClean;
+  const isOwner = userEmail && (
+    userEmail.toLowerCase().trim() === authorEmailClean || 
+    userEmail.toLowerCase().trim() === schoolEmailClean
+  );
 
-  const displayName = authorProfile?.display_name || authorProfile?.full_name || currentPost.author_name || 'Usuario';
+  const displayName = authorProfile?.display_name || authorProfile?.full_name || currentPost.author_name || currentPost.school_name || 'Usuario';
   const avatarUrl = authorProfile?.avatar_url || currentPost.author_avatar;
-  const displayRole = authorProfile?.role || currentPost.author_role;
+  const displayRole = authorProfile?.role || currentPost.author_role || (schoolId ? 'colegio' : '');
   const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   useEffect(() => {
@@ -125,39 +154,24 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // 💡 NAVEGACIÓN CORREGIDA: Eliminado el filtro por manager_id que provocaba fallos de SQL
   const handleAuthorClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (userEmail && userEmail.toLowerCase().trim() === authorEmailClean) {
+    if (userEmail && (userEmail.toLowerCase().trim() === authorEmailClean || userEmail.toLowerCase().trim() === schoolEmailClean)) {
       navigate('/perfil');
       return;
     }
 
-    // Si el perfil corresponde a un centro educativo, redirigimos directo a su página de colegio
-    if (authorProfile?.isSchool || displayRole === 'colegio') {
-      const schoolId = authorProfile?.id || currentPost.school_id;
-      if (schoolId) {
-        navigate(`/colegios/${schoolId}`);
-        return;
-      }
-
-      // Fallback de seguridad en caliente por email si los estados asíncronos están cargando
-      const { data: fallbackSchool } = await supabase
-        .from('school_profiles')
-        .select('id')
-        .ilike('school_email', authorEmailClean)
-        .maybeSingle();
-
-      if (fallbackSchool) {
-        navigate(`/colegios/${fallbackSchool.id}`);
+    if (authorProfile?.isSchool || displayRole === 'colegio' || schoolId) {
+      const targetSchoolId = schoolId || authorProfile?.id;
+      if (targetSchoolId) {
+        navigate(`/colegios/${targetSchoolId}`);
         return;
       }
     }
 
-    // Si es un miembro común de la comunidad, va a la vista de usuario estándar
-    navigate(`/usuario/${encodeURIComponent(authorEmailClean || currentPost.author_email)}`);
+    navigate(`/usuario/${encodeURIComponent(lookupEmail || currentPost.author_email)}`);
   };
 
   const handleLike = async () => {
@@ -325,11 +339,11 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   };
 
   const handleFollow = async () => {
-    if (followLoading || !userEmail || !post.author_email || isOwner) return;
+    if (followLoading || !userEmail || !lookupEmail || isOwner) return;
     setFollowLoading(true);
 
     const follower = userEmail.toLowerCase().trim();
-    const followed = post.author_email.toLowerCase().trim();
+    const followed = lookupEmail;
 
     if (following) {
       const { error } = await supabase
