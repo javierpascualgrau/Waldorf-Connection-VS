@@ -34,6 +34,7 @@ export default function Comunidad() {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         setCurrentUser(authUser);
+        const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
 
         // 1. Cargar miembros
         const { data: profiles } = await supabase
@@ -56,6 +57,19 @@ export default function Comunidad() {
           .order('created_at', { ascending: false });
         setOffers(offers || []);
 
+        // 💡 SOLUCIÓN A: Cargar los seguimientos reales de la base de datos al arrancar
+        if (myEmailClean) {
+          const { data: follows } = await supabase
+            .from('user_follows')
+            .select('following_email')
+            .eq('follower_email', myEmailClean);
+          
+          if (follows) {
+            const followedEmails = new Set(follows.map(f => f.following_email?.toLowerCase().trim()).filter(Boolean));
+            setFollowingIds(followedEmails);
+          }
+        }
+
       } catch (error) {
         console.error("Error sincronizando el ecosistema:", error);
       } finally {
@@ -65,11 +79,57 @@ export default function Comunidad() {
     loadComunidadData();
   }, []);
 
-  const toggleFollow = (id) => {
+  // 💡 SOLUCIÓN B: Mutación asíncrona real en Supabase mapeada por correos electrónicos
+  const toggleFollow = async (targetIdentifier) => {
+    if (!currentUser || !targetIdentifier) return;
+    
+    const myEmailClean = currentUser.email?.toLowerCase().trim();
+    const targetClean = targetIdentifier.toLowerCase().trim();
+    
     const next = new Set(followingIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    const alreadyFollowing = next.has(targetClean);
+    
+    // UI Optimista: Cambiamos el botón al instante para que no tenga lag
+    if (alreadyFollowing) {
+      next.delete(targetClean);
+    } else {
+      next.add(targetClean);
+    }
     setFollowingIds(next);
+    
+    if (alreadyFollowing) {
+      // Dejar de seguir en la Base de Datos
+      const { error } = await supabase
+        .from('user_follows')
+        .delete()
+        .eq('follower_email', myEmailClean)
+        .eq('following_email', targetClean);
+        
+      if (error) {
+        console.error("Error al dejar de seguir:", error);
+        // Revertimos el estado si Supabase falla
+        setFollowingIds(prev => {
+          const reverted = new Set(prev);
+          reverted.add(targetClean);
+          return reverted;
+        });
+      }
+    } else {
+      // Guardar seguimiento real en la Base de Datos
+      const { error } = await supabase
+        .from('user_follows')
+        .insert([{ follower_email: myEmailClean, following_email: targetClean }]);
+        
+      if (error) {
+        console.error("Error al seguir:", error);
+        // Revertimos el estado si Supabase falla
+        setFollowingIds(prev => {
+          const reverted = new Set(prev);
+          reverted.delete(targetClean);
+          return reverted;
+        });
+      }
+    }
   };
 
   // Filtrados inteligentes
@@ -181,7 +241,9 @@ export default function Comunidad() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredMiembros.length > 0 ? (
               filteredMiembros.map(m => {
-                const isFollowing = followingIds.has(m.id);
+                // 💡 COMPROBACIÓN REPARADA: Evaluamos por su email limpio para sincronizar con el Feed
+                const memberEmail = m.user_email?.toLowerCase().trim() || '';
+                const isFollowing = followingIds.has(memberEmail);
                 const initials = m.display_name?.slice(0, 2).toUpperCase() || 'W';
                 return (
                   <div 
@@ -211,7 +273,7 @@ export default function Comunidad() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleFollow(m.id);
+                        toggleFollow(memberEmail); // Ejecutamos la acción real con su email
                       }}
                       className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                         isFollowing 
@@ -241,7 +303,9 @@ export default function Comunidad() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredEmpresas.length > 0 ? (
                 filteredEmpresas.map(emp => {
-                  const isFollowingCompany = followingIds.has(emp.id); 
+                  // 💡 COMPROBACIÓN REPARADA PARA EMPRESAS: Usamos su email o ID de respaldo
+                  const companyIdentifier = (emp.email || emp.company_email || emp.id)?.toLowerCase().trim() || '';
+                  const isFollowingCompany = followingIds.has(companyIdentifier); 
                   const initials = emp.name?.slice(0, 2).toUpperCase() || 'EM';
                   return (
                     <div 
@@ -269,7 +333,7 @@ export default function Comunidad() {
                       <button
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          toggleFollow(emp.id); 
+                          toggleFollow(companyIdentifier); 
                         }} 
                         className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                           isFollowingCompany 
@@ -293,15 +357,12 @@ export default function Comunidad() {
           {activeSubTab === 'ofertas' && (
             filteredOfertas.length > 0 ? (
               filteredOfertas.map(off => {
-                // 💡 MAGIA AQUÍ: Buscamos el logo de la empresa dueña de la oferta
                 const offerCompany = empresas.find(e => e.id === off.company_id);
                 const logoUrl = offerCompany?.logo_url;
                 const initials = off.company_name?.slice(0, 2).toUpperCase() || 'EM';
 
                 return (
                   <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200 hover:border-primary/20 transition-colors">
-                    
-                    {/* 💡 CONTENEDOR DEL LOGO DE LA EMPRESA */}
                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0 shadow-sm">
                       {logoUrl ? (
                         <img src={logoUrl} className="w-full h-full object-cover" alt={`Logo de ${off.company_name}`} />
