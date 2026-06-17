@@ -24,7 +24,6 @@ export default function PerfilPublico() {
     exalumno: 'Exalumno',
     colegio: 'Colegio',
     simpatizante: 'Simpatizante',
-    empresa: 'Empresa',
   };
 
   useEffect(() => {
@@ -32,68 +31,19 @@ export default function PerfilPublico() {
       setLoading(true);
       
       const decodedId = decodeURIComponent(id);
-      let profileData = null;
-
-      // 1️⃣ PASO A: Intentar buscar en profiles (personas físicas de la comunidad)
+      
+      // 1️⃣ PASO 1: Intentamos buscar el ID en la tabla de personas físicas
       let query = supabase.from('profiles').select('*');
       if (decodedId.includes('@')) {
         query = query.ilike('user_email', decodedId);
       } else {
         query = query.eq('id', decodedId);
       }
-      const { data: normalProfile } = await query.maybeSingle();
+      
+      const { data: profileData } = await query.maybeSingle();
 
-      if (normalProfile) {
-        profileData = normalProfile;
-      } else {
-        // 2️⃣ PASO B: Si no existe, buscamos en company_profiles (empresas colaboradoras)
-        let compQuery = supabase.from('company_profiles').select('*');
-        if (decodedId.includes('@')) {
-          compQuery = compQuery.ilike('company_email', decodedId);
-        } else {
-          compQuery = compQuery.eq('id', decodedId);
-        }
-        const { data: compData } = await compQuery.maybeSingle();
-
-        if (compData) {
-          // Homologamos la estructura de la empresa para que sea compatible con el renderizado del perfil
-          profileData = {
-            id: compData.id,
-            display_name: compData.name,
-            avatar_url: compData.logo_url,
-            banner_url: compData.banner_url,
-            bio: compData.description,
-            location: compData.location,
-            role: 'empresa',
-            user_email: compData.company_email || ''
-          };
-        } else {
-          // 3️⃣ PASO C: Si tampoco es empresa, buscamos en school_profiles (colegios) por si entran desde Hilos
-          let schoolQuery = supabase.from('school_profiles').select('*');
-          if (decodedId.includes('@')) {
-            schoolQuery = schoolQuery.ilike('school_email', decodedId);
-          } else {
-            schoolQuery = schoolQuery.eq('id', decodedId);
-          }
-          const { data: schoolData } = await schoolQuery.maybeSingle();
-
-          if (schoolData) {
-            profileData = {
-              id: schoolData.id,
-              display_name: schoolData.name,
-              avatar_url: schoolData.avatar_url,
-              banner_url: schoolData.banner_url,
-              bio: schoolData.description || 'Perfil oficial del centro escolar.',
-              location: schoolData.location,
-              role: 'colegio',
-              user_email: schoolData.school_email || ''
-            };
-          }
-        }
-      }
-
-      // Si cualquiera de las 3 búsquedas fue exitosa, cargamos sus publicaciones y seguimientos
       if (profileData) {
+        // Si es una persona normal, cargamos su vista habitual
         setProfile(profileData);
         
         const cleanEmail = profileData.user_email?.toLowerCase().trim();
@@ -118,20 +68,51 @@ export default function PerfilPublico() {
             setLikedIds(idsConLike);
           }
         }
+        setLoading(false);
+      } else {
+        // 2️⃣ INTERCEPCIÓN INTELIGENTE: Si no es una persona, comprobamos si es una Empresa
+        let compQuery = supabase.from('company_profiles').select('id');
+        if (decodedId.includes('@')) {
+          compQuery = compQuery.ilike('company_email', decodedId);
+        } else {
+          compQuery = compQuery.eq('id', decodedId);
+        }
+        const { data: compData } = await compQuery.maybeSingle();
+
+        if (compData) {
+          // 🚀 ¡Redirección maestra! Lo mandamos a tu componente exclusivo CompanyProfile.jsx
+          navigate(`/empresas/${compData.id}`, { replace: true });
+          return;
+        }
+
+        // 3️⃣ COMPROBACIÓN EXTRA: Por si acaso es un Colegio (SchoolProfile.jsx)
+        let schoolQuery = supabase.from('school_profiles').select('id');
+        if (decodedId.includes('@')) {
+          schoolQuery = schoolQuery.ilike('school_email', decodedId);
+        } else {
+          schoolQuery = schoolQuery.eq('id', decodedId);
+        }
+        const { data: schoolData } = await schoolQuery.maybeSingle();
+
+        if (schoolData) {
+          navigate(`/colegios/${schoolData.id}`, { replace: true });
+          return;
+        }
+
+        // Si no está en ninguna de las tres tablas, apagamos el loader para mostrar el "No encontrado"
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     fetchPublicData();
-  }, [id, user]);
+  }, [id, user, navigate]);
 
   const handleContactar = async () => {
     if (!user?.email || !profile?.user_email) return;
     
     const emails = [user.email.toLowerCase().trim(), profile.user_email.toLowerCase().trim()].sort();
     
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('chats')
       .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
       .select()
@@ -139,8 +120,6 @@ export default function PerfilPublico() {
 
     if (data) {
       navigate('/hilo', { state: { activeChatId: data.id } }); 
-    } else {
-      console.error("Error al abrir chat:", error);
     }
   };
 
@@ -168,48 +147,26 @@ export default function PerfilPublico() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <button 
-        onClick={() => navigate(-1)} 
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-      >
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group">
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
         Volver
       </button>
 
       <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden">
         <div className="relative h-40 w-full bg-muted/50 border-b border-border/40">
-          {profile.banner_url ? (
-            <img src={profile.banner_url} alt="Portada de fondo" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-r from-primary/10 to-primary/5 flex items-center justify-center">
-              <span className="text-xs text-muted-foreground/30 italic">Sin foto de portada</span>
-            </div>
-          )}
+          {profile.banner_url ? <img src={profile.banner_url} alt="Portada" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-r from-primary/10 to-primary/5" />}
         </div>
 
         <div className="p-6 pt-0">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-4 relative gap-4 text-center sm:text-left">
             <div className="relative w-24 h-24 flex-shrink-0 -mt-12 mx-auto sm:mx-0">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border-4 border-card shadow-md ${
-                profile.role === 'empresa' ? 'bg-indigo-100 border-indigo-200' : 'bg-primary/10 border border-primary/20'
-              }`}>
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className={`font-cormorant text-3xl font-bold ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
-                    {initials}
-                  </span>
-                )}
+              <div className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border-4 border-card shadow-md bg-primary/10 border border-primary/20">
+                {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="font-cormorant text-3xl font-bold text-primary">{initials}</span>}
               </div>
             </div>
-
             <div className="pt-2 sm:pt-0">
-              <button 
-                onClick={handleContactar}
-                className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Contactar
+              <button onClick={handleContactar} className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0">
+                <MessageSquare className="w-3.5 h-3.5" /> Contactar
               </button>
             </div>
           </div>
@@ -217,46 +174,21 @@ export default function PerfilPublico() {
           <div className="space-y-2 text-center sm:text-left">
             <div>
               <h2 className="font-cormorant text-2xl font-bold text-foreground">{displayName}</h2>
-              <p className={`text-sm font-medium ${profile.role === 'empresa' ? 'text-indigo-600' : 'text-primary'}`}>
-                {ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}
-              </p>
+              <p className="text-sm font-medium text-primary">{ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}</p>
             </div>
-
-            {profile.location && (
-              <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4 flex-shrink-0" />
-                <span>{profile.location}</span>
-              </div>
-            )}
-
-            {profile.bio ? (
-              <p className="text-sm text-muted-foreground pt-1 whitespace-pre-wrap">{profile.bio}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>
-            )}
+            {profile.location && <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" /> <span>{profile.location}</span></div>}
+            {profile.bio ? <p className="text-sm text-muted-foreground pt-1 whitespace-pre-wrap">{profile.bio}</p> : <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>}
           </div>
         </div>
       </div>
 
       <div className="space-y-4">
         <h3 className="font-cormorant text-xl font-bold text-foreground px-1">Publicaciones antiguas</h3>
-        
         {userPosts.length === 0 ? (
-          <div className="bg-muted/30 border border-dashed border-border rounded-2xl p-8 text-center text-muted-foreground">
-            Este usuario aún no ha publicado nada en el feed.
-          </div>
+          <div className="bg-muted/30 border border-dashed border-border rounded-2xl p-8 text-center text-muted-foreground">Este usuario aún no ha publicado nada en el feed.</div>
         ) : (
           <div className="space-y-4">
-            {userPosts.map(post => (
-              <PostCard
-                key={`post-${post.id}`}
-                post={post}
-                userEmail={user?.email}
-                likedIds={likedIds}
-                followingIds={followingIds}
-                onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))}
-              />
-            ))}
+            {userPosts.map(post => <PostCard key={`post-${post.id}`} post={post} userEmail={user?.email} likedIds={likedIds} followingIds={followingIds} onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))} />)}
           </div>
         )}
       </div>
