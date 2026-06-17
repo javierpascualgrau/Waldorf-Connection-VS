@@ -61,10 +61,10 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setFollowing(followingIds?.has(lookupEmail));
   }, [followingIds, lookupEmail]);
 
-  // 💡 COMPROBACIÓN HÍBRIDA: Buscamos por ID directo de colegio (para eventos) o por email (para posts)
+  // 💡 COMPROBACIÓN MULTITABLA REPARADA: Buscamos en colegios, empresas o perfiles normales
   useEffect(() => {
     const loadAuthorProfile = async () => {
-      // Caso A: Si el elemento viene directamente con un school_id (Evento del tablón)
+      // Caso A: Si es un Evento directo con school_id
       if (schoolId) {
         const { data: schoolProfile } = await supabase
           .from('school_profiles')
@@ -81,13 +81,32 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             user_email: schoolProfile.school_email || schoolEmailClean,
             isSchool: true
           });
-          return; // Encontrado con éxito, cerramos la ejecución
+          return;
         }
       }
 
-      // Caso B: Si no hay ID directo pero tenemos email (Publicación clásica)
       if (!lookupEmail) return;
 
+      // Caso B: Verificamos si es una Empresa usando la columna company_email que añadimos
+      const { data: companyProfile } = await supabase
+        .from('company_profiles')
+        .select('*')
+        .ilike('company_email', lookupEmail)
+        .maybeSingle();
+
+      if (companyProfile) {
+        setAuthorProfile({
+          id: companyProfile.id,
+          display_name: companyProfile.name,
+          avatar_url: companyProfile.logo_url, // Homologamos logo_url a avatar_url para el renderizado
+          role: 'empresa',
+          user_email: lookupEmail,
+          isCompany: true
+        });
+        return;
+      }
+
+      // Caso C: Si no es centro ni empresa, buscamos en la tabla profiles genérica
       const { data: normalProfile } = await supabase
         .from('profiles')
         .select('*')
@@ -95,9 +114,27 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         .maybeSingle();
 
       if (normalProfile) {
-        setAuthorProfile(normalProfile);
+        // Doble verificación: Cruzamos su ID por si su rol es empresa pero se registró en profiles primero
+        const { data: companyById } = await supabase
+          .from('company_profiles')
+          .select('*')
+          .eq('id', normalProfile.id)
+          .maybeSingle();
+
+        if (companyById) {
+          setAuthorProfile({
+            id: companyById.id,
+            display_name: companyById.name,
+            avatar_url: companyById.logo_url,
+            role: 'empresa',
+            user_email: lookupEmail,
+            isCompany: true
+          });
+        } else {
+          setAuthorProfile(normalProfile);
+        }
       } else {
-        // Probamos en la tabla de colegios por si el post fue subido por cuenta escolar
+        // Caso D: Probamos de respaldo en colegios por si el post es de cuenta escolar antigua
         const { data: schoolProfile } = await supabase
           .from('school_profiles')
           .select('*')
@@ -117,7 +154,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       }
     };
     loadAuthorProfile();
-  }, [authorEmailClean, schoolEmailClean, schoolId, lookupEmail]);
+  }, [authorEmailClean, schoolEmailClean, schoolId, lookupEmail, currentPost.author_role]);
 
   useEffect(() => {
     if (showComments) {
@@ -154,15 +191,18 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // 💡 RUTAS DE ORIGEN REPARADAS: Redirección directa al perfil correcto sin pasar por /usuario
   const handleAuthorClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (userEmail && (userEmail.toLowerCase().trim() === authorEmailClean || userEmail.toLowerCase().trim() === schoolEmailClean)) {
+    const cleanUserEmail = userEmail?.toLowerCase().trim();
+    if (cleanUserEmail && (cleanUserEmail === authorEmailClean || cleanUserEmail === schoolEmailClean)) {
       navigate('/perfil');
       return;
     }
 
+    // Si es un Colegio, mandamos a la ruta de centros escolares
     if (authorProfile?.isSchool || displayRole === 'colegio' || schoolId) {
       const targetSchoolId = schoolId || authorProfile?.id;
       if (targetSchoolId) {
@@ -171,6 +211,16 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       }
     }
 
+    // 🚀 INTERCEPCIÓN GANADORA: Si es una empresa, saltamos directamente a tu CompanyProfile.jsx
+    if (authorProfile?.isCompany || displayRole === 'empresa' || currentPost.author_role === 'empresa') {
+      const targetCompanyId = authorProfile?.id || currentPost.author_id;
+      if (targetCompanyId) {
+        navigate(`/empresas/${targetCompanyId}`);
+        return;
+      }
+    }
+
+    // Si es un usuario humano común, sigue su flujo tradicional
     navigate(`/usuario/${encodeURIComponent(lookupEmail || currentPost.author_email)}`);
   };
 
@@ -231,6 +281,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim() || !userEmail || submittingComment) return;
+    lettingComment = true;
     setSubmittingComment(true);
 
     const numericPostId = Number(postId);
