@@ -29,7 +29,7 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos buscando de forma relacional por email e ID
+  // 1. Cargar lista de hilos buscando de forma limpia por email en todas las tablas
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -68,31 +68,32 @@ export default function Hilo() {
               targetId = schoolProfile.id;
               isSchool = true;
             } else {
-              // 💡 CAMINO B: Buscamos primero el email en la tabla profiles general para capturar su ID único
-              const { data: normalProfile } = await supabase
-                .from('profiles')
+              // 💡 CAMINO B: Buscamos en la tabla de empresas usando la nueva columna company_email
+              const { data: companyProfile } = await supabase
+                .from('company_profiles')
                 .select('*')
-                .ilike('user_email', otherEmail)
+                .ilike('company_email', otherEmail)
                 .maybeSingle();
 
-              if (normalProfile) {
-                targetId = normalProfile.id;
-                displayName = normalProfile.display_name || otherEmail.split('@')[0];
-                avatarUrl = normalProfile.avatar_url;
-                role = normalProfile.role || 'Miembro';
-
-                // 💡 EL CRUCE CLAVE: Con el ID de la cuenta, verificamos si está registrada en company_profiles
-                const { data: companyProfile } = await supabase
-                  .from('company_profiles')
+              if (companyProfile) {
+                displayName = companyProfile.name;
+                avatarUrl = companyProfile.logo_url;
+                role = 'Empresa';
+                targetId = companyProfile.id;
+                isCompany = true;
+              } else {
+                // 💡 CAMINO C: Si no es colegio ni empresa, buscamos en profiles común
+                const { data: normalProfile } = await supabase
+                  .from('profiles')
                   .select('*')
-                  .eq('id', normalProfile.id)
+                  .ilike('user_email', otherEmail)
                   .maybeSingle();
 
-                if (companyProfile) {
-                  displayName = companyProfile.name;
-                  avatarUrl = companyProfile.logo_url; // Leemos la columna logo_url tal como figura en tu Supabase
-                  role = 'Empresa';
-                  isCompany = true;
+                if (normalProfile) {
+                  displayName = normalProfile.display_name;
+                  avatarUrl = normalProfile.avatar_url;
+                  role = normalProfile.role || 'Miembro';
+                  targetId = normalProfile.id;
                 }
               }
             }
