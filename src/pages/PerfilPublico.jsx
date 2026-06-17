@@ -30,72 +30,95 @@ export default function PerfilPublico() {
     const fetchPublicData = async () => {
       setLoading(true);
       
+      // Si llega un ID nulo o corrupto desde el router, cortamos la ejecución
+      if (!id || id === 'null' || id === 'undefined') {
+        setLoading(false);
+        return;
+      }
+
       const decodedId = decodeURIComponent(id).toLowerCase().trim();
 
-      // 1️⃣ INTERCEPCIÓN DE EMPRESAS: Comprobamos si el ID o Email pertenece a una Empresa
-      let compQuery = supabase.from('company_profiles').select('id');
-      if (decodedId.includes('@')) {
-        compQuery = compQuery.ilike('company_email', decodedId);
-      } else {
-        compQuery = compQuery.eq('id', decodedId);
-      }
-      const { data: compData } = await compQuery.maybeSingle();
+      // 💡 EL BLINDAJE: Detectamos qué tipo de dato nos ha mandado la URL
+      const isEmail = decodedId.includes('@');
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decodedId);
 
-      if (compData) {
-        // 🚀 ¡Redirección maestra! Lo mandamos directo a tu CompanyProfile.jsx exclusivo
-        navigate(`/empresas/${compData.id}`, { replace: true });
-        return;
-      }
-
-      // 2️⃣ INTERCEPCIÓN DE COLEGIOS: Comprobamos si pertenece a un Colegio
-      let schoolQuery = supabase.from('school_profiles').select('id');
-      if (decodedId.includes('@')) {
-        schoolQuery = schoolQuery.ilike('school_email', decodedId);
-      } else {
-        schoolQuery = schoolQuery.eq('id', decodedId);
-      }
-      const { data: schoolData } = await schoolQuery.maybeSingle();
-
-      if (schoolData) {
-        navigate(`/colegios/${schoolData.id}`, { replace: true });
-        return;
-      }
-
-      // 3️⃣ VISTA DE PERSONAS: Si no es empresa ni colegio, cargamos el flujo de perfil humano habitual
-      let query = supabase.from('profiles').select('*');
-      if (decodedId.includes('@')) {
-        query = query.ilike('user_email', decodedId);
-      } else {
-        query = query.eq('id', decodedId);
-      }
-      
-      const { data: profileData } = await query.maybeSingle();
-
-      if (profileData) {
-        setProfile(profileData);
+      try {
+        // 1️⃣ INTERCEPCIÓN DE EMPRESAS (A prueba de choques de Postgres)
+        let compQuery = supabase.from('company_profiles').select('id');
+        if (isEmail) {
+          compQuery = compQuery.ilike('company_email', decodedId);
+        } else if (isUUID) {
+          compQuery = compQuery.eq('id', decodedId);
+        } else {
+          // Si es un trozo de texto (ej: "startupcircle.grupo"), hacemos búsqueda flexible
+          compQuery = compQuery.or(`company_email.ilike.%${decodedId}%,name.ilike.%${decodedId}%`);
+        }
         
-        const cleanEmail = profileData.user_email?.toLowerCase().trim();
-        const myEmailClean = user?.email?.toLowerCase().trim() || '';
-        
-        if (cleanEmail) {
-          const [postsRes, followsRes, likesRes] = await Promise.all([
-            supabase.from('posts').select('*').ilike('author_email', cleanEmail).order('created_date', { ascending: false }),
-            myEmailClean ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean) : Promise.resolve({ data: [] }),
-            myEmailClean ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean) : Promise.resolve({ data: [] })
-          ]);
+        const { data: compData } = await compQuery.maybeSingle();
 
-          if (postsRes.data) setUserPosts(postsRes.data);
+        if (compData) {
+          // ¡Bingo! Hemos encontrado la empresa aunque la URL viniera rota
+          navigate(`/empresas/${compData.id}`, { replace: true });
+          return;
+        }
+
+        // 2️⃣ INTERCEPCIÓN DE COLEGIOS
+        let schoolQuery = supabase.from('school_profiles').select('id');
+        if (isEmail) {
+          schoolQuery = schoolQuery.ilike('school_email', decodedId);
+        } else if (isUUID) {
+          schoolQuery = schoolQuery.eq('id', decodedId);
+        } else {
+          schoolQuery = schoolQuery.or(`school_email.ilike.%${decodedId}%,name.ilike.%${decodedId}%`);
+        }
+        
+        const { data: schoolData } = await schoolQuery.maybeSingle();
+
+        if (schoolData) {
+          navigate(`/colegios/${schoolData.id}`, { replace: true });
+          return;
+        }
+
+        // 3️⃣ VISTA DE PERFILES NORMALES
+        let query = supabase.from('profiles').select('*');
+        if (isEmail) {
+          query = query.ilike('user_email', decodedId);
+        } else if (isUUID) {
+          query = query.eq('id', decodedId);
+        } else {
+          query = query.or(`user_email.ilike.%${decodedId}%,display_name.ilike.%${decodedId}%`);
+        }
+        
+        const { data: profileData } = await query.maybeSingle();
+
+        if (profileData) {
+          setProfile(profileData);
           
-          if (followsRes.data) {
-            const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
-            setFollowingIds(emailsEnSeguimiento);
-          }
+          const cleanEmail = profileData.user_email?.toLowerCase().trim();
+          const myEmailClean = user?.email?.toLowerCase().trim() || '';
+          
+          if (cleanEmail) {
+            const [postsRes, followsRes, likesRes] = await Promise.all([
+              supabase.from('posts').select('*').ilike('author_email', cleanEmail).order('created_date', { ascending: false }),
+              myEmailClean ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean) : Promise.resolve({ data: [] }),
+              myEmailClean ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean) : Promise.resolve({ data: [] })
+            ]);
 
-          if (likesRes.data) {
-            const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
-            setLikedIds(idsConLike);
+            if (postsRes.data) setUserPosts(postsRes.data);
+            
+            if (followsRes.data) {
+              const emailsEnSeguimiento = new Set(followsRes.data.map(f => f.following_email?.toLowerCase().trim()));
+              setFollowingIds(emailsEnSeguimiento);
+            }
+
+            if (likesRes.data) {
+              const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
+              setLikedIds(idsConLike);
+            }
           }
         }
+      } catch (err) {
+        console.error("Error de búsqueda en PerfilPublico:", err);
       }
       
       setLoading(false);
