@@ -29,7 +29,7 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos buscando de forma igualitaria por email en ambas tablas
+  // 1. Cargar lista de hilos buscando de forma igualitaria por email en todas las tablas
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -52,8 +52,9 @@ export default function Hilo() {
             let role = 'Miembro';
             let targetId = null;
             let isSchool = false;
+            let isCompany = false; // 💡 NUEVO: Control de tipo empresa
 
-            // 💡 CAMINO A: Buscamos en la tabla de colegios usando la nueva columna school_email
+            // 💡 CAMINO A: Buscamos en la tabla de colegios usando school_email
             const { data: schoolProfile } = await supabase
               .from('school_profiles')
               .select('*')
@@ -67,18 +68,48 @@ export default function Hilo() {
               targetId = schoolProfile.id;
               isSchool = true;
             } else {
-              // 💡 CAMINO B: Si no es un colegio, buscamos en la tabla profiles de personas físicas
-              const { data: normalProfile } = await supabase
-                .from('profiles')
-                .select('*')
-                .ilike('user_email', otherEmail)
-                .maybeSingle();
+              // 💡 CAMINO B (NUEVO): Buscamos de forma segura en la tabla de empresas por sus posibles columnas de email
+              let companyProfile = null;
+              try {
+                const { data: compByEmail } = await supabase
+                  .from('company_profiles')
+                  .select('*')
+                  .ilike('email', otherEmail)
+                  .maybeSingle();
+                if (compByEmail) companyProfile = compByEmail;
+              } catch (e) {}
 
-              if (normalProfile) {
-                displayName = normalProfile.display_name;
-                avatarUrl = normalProfile.avatar_url;
-                role = normalProfile.role || 'Miembro';
-                targetId = normalProfile.id;
+              if (!companyProfile) {
+                try {
+                  const { data: compByCompEmail } = await supabase
+                    .from('company_profiles')
+                    .select('*')
+                    .ilike('company_email', otherEmail)
+                    .maybeSingle();
+                  if (compByCompEmail) companyProfile = compByCompEmail;
+                } catch (e) {}
+              }
+
+              if (companyProfile) {
+                displayName = companyProfile.name;
+                avatarUrl = companyProfile.logo_url; // Las empresas guardan su imagen corporativa en logo_url
+                role = 'Empresa';
+                targetId = companyProfile.id;
+                isCompany = true;
+              } else {
+                // 💡 CAMINO C: Si no es colegio ni empresa, buscamos en la tabla profiles común
+                const { data: normalProfile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .ilike('user_email', otherEmail)
+                  .maybeSingle();
+
+                if (normalProfile) {
+                  displayName = normalProfile.display_name;
+                  avatarUrl = normalProfile.avatar_url;
+                  role = normalProfile.role || 'Miembro';
+                  targetId = normalProfile.id;
+                }
               }
             }
 
@@ -98,7 +129,8 @@ export default function Hilo() {
                 avatar_url: avatarUrl,
                 user_email: otherEmail,
                 role: role,
-                isSchool: isSchool
+                isSchool: isSchool,
+                isCompany: isCompany // 💡 Adjuntamos la bandera para controlar rutas dinámicas
               } 
             };
           })
@@ -176,8 +208,8 @@ export default function Hilo() {
     if (!newMessage.trim() || !activeChat) return;
 
     const messageText = newMessage.trim();
-    setNewMessage('');
     const nowIso = new Date().toISOString();
+    setNewMessage('');
 
     const { error } = await supabase
       .from('chat_messages')
@@ -278,9 +310,17 @@ export default function Hilo() {
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            {/* Redirección limpia al perfil correcto según el tipo de cuenta */}
+            {/* 💡 REDIRECCIÓN INTELIGENTE MULTICUENTA: Redirige con precisión según el tipo de rol */}
             <div 
-              onClick={() => navigate(activeChat.otherUser.isSchool ? `/colegios/${activeChat.otherUser.id}` : `/usuario/${activeChat.otherUser.id}`)} 
+              onClick={() => {
+                if (activeChat.otherUser.isSchool) {
+                  navigate(`/colegios/${activeChat.otherUser.id}`);
+                } else if (activeChat.otherUser.isCompany) {
+                  navigate(`/empresas/${activeChat.otherUser.id}`);
+                } else {
+                  navigate(`/usuario/${activeChat.otherUser.id}`);
+                }
+              }} 
               className="flex items-center gap-2 cursor-pointer min-w-0 flex-1"
             >
               <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
