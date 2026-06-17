@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // 💡 Asegúrate de que esté importado aquí
+import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import PostCard from '@/components/PostCard';
@@ -7,7 +7,7 @@ import { MapPin, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
-  const navigate = useNavigate(); // 💡 ¡ESTA ERA LA LÍNEA QUE FALTABA!
+  const navigate = useNavigate(); 
   const { user } = useAuth();
   
   const [profile, setProfile] = useState(null);
@@ -32,16 +32,67 @@ export default function PerfilPublico() {
       setLoading(true);
       
       const decodedId = decodeURIComponent(id);
+      let profileData = null;
+
+      // 1️⃣ PASO A: Intentar buscar en profiles (personas físicas de la comunidad)
       let query = supabase.from('profiles').select('*');
-      
       if (decodedId.includes('@')) {
         query = query.ilike('user_email', decodedId);
       } else {
         query = query.eq('id', decodedId);
       }
-      
-      const { data: profileData, error: profileErr } = await query.maybeSingle();
+      const { data: normalProfile } = await query.maybeSingle();
 
+      if (normalProfile) {
+        profileData = normalProfile;
+      } else {
+        // 2️⃣ PASO B: Si no existe, buscamos en company_profiles (empresas colaboradoras)
+        let compQuery = supabase.from('company_profiles').select('*');
+        if (decodedId.includes('@')) {
+          compQuery = compQuery.ilike('company_email', decodedId);
+        } else {
+          compQuery = compQuery.eq('id', decodedId);
+        }
+        const { data: compData } = await compQuery.maybeSingle();
+
+        if (compData) {
+          // Homologamos la estructura de la empresa para que sea compatible con el renderizado del perfil
+          profileData = {
+            id: compData.id,
+            display_name: compData.name,
+            avatar_url: compData.logo_url,
+            banner_url: compData.banner_url,
+            bio: compData.description,
+            location: compData.location,
+            role: 'empresa',
+            user_email: compData.company_email || ''
+          };
+        } else {
+          // 3️⃣ PASO C: Si tampoco es empresa, buscamos en school_profiles (colegios) por si entran desde Hilos
+          let schoolQuery = supabase.from('school_profiles').select('*');
+          if (decodedId.includes('@')) {
+            schoolQuery = schoolQuery.ilike('school_email', decodedId);
+          } else {
+            schoolQuery = schoolQuery.eq('id', decodedId);
+          }
+          const { data: schoolData } = await schoolQuery.maybeSingle();
+
+          if (schoolData) {
+            profileData = {
+              id: schoolData.id,
+              display_name: schoolData.name,
+              avatar_url: schoolData.avatar_url,
+              banner_url: schoolData.banner_url,
+              bio: schoolData.description || 'Perfil oficial del centro escolar.',
+              location: schoolData.location,
+              role: 'colegio',
+              user_email: schoolData.school_email || ''
+            };
+          }
+        }
+      }
+
+      // Si cualquiera de las 3 búsquedas fue exitosa, cargamos sus publicaciones y seguimientos
       if (profileData) {
         setProfile(profileData);
         
@@ -67,8 +118,6 @@ export default function PerfilPublico() {
             setLikedIds(idsConLike);
           }
         }
-      } else {
-        console.error("Error al cargar perfil:", profileErr);
       }
       
       setLoading(false);
@@ -89,7 +138,6 @@ export default function PerfilPublico() {
       .single();
 
     if (data) {
-      // Ahora sí redirigirá perfectamente con el ID del chat en el estado
       navigate('/hilo', { state: { activeChatId: data.id } }); 
     } else {
       console.error("Error al abrir chat:", error);
