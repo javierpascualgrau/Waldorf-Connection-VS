@@ -30,9 +30,38 @@ export default function PerfilPublico() {
     const fetchPublicData = async () => {
       setLoading(true);
       
-      const decodedId = decodeURIComponent(id);
-      
-      // 1️⃣ PASO 1: Intentamos buscar el ID en la tabla de personas físicas
+      const decodedId = decodeURIComponent(id).toLowerCase().trim();
+
+      // 1️⃣ INTERCEPCIÓN DE EMPRESAS: Comprobamos si el ID o Email pertenece a una Empresa
+      let compQuery = supabase.from('company_profiles').select('id');
+      if (decodedId.includes('@')) {
+        compQuery = compQuery.ilike('company_email', decodedId);
+      } else {
+        compQuery = compQuery.eq('id', decodedId);
+      }
+      const { data: compData } = await compQuery.maybeSingle();
+
+      if (compData) {
+        // 🚀 ¡Redirección maestra! Lo mandamos directo a tu CompanyProfile.jsx exclusivo
+        navigate(`/empresas/${compData.id}`, { replace: true });
+        return;
+      }
+
+      // 2️⃣ INTERCEPCIÓN DE COLEGIOS: Comprobamos si pertenece a un Colegio
+      let schoolQuery = supabase.from('school_profiles').select('id');
+      if (decodedId.includes('@')) {
+        schoolQuery = schoolQuery.ilike('school_email', decodedId);
+      } else {
+        schoolQuery = schoolQuery.eq('id', decodedId);
+      }
+      const { data: schoolData } = await schoolQuery.maybeSingle();
+
+      if (schoolData) {
+        navigate(`/colegios/${schoolData.id}`, { replace: true });
+        return;
+      }
+
+      // 3️⃣ VISTA DE PERSONAS: Si no es empresa ni colegio, cargamos el flujo de perfil humano habitual
       let query = supabase.from('profiles').select('*');
       if (decodedId.includes('@')) {
         query = query.ilike('user_email', decodedId);
@@ -43,7 +72,6 @@ export default function PerfilPublico() {
       const { data: profileData } = await query.maybeSingle();
 
       if (profileData) {
-        // Si es una persona normal, cargamos su vista habitual
         setProfile(profileData);
         
         const cleanEmail = profileData.user_email?.toLowerCase().trim();
@@ -68,40 +96,9 @@ export default function PerfilPublico() {
             setLikedIds(idsConLike);
           }
         }
-        setLoading(false);
-      } else {
-        // 2️⃣ INTERCEPCIÓN INTELIGENTE: Si no es una persona, comprobamos si es una Empresa
-        let compQuery = supabase.from('company_profiles').select('id');
-        if (decodedId.includes('@')) {
-          compQuery = compQuery.ilike('company_email', decodedId);
-        } else {
-          compQuery = compQuery.eq('id', decodedId);
-        }
-        const { data: compData } = await compQuery.maybeSingle();
-
-        if (compData) {
-          // 🚀 ¡Redirección maestra! Lo mandamos a tu componente exclusivo CompanyProfile.jsx
-          navigate(`/empresas/${compData.id}`, { replace: true });
-          return;
-        }
-
-        // 3️⃣ COMPROBACIÓN EXTRA: Por si acaso es un Colegio (SchoolProfile.jsx)
-        let schoolQuery = supabase.from('school_profiles').select('id');
-        if (decodedId.includes('@')) {
-          schoolQuery = schoolQuery.ilike('school_email', decodedId);
-        } else {
-          schoolQuery = schoolQuery.eq('id', decodedId);
-        }
-        const { data: schoolData } = await schoolQuery.maybeSingle();
-
-        if (schoolData) {
-          navigate(`/colegios/${schoolData.id}`, { replace: true });
-          return;
-        }
-
-        // Si no está en ninguna de las tres tablas, apagamos el loader para mostrar el "No encontrado"
-        setLoading(false);
       }
+      
+      setLoading(false);
     };
 
     fetchPublicData();
