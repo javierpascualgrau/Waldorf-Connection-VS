@@ -29,7 +29,7 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos buscando de forma limpia por email en todas las tablas
+  // 1. Cargar lista de hilos buscando de forma relacional por email e ID
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
@@ -43,8 +43,8 @@ export default function Hilo() {
       if (!error && data) {
         const chatsWithProfiles = await Promise.all(
           data.map(async (chat) => {
-            const u1 = chat.user_1_email?.toLowerCase().trim();
-            const u2 = chat.user_2_email?.toLowerCase().trim();
+            const u1 = chat.user_1_email?.toLowerCase().trim() || '';
+            const u2 = chat.user_2_email?.toLowerCase().trim() || '';
             const otherEmail = u1 === myEmail ? u2 : u1;
             
             let displayName = otherEmail.split('@')[0];
@@ -54,7 +54,9 @@ export default function Hilo() {
             let isSchool = false;
             let isCompany = false;
 
-            // 💡 CAMINO A: Buscamos en la tabla de colegios usando school_email
+            console.log(`%c[Chat] Investigando cuenta: ${otherEmail}`, "color: #3a5f43; font-weight: bold;");
+
+            // 💡 CAPINO A: Buscamos en la tabla de colegios usando school_email
             const { data: schoolProfile } = await supabase
               .from('school_profiles')
               .select('*')
@@ -67,6 +69,7 @@ export default function Hilo() {
               role = 'Colegio';
               targetId = schoolProfile.id;
               isSchool = true;
+              console.log(`-> Encontrado en school_profiles: ${displayName}`);
             } else {
               // 💡 CAMINO B: Buscamos en la tabla de empresas usando la nueva columna company_email
               const { data: companyProfile } = await supabase
@@ -81,8 +84,9 @@ export default function Hilo() {
                 role = 'Empresa';
                 targetId = companyProfile.id;
                 isCompany = true;
+                console.log(`-> Encontrado en company_profiles directo: ${displayName}`);
               } else {
-                // 💡 CAMINO C: Si no es colegio ni empresa, buscamos en profiles común
+                // 💡 CAMINO C: Si no se encuentra directo, buscamos en profiles común para extraer su ID relacional
                 const { data: normalProfile } = await supabase
                   .from('profiles')
                   .select('*')
@@ -90,10 +94,28 @@ export default function Hilo() {
                   .maybeSingle();
 
                 if (normalProfile) {
-                  displayName = normalProfile.display_name;
+                  targetId = normalProfile.id;
+                  displayName = normalProfile.display_name || otherEmail.split('@')[0];
                   avatarUrl = normalProfile.avatar_url;
                   role = normalProfile.role || 'Miembro';
-                  targetId = normalProfile.id;
+                  console.log(`-> Encontrado en profiles base: ${displayName} (ID: ${targetId})`);
+
+                  // 💡 CAMINO D: Cruzamos el ID del perfil humano con company_profiles por si el email difiere
+                  const { data: companyById } = await supabase
+                    .from('company_profiles')
+                    .select('*')
+                    .eq('id', normalProfile.id)
+                    .maybeSingle();
+
+                  if (companyById) {
+                    displayName = companyById.name;
+                    avatarUrl = companyById.logo_url;
+                    role = 'Empresa';
+                    isCompany = true;
+                    console.log(`-> ¡Cruce por ID Exitoso! Transformado a Empresa: ${displayName}`);
+                  }
+                } else {
+                  console.log(`%c-> Alerta: No hay rastro de ${otherEmail} en ninguna tabla.`, "color: #ff9800;");
                 }
               }
             }
