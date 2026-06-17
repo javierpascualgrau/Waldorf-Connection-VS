@@ -29,20 +29,57 @@ export default function Hilo() {
     };
   }, []);
 
-  // 1. Cargar lista de hilos buscando de forma relacional por email e ID
+  // 1. CARGA MASIVA Y CRUCE RELACIONAL DE PERFILES
   useEffect(() => {
     if (!myEmail) return;
     const loadChats = async () => {
       setLoadingChats(true);
-      const { data, error } = await supabase
-        .from('chats')
-        .select('*')
-        .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
-        .order('last_message_at', { ascending: false });
+      try {
+        // A. Traemos todos los hilos de conversación del usuario
+        const { data: chatsData, error: chatsError } = await supabase
+          .from('chats')
+          .select('*')
+          .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
+          .order('last_message_at', { ascending: false });
 
-      if (!error && data) {
+        if (chatsError) throw chatsError;
+        if (!chatsData || chatsData.length === 0) {
+          setChats([]);
+          setLoadingChats(false);
+          return;
+        }
+
+        // B. CARGA EN PARALELO DE DICCIONARIOS (Evita saturar la base de datos en bucles)
+        const [schoolsRes, companiesRes, profilesRes] = await Promise.all([
+          supabase.from('school_profiles').select('*'),
+          supabase.from('company_profiles').select('*'),
+          supabase.from('profiles').select('*')
+        ]);
+
+        // Avisos de diagnóstico en consola por si las políticas RLS bloquean la lectura
+        if (schoolsRes.error) console.error("Error RLS en colegios:", schoolsRes.error);
+        if (companiesRes.error) console.error("Error RLS en empresas:", companiesRes.error);
+
+        // Mapeamos los datos en objetos indexados para cruzar al instante
+        const schoolsMap = {};
+        (schoolsRes.data || []).forEach(s => {
+          if (s.school_email) schoolsMap[s.school_email.toLowerCase().trim()] = s;
+        });
+
+        const companiesMap = {};
+        (companiesRes.data || []).forEach(c => {
+          if (c.company_email) companiesMap[c.company_email.toLowerCase().trim()] = c;
+          if (c.id) companiesMap[c.id] = c; // Doble indexación por ID de respaldo
+        });
+
+        const profilesMap = {};
+        (profilesRes.data || []).forEach(p => {
+          if (p.user_email) profilesMap[p.user_email.toLowerCase().trim()] = p;
+        });
+
+        // C. CRUCE DE IDENTIDADES EN MEMORIA LOCAL
         const chatsWithProfiles = await Promise.all(
-          data.map(async (chat) => {
+          chatsData.map(async (chat) => {
             const u1 = chat.user_1_email?.toLowerCase().trim() || '';
             const u2 = chat.user_2_email?.toLowerCase().trim() || '';
             const otherEmail = u1 === myEmail ? u2 : u1;
@@ -54,72 +91,40 @@ export default function Hilo() {
             let isSchool = false;
             let isCompany = false;
 
-            console.log(`%c[Chat] Investigando cuenta: ${otherEmail}`, "color: #3a5f43; font-weight: bold;");
+            // Evaluamos prioridades de identidad usando los mapas locales
+            const schoolMatch = schoolsMap[otherEmail];
+            const companyMatch = companiesMap[otherEmail];
+            const profileMatch = profilesMap[otherEmail];
 
-            // 💡 CAPINO A: Buscamos en la tabla de colegios usando school_email
-            const { data: schoolProfile } = await supabase
-              .from('school_profiles')
-              .select('*')
-              .ilike('school_email', otherEmail)
-              .maybeSingle();
-
-            if (schoolProfile) {
-              displayName = schoolProfile.name;
-              avatarUrl = schoolProfile.avatar_url;
+            if (schoolMatch) {
+              displayName = schoolMatch.name;
+              avatarUrl = schoolMatch.avatar_url;
               role = 'Colegio';
-              targetId = schoolProfile.id;
+              targetId = schoolMatch.id;
               isSchool = true;
-              console.log(`-> Encontrado en school_profiles: ${displayName}`);
-            } else {
-              // 💡 CAMINO B: Buscamos en la tabla de empresas usando la nueva columna company_email
-              const { data: companyProfile } = await supabase
-                .from('company_profiles')
-                .select('*')
-                .ilike('company_email', otherEmail)
-                .maybeSingle();
+            } else if (companyMatch) {
+              displayName = companyMatch.name;
+              avatarUrl = companyMatch.logo_url;
+              role = 'Empresa';
+              targetId = companyMatch.id;
+              isCompany = true;
+            } else if (profileMatch) {
+              targetId = profileMatch.id;
+              displayName = profileMatch.display_name || displayName;
+              avatarUrl = profileMatch.avatar_url;
+              role = profileMatch.role || 'Miembro';
 
-              if (companyProfile) {
-                displayName = companyProfile.name;
-                avatarUrl = companyProfile.logo_url;
+              // Fallback: Si figura en profiles, verificamos si su ID está ligado a empresas
+              const companyById = companiesMap[profileMatch.id];
+              if (companyById) {
+                displayName = companyById.name;
+                avatarUrl = companyById.logo_url;
                 role = 'Empresa';
-                targetId = companyProfile.id;
                 isCompany = true;
-                console.log(`-> Encontrado en company_profiles directo: ${displayName}`);
-              } else {
-                // 💡 CAMINO C: Si no se encuentra directo, buscamos en profiles común para extraer su ID relacional
-                const { data: normalProfile } = await supabase
-                  .from('profiles')
-                  .select('*')
-                  .ilike('user_email', otherEmail)
-                  .maybeSingle();
-
-                if (normalProfile) {
-                  targetId = normalProfile.id;
-                  displayName = normalProfile.display_name || otherEmail.split('@')[0];
-                  avatarUrl = normalProfile.avatar_url;
-                  role = normalProfile.role || 'Miembro';
-                  console.log(`-> Encontrado en profiles base: ${displayName} (ID: ${targetId})`);
-
-                  // 💡 CAMINO D: Cruzamos el ID del perfil humano con company_profiles por si el email difiere
-                  const { data: companyById } = await supabase
-                    .from('company_profiles')
-                    .select('*')
-                    .eq('id', normalProfile.id)
-                    .maybeSingle();
-
-                  if (companyById) {
-                    displayName = companyById.name;
-                    avatarUrl = companyById.logo_url;
-                    role = 'Empresa';
-                    isCompany = true;
-                    console.log(`-> ¡Cruce por ID Exitoso! Transformado a Empresa: ${displayName}`);
-                  }
-                } else {
-                  console.log(`%c-> Alerta: No hay rastro de ${otherEmail} en ninguna tabla.`, "color: #ff9800;");
-                }
               }
             }
 
+            // Contador de mensajes no leídos
             const { count } = await supabase
               .from('chat_messages')
               .select('*', { count: 'exact', head: true })
@@ -142,14 +147,19 @@ export default function Hilo() {
             };
           })
         );
+
         setChats(chatsWithProfiles);
 
         if (location.state?.activeChatId) {
           const targetChat = chatsWithProfiles.find(c => c.id === location.state.activeChatId);
           if (targetChat) setActiveChat(targetChat);
         }
+
+      } catch (err) {
+        console.error("Error crítico cargando el feed de hilos:", err);
+      } finally {
+        setLoadingChats(false);
       }
-      setLoadingChats(false);
     };
     loadChats();
   }, [myEmail, location.state]);
