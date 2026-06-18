@@ -102,7 +102,7 @@ export default function CompanyProfile() {
     }
   };
 
-  // 💡 NUEVA ACCIÓN RELACIONAL: Abre o crea un chat directo con la cuenta de la empresa
+  // 💡 ACCIÓN DE CONTACTAR CORREGIDA: Evita la duplicidad de hilos mediante una búsqueda inteligente por prefijo
   const handleContactar = async () => {
     if (!user?.email || !company?.company_email) {
       alert("Esta empresa no dispone de un correo de contacto asociado en el sistema.");
@@ -111,25 +111,50 @@ export default function CompanyProfile() {
     
     const myEmailClean = user.email.toLowerCase().trim();
     const companyEmailClean = company.company_email.toLowerCase().trim();
-    
-    // Ordenamos alfabéticamente para evitar duplicados en la clave única compuesta de la tabla chats
-    const emails = [myEmailClean, companyEmailClean].sort();
-    
-    const { data, error } = await supabase
-      .from('chats')
-      .upsert(
-        { user_1_email: emails[0], user_2_email: emails[1] }, 
-        { onConflict: 'user_1_email,user_2_email' }
-      )
-      .select()
-      .single();
+    const companyPrefix = companyEmailClean.split('@')[0]; // Extraemos "startupcircle.grupo"
 
-    if (data) {
-      // Redirige al chat activo inyectando el ID del canal en el estado del router
-      navigate('/hilo', { state: { activeChatId: data.id } }); 
-    } else {
-      console.error("Error al abrir conversación con la empresa:", error);
-      alert("No se pudo inicializar el chat de soporte con la empresa.");
+    try {
+      // 1️⃣ Buscamos si ya existe cualquier hilo antiguo con esta empresa usando su email actual o el prefijo histórico
+      const { data: existingChats, error: searchError } = await supabase
+        .from('chats')
+        .select('*')
+        .or(`user_1_email.eq.${myEmailClean},user_2_email.eq.${myEmailClean}`);
+
+      if (searchError) throw searchError;
+
+      // Filtramos en memoria local para encontrar el chat que coincida con el prefijo o el correo entero
+      const duplicateChat = (existingChats || []).find(chat => {
+        const u1 = chat.user_1_email?.toLowerCase().trim() || '';
+        const u2 = chat.user_2_email?.toLowerCase().trim() || '';
+        const other = u1 === myEmailClean ? u2 : u1;
+        return other === companyEmailClean || other.split('@')[0] === companyPrefix;
+      });
+
+      if (duplicateChat) {
+        // 🚀 ¡Redirección ganadora! Si ya existía un chat previo con ese prefijo, saltamos a él y evitamos crear otro
+        navigate('/hilo', { state: { activeChatId: duplicateChat.id } });
+        return;
+      }
+
+      // 2️⃣ FALLBACK: Si es la primerísima vez que habláis, creamos el registro limpio
+      const emails = [myEmailClean, companyEmailClean].sort();
+      const { data: newChat, error: createError } = await supabase
+        .from('chats')
+        .upsert(
+          { user_1_email: emails[0], user_2_email: emails[1] }, 
+          { onConflict: 'user_1_email,user_2_email' }
+        )
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      if (newChat) {
+        navigate('/hilo', { state: { activeChatId: newChat.id } }); 
+      }
+    } catch (error) {
+      console.error("Error al procesar el enrutamiento de chat único:", error);
+      alert("No se pudo conectar con el hilo de la conversación.");
     }
   };
 
@@ -349,7 +374,6 @@ export default function CompanyProfile() {
           
           {!isEditing ? (
             <>
-              {/* 💡 CORREGIDO: Contenedor alineado flex para inyectar de forma limpia el botón de Contactar al perfil */}
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                   <h1 className="font-cormorant text-4xl font-semibold text-foreground">{company.name}</h1>
@@ -361,7 +385,6 @@ export default function CompanyProfile() {
                   </div>
                 </div>
 
-                {/* 🚀 BOTÓN DE CONTACTAR DINÁMICO: Visible solo para miembros externos */}
                 {!isOwner && (
                   <button 
                     onClick={handleContactar}
@@ -531,7 +554,7 @@ export default function CompanyProfile() {
                       <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${uploadingPostImage ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                         {uploadingPostImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                         {uploadingPostImage ? 'Subiendo foto...' : 'Añadir foto'}
-                        <input type="file" accept="image/*" className="hidden" onChange={handleUploadPostImage} disabled={uploadingPostImage} />
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadPostImage(e)} disabled={uploadingPostImage} />
                       </label>
 
                       <button
