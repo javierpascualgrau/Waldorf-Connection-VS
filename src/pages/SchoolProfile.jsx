@@ -155,8 +155,10 @@ export default function SchoolProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
       <div className="flex items-center justify-between mb-5">
-        <button onClick={() => navigate('/colegios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
-          <ArrowLeft className="w-4 h-4" /> Directorio
+        
+        {/* 💡 CORREGIDO: Retorno dinámico con historial de navegación y etiqueta "Volver" */}
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
+          <ArrowLeft className="w-4 h-4" /> Volver
         </button>
 
         {isManager && (
@@ -331,13 +333,11 @@ export default function SchoolProfile() {
                       </div>
                     </div>
                     
-                    {/* 💡 BLINDAJE CORREGIDO: Cambiado 'isSuperAdmin' por 'isManager' para proteger el borrado */}
                     {isManager && (
                       <button 
                         onClick={async () => {
                           if (window.confirm("¿Seguro que quieres borrar este evento?")) {
                             await supabase.from('school_events').delete().eq('id', e.id);
-                            // Corregido también el refresco reactivo del listado con el ID global de la cuenta
                             loadEvents(currentSchoolId);
                           }
                         }} 
