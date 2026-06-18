@@ -63,12 +63,22 @@ export default function Hilo() {
         // Mapeamos los datos en objetos indexados para cruzar al instante
         const schoolsMap = {};
         (schoolsRes.data || []).forEach(s => {
-          if (s.school_email) schoolsMap[s.school_email.toLowerCase().trim()] = s;
+          if (s.school_email) {
+            const cleanEmail = s.school_email.toLowerCase().trim();
+            schoolsMap[cleanEmail] = s;
+            // 💡 Guardamos también la primera parte del correo para evitar errores de dominio cruzado
+            schoolsMap[cleanEmail.split('@')[0]] = s;
+          }
         });
 
         const companiesMap = {};
         (companiesRes.data || []).forEach(c => {
-          if (c.company_email) companiesMap[c.company_email.toLowerCase().trim()] = c;
+          if (c.company_email) {
+            const cleanEmail = c.company_email.toLowerCase().trim();
+            companiesMap[cleanEmail] = c;
+            // 💡 CRUCIAL: Indexamos por la primera parte (ej: "startupcircle.grupo") para enlazar chats antiguos
+            companiesMap[cleanEmail.split('@')[0]] = c; 
+          }
           if (c.id) companiesMap[c.id] = c; // Doble indexación por ID de respaldo
         });
 
@@ -84,16 +94,19 @@ export default function Hilo() {
             const u2 = chat.user_2_email?.toLowerCase().trim() || '';
             const otherEmail = u1 === myEmail ? u2 : u1;
             
-            let displayName = otherEmail.split('@')[0];
+            // 💡 CRUCIAL: Extraemos la parte delantera del correo por si el dominio (@) no coincide
+            const otherPrefix = otherEmail.split('@')[0];
+            
+            let displayName = otherPrefix;
             let avatarUrl = null;
             let role = 'Miembro';
             let targetId = null;
             let isSchool = false;
             let isCompany = false;
 
-            // Evaluamos prioridades de identidad usando los mapas locales
-            const schoolMatch = schoolsMap[otherEmail];
-            const companyMatch = companiesMap[otherEmail];
+            // Evaluamos prioridades de identidad usando los mapas locales (buscando email entero O prefijo)
+            const schoolMatch = schoolsMap[otherEmail] || schoolsMap[otherPrefix];
+            const companyMatch = companiesMap[otherEmail] || companiesMap[otherPrefix];
             const profileMatch = profilesMap[otherEmail];
 
             if (schoolMatch) {

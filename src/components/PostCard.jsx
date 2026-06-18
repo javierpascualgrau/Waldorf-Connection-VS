@@ -85,6 +85,28 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         }
       }
 
+      // 💡 SOLUCIÓN DEL EMAIL CRUZADO: Si sabemos que el autor es una empresa, buscamos por su NOMBRE.
+      // Esto evita que si el post tiene @ucjc.edu y la empresa @gmail.com, se pierda la identidad.
+      if (currentPost.author_role === 'empresa' && currentPost.author_name) {
+        const { data: companyByName } = await supabase
+          .from('company_profiles')
+          .select('*')
+          .eq('name', currentPost.author_name)
+          .maybeSingle();
+
+        if (companyByName) {
+          setAuthorProfile({
+            id: companyByName.id,
+            display_name: companyByName.name,
+            avatar_url: companyByName.logo_url, 
+            role: 'empresa',
+            user_email: companyByName.company_email || lookupEmail,
+            isCompany: true
+          });
+          return;
+        }
+      }
+
       if (!lookupEmail) return;
 
       // Caso B: Verificamos si es una Empresa usando la columna company_email que añadimos
@@ -154,7 +176,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       }
     };
     loadAuthorProfile();
-  }, [authorEmailClean, schoolEmailClean, schoolId, lookupEmail, currentPost.author_role]);
+  }, [authorEmailClean, schoolEmailClean, schoolId, lookupEmail, currentPost.author_role, currentPost.author_name]);
 
   useEffect(() => {
     if (showComments) {
@@ -213,7 +235,21 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
 
     // 🚀 INTERCEPCIÓN GANADORA: Si es una empresa, saltamos directamente a tu CompanyProfile.jsx
     if (authorProfile?.isCompany || displayRole === 'empresa' || currentPost.author_role === 'empresa') {
-      const targetCompanyId = authorProfile?.id || currentPost.author_id;
+      let targetCompanyId = authorProfile?.id || currentPost.author_id;
+      
+      // 💡 RESCATE: Si nos falta el ID, lo buscamos en tiempo real por el nombre
+      if (!targetCompanyId && currentPost.author_name) {
+        const { data: compData } = await supabase
+          .from('company_profiles')
+          .select('id')
+          .eq('name', currentPost.author_name)
+          .maybeSingle();
+        
+        if (compData) {
+          targetCompanyId = compData.id;
+        }
+      }
+
       if (targetCompanyId) {
         navigate(`/empresas/${targetCompanyId}`);
         return;
@@ -221,7 +257,10 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     }
 
     // Si es un usuario humano común, sigue su flujo tradicional
-    navigate(`/usuario/${encodeURIComponent(lookupEmail || currentPost.author_email)}`);
+    const finalParam = authorProfile?.id || lookupEmail || currentPost.author_email;
+    if (finalParam) {
+      navigate(`/usuario/${encodeURIComponent(finalParam)}`);
+    }
   };
 
   const handleLike = async () => {
@@ -281,7 +320,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim() || !userEmail || submittingComment) return;
-    lettingComment = true;
     setSubmittingComment(true);
 
     const numericPostId = Number(postId);
