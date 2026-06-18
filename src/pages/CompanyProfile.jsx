@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft } from 'lucide-react'; // 💡 Añadido ArrowLeft
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft } from 'lucide-react'; 
 import PostCard from '@/components/PostCard'; 
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
@@ -99,6 +99,37 @@ export default function CompanyProfile() {
     } catch (error) {
       console.error("Error al cerrar sesión:", error.message);
       alert("No se pudo cerrar sesión correctamente.");
+    }
+  };
+
+  // 💡 NUEVA ACCIÓN RELACIONAL: Abre o crea un chat directo con la cuenta de la empresa
+  const handleContactar = async () => {
+    if (!user?.email || !company?.company_email) {
+      alert("Esta empresa no dispone de un correo de contacto asociado en el sistema.");
+      return;
+    }
+    
+    const myEmailClean = user.email.toLowerCase().trim();
+    const companyEmailClean = company.company_email.toLowerCase().trim();
+    
+    // Ordenamos alfabéticamente para evitar duplicados en la clave única compuesta de la tabla chats
+    const emails = [myEmailClean, companyEmailClean].sort();
+    
+    const { data, error } = await supabase
+      .from('chats')
+      .upsert(
+        { user_1_email: emails[0], user_2_email: emails[1] }, 
+        { onConflict: 'user_1_email,user_2_email' }
+      )
+      .select()
+      .single();
+
+    if (data) {
+      // Redirige al chat activo inyectando el ID del canal en el estado del router
+      navigate('/hilo', { state: { activeChatId: data.id } }); 
+    } else {
+      console.error("Error al abrir conversación con la empresa:", error);
+      alert("No se pudo inicializar el chat de soporte con la empresa.");
     }
   };
 
@@ -264,8 +295,6 @@ export default function CompanyProfile() {
       
       {/* HEADER: BOTÓN DE VOLVER + ACCIONES (SI ES DUEÑO) */}
       <div className="flex items-center justify-between mb-4">
-        
-        {/* 💡 NUEVO: Botón de Volver atrás visible para todos */}
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Volver atrás
         </button>
@@ -320,11 +349,26 @@ export default function CompanyProfile() {
           
           {!isEditing ? (
             <>
-              <h1 className="font-cormorant text-4xl font-semibold text-foreground">{company.name}</h1>
-              <div className="flex gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
-                <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-primary" /> {company.location || 'Ubicación no definida'}</p>
-                {company.website && (
-                  <a href={company.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-primary hover:underline"><Globe className="w-4 h-4" /> Visitar Web</a>
+              {/* 💡 CORREGIDO: Contenedor alineado flex para inyectar de forma limpia el botón de Contactar al perfil */}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <h1 className="font-cormorant text-4xl font-semibold text-foreground">{company.name}</h1>
+                  <div className="flex gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+                    <p className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-primary" /> {company.location || 'Ubicación no definida'}</p>
+                    {company.website && (
+                      <a href={company.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-primary hover:underline"><Globe className="w-4 h-4" /> Visitar Web</a>
+                    )}
+                  </div>
+                </div>
+
+                {/* 🚀 BOTÓN DE CONTACTAR DINÁMICO: Visible solo para miembros externos */}
+                {!isOwner && (
+                  <button 
+                    onClick={handleContactar}
+                    className="flex items-center gap-2 bg-[#3A5F43] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:opacity-90 transition-opacity shadow-sm self-start sm:self-center"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Contactar
+                  </button>
                 )}
               </div>
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description || 'Sin descripción corporativa.'}</p>
@@ -450,7 +494,7 @@ export default function CompanyProfile() {
                   ))
                 ) : (
                   <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                    Actualmente no hay ninguna oferta de empleo, prácticas o voluntariado activa.
+                    Currently there is no active job, internship or volunteer opportunity.
                   </p>
                 )}
               </div>
@@ -465,7 +509,7 @@ export default function CompanyProfile() {
                     <textarea
                       value={postContent}
                       onChange={e => setPostContent(e.target.value)}
-                      placeholder="¿Qué ha pasado hoy en la empresa? Compártelo con la comunidad..."
+                      placeholder="What happened at the company today? Share it with the community..."
                       className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
                     />
 
@@ -510,7 +554,7 @@ export default function CompanyProfile() {
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                      Aún no hay publicaciones recientes.
+                      No recent posts available.
                     </p>
                   )}
                 </div>
