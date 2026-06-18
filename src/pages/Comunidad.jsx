@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { Search, MapPin, Users, Building, Briefcase, GraduationCap, Heart, ExternalLink, Globe, ArrowRight, UserCheck, UserPlus } from 'lucide-react';
 
-// 💡 CORREGIDO: Añadido el filtro 'Simpatizantes' para dar soporte completo a todos los miembros
+// 💡 FILTRO MANTEINDO: Filtro 'Simpatizantes' activo para dar soporte completo a todos los miembros
 const ROLE_FILTERS = [
   { label: 'Todos', value: 'Todos' },
   { label: 'Profesores', value: 'profesor' },
@@ -168,7 +168,7 @@ export default function Comunidad() {
           onClick={() => { setActiveTab('raiz'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'raiz' 
-              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
+              ? 'bg-primary text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
@@ -178,7 +178,7 @@ export default function Comunidad() {
           onClick={() => { setActiveTab('empresas'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'empresas' 
-              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
+              ? 'bg-primary text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
@@ -362,7 +362,12 @@ export default function Comunidad() {
 
                 return (
                   <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200 hover:border-primary/20 transition-colors">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0 shadow-sm">
+                    
+                    {/* 💡 CORREGIDO: El logotipo de la vacante ahora es interactivo y navega directo a su perfil */}
+                    <div 
+                      onClick={() => off.company_id && navigate(`/empresas/${off.company_id}`)}
+                      className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0 shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                    >
                       {logoUrl ? (
                         <img src={logoUrl} className="w-full h-full object-cover" alt={`Logo de ${off.company_name}`} />
                       ) : (
@@ -375,7 +380,17 @@ export default function Comunidad() {
                         <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 bg-primary/5 text-primary border border-primary/10 rounded-md">
                           {off.type}
                         </span>
-                        <span className="text-xs font-medium text-muted-foreground">publicado por <strong className="text-foreground">{off.company_name}</strong></span>
+                        
+                        {/* 💡 CORREGIDO: El nombre corporativo ahora redirige de forma nativa a CompanyProfile.jsx */}
+                        <span className="text-xs font-medium text-muted-foreground">
+                          publicado por{' '}
+                          <strong 
+                            onClick={() => off.company_id && navigate(`/empresas/${off.company_id}`)}
+                            className="text-foreground cursor-pointer hover:text-[#3A5F43] hover:underline transition-colors"
+                          >
+                            {off.company_name}
+                          </strong>
+                        </span>
                       </div>
                       <h3 className="text-base font-semibold text-foreground leading-tight">{off.title}</h3>
                       <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
