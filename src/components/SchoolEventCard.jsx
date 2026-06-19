@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Heart, MapPin, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Heart, MapPin, Calendar, Clock, ExternalLink, UserCheck, UserPlus } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -12,7 +12,7 @@ const EVENT_TYPE_LABELS = {
   jornada_puertas_abiertas: 'Puertas Abiertas',
   taller_familias: 'Taller Familias',
   festival: 'Festival',
-  excursion: 'Excursión',
+  excurcion: 'Excursión',
   charla: 'Charla',
   otro: 'Otro',
 };
@@ -29,16 +29,47 @@ const EVENT_TYPE_COLORS = {
   otro: 'bg-gray-100 text-gray-700',
 };
 
-export default function SchoolEventCard({ event, userEmail, likedIds }) {
+/* 💡 PASO 2: Recibimos followingIds en los parámetros por defecto */
+export default function SchoolEventCard({ event, userEmail, likedIds, followingIds = new Set() }) {
   const isLiked = likedIds?.has(event.id);
   const [likesCount, setLikesCount] = useState(event.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
   const [loading, setLoading] = useState(false);
 
+  // 💡 Lógica de seguimiento local
+  const [schoolEmail, setSchoolEmail] = useState('');
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
   const initials = (event.school_name || 'C').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   const eventDate = event.event_date || event.date;
   const eventTime = event.event_time || event.time;
+
+  // Extraemos el correo del colegio de manera blindada para evaluar el seguimiento
+  useEffect(() => {
+    const fetchSchoolEmail = async () => {
+      const docEmail = event.school_profiles?.[0]?.school_email || event.school_profile?.[0]?.school_email || event.school_email;
+      if (docEmail) {
+        setSchoolEmail(docEmail.toLowerCase().trim());
+        return;
+      }
+      if (event.school_id) {
+        const { data } = await supabase.from('school_profiles').select('school_email').eq('id', event.school_id).maybeSingle();
+        if (data?.school_email) {
+          setSchoolEmail(data.school_email.toLowerCase().trim());
+        }
+      }
+    };
+    fetchSchoolEmail();
+  }, [event]);
+
+  // Sincronizamos el estado visual del botón al arrancar
+  useEffect(() => {
+    if (schoolEmail) {
+      setFollowing(followingIds?.has(schoolEmail));
+    }
+  }, [followingIds, schoolEmail]);
 
   const handleLike = async () => {
     if (loading || !userEmail) return;
@@ -60,6 +91,31 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
     setLoading(false);
   };
 
+  // Acción asíncrona de seguimiento de la cuenta escolar
+  const handleFollow = async () => {
+    if (followLoading || !userEmail || !schoolEmail) return;
+    setFollowLoading(true);
+
+    const follower = userEmail.toLowerCase().trim();
+
+    if (following) {
+      const { error } = await supabase
+        .from('user_follows')
+        .delete()
+        .eq('follower_email', follower)
+        .eq('following_email', schoolEmail);
+
+      if (!error) setFollowing(false);
+    } else {
+      const { error } = await supabase
+        .from('user_follows')
+        .insert([{ follower_email: follower, following_email: schoolEmail }]);
+
+      if (!error) setFollowing(true);
+    }
+    setFollowLoading(false);
+  };
+
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow text-left animate-fade-up">
       {/* Image */}
@@ -74,7 +130,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
           to={`/colegios/${event.school_id || ''}`} 
           className="flex items-center gap-3 mb-4 group block w-fit"
         >
-          {/* 💡 SANEADO: La foto ahora usa la transición de opacidad unificada al hacer hover */}
           <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity">
             {event.school_logo ? (
               <img src={event.school_logo} alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -83,7 +138,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
             )}
           </div>
           
-          {/* 💡 SANEADO: Eliminadas las clases hover:text-primary y hover:underline para que aclare de forma uniforme */}
           <div className="group-hover:opacity-80 transition-opacity">
             <p className="text-sm font-semibold text-foreground">
               {event.school_name || 'Colegio Waldorf'}
@@ -140,8 +194,8 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
           </div>
         )}
 
-        {/* Like */}
-        <div className="pt-4 mt-4 border-t border-border/50">
+        {/* 💡 ACCIONES: Añadido flex container justificado a los extremos para albergar de forma limpia el botón de seguir */}
+        <div className="pt-4 mt-4 border-t border-border/50 flex items-center justify-between">
           <button
             onClick={handleLike}
             disabled={loading}
@@ -150,6 +204,23 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
             <Heart className={`w-4 h-4 ${liked ? 'fill-rose-500' : ''}`} />
             <span className="font-medium">{likesCount} me gusta</span>
           </button>
+
+          {/* 🚀 BOTÓN DE SEGUIMIENTO ESCOLAR DINÁMICO */}
+          {userEmail && schoolEmail && (
+            <button
+              onClick={handleFollow}
+              disabled={followLoading}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full transition-colors ${
+                following ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-primary/5'
+              }`}
+            >
+              {following ? (
+                <><UserCheck className="w-3 h-3" /><span>Siguiendo</span></>
+              ) : (
+                <><UserPlus className="w-3 h-3" /><span>Seguir</span></>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

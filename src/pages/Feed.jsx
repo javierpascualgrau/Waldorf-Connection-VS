@@ -188,11 +188,13 @@ export default function Feed() {
                 onDeleted={handlePostDeleted}
               />
             ) : (
+              /* 💡 PASO 1: Inyectamos followingIds para que la tarjeta de eventos pueda evaluar el seguimiento */
               <SchoolEventCard
                 key={`event-${item.data.id}`}
                 event={item.data}
                 userEmail={user?.email}
                 likedIds={likedIds}
+                followingIds={followingIds}
               />
             )
           )}
