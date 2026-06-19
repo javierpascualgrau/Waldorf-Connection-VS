@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { Search, MapPin, Users, Building, Briefcase, GraduationCap, Heart, ExternalLink, Globe, ArrowRight, UserCheck, UserPlus } from 'lucide-react';
 
-// 💡 FILTRO MANTEINDO: Filtro 'Simpatizantes' activo para dar soporte completo a todos los miembros
+// 💡 FILTRO MANTENIDO: Filtro 'Simpatizantes' para dar soporte completo a todos los miembros
 const ROLE_FILTERS = [
   { label: 'Todos', value: 'Todos' },
   { label: 'Profesores', value: 'profesor' },
@@ -80,38 +80,46 @@ export default function Comunidad() {
     loadComunidadData();
   }, []);
 
-  // Mutación asíncrona real en Supabase mapeada por correos electrónicos
+  // 💡 MUTACIÓN SINCRONIZADA: Ahora detecta si ya sigues a la empresa por su prefijo e intercepta el email correcto
   const toggleFollow = async (targetIdentifier) => {
     if (!currentUser || !targetIdentifier) return;
     
     const myEmailClean = currentUser.email?.toLowerCase().trim();
     const targetClean = targetIdentifier.toLowerCase().trim();
+    const targetPrefix = targetClean.split('@')[0]; // Ej: "startupcircle.grupo"
     
     const next = new Set(followingIds);
-    const alreadyFollowing = next.has(targetClean);
     
-    // UI Optimista: Cambiamos el botón al instante para que no tenga lag
+    // Buscamos si existe en el Set un email completo o un prefijo idéntico al que queremos alterar
+    const existingFollowedEmail = Array.from(next).find(email => 
+      email === targetClean || (targetPrefix && email.split('@')[0] === targetPrefix)
+    );
+    
+    const alreadyFollowing = !!existingFollowedEmail;
+    // Si ya lo seguíamos, operamos sobre el correo viejo almacenado; si no, sobre el nuevo
+    const emailToModify = existingFollowedEmail || targetClean;
+    
+    // UI Optimista libre de lag
     if (alreadyFollowing) {
-      next.delete(targetClean);
+      next.delete(emailToModify);
     } else {
-      next.add(targetClean);
+      next.add(emailToModify);
     }
     setFollowingIds(next);
     
     if (alreadyFollowing) {
-      // Dejar de seguir en la Base de Datos
+      // Dejar de seguir en la Base de Datos usando la clave exacta localizada
       const { error } = await supabase
         .from('user_follows')
         .delete()
         .eq('follower_email', myEmailClean)
-        .eq('following_email', targetClean);
+        .eq('following_email', emailToModify);
         
       if (error) {
         console.error("Error al dejar de seguir:", error);
-        // Revertimos el estado si Supabase falla
         setFollowingIds(prev => {
           const reverted = new Set(prev);
-          reverted.add(targetClean);
+          reverted.add(emailToModify);
           return reverted;
         });
       }
@@ -119,14 +127,13 @@ export default function Comunidad() {
       // Guardar seguimiento real en la Base de Datos
       const { error } = await supabase
         .from('user_follows')
-        .insert([{ follower_email: myEmailClean, following_email: targetClean }]);
+        .insert([{ follower_email: myEmailClean, following_email: emailToModify }]);
         
       if (error) {
         console.error("Error al seguir:", error);
-        // Revertimos el estado si Supabase falla
         setFollowingIds(prev => {
           const reverted = new Set(prev);
-          reverted.delete(targetClean);
+          reverted.delete(emailToModify);
           return reverted;
         });
       }
@@ -168,7 +175,7 @@ export default function Comunidad() {
           onClick={() => { setActiveTab('raiz'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'raiz' 
-              ? 'bg-primary text-white shadow-md font-semibold scale-102' 
+              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
@@ -178,7 +185,7 @@ export default function Comunidad() {
           onClick={() => { setActiveTab('empresas'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-medium tracking-wide transition-all duration-200 ${
             activeTab === 'empresas' 
-              ? 'bg-primary text-white shadow-md font-semibold scale-102' 
+              ? 'bg-[#3A5F43] text-white shadow-md font-semibold scale-102' 
               : 'bg-muted/60 text-muted-foreground border border-border/20 hover:bg-muted'
           }`}
         >
@@ -303,8 +310,14 @@ export default function Comunidad() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredEmpresas.length > 0 ? (
                 filteredEmpresas.map(emp => {
-                  const companyIdentifier = (emp.email || emp.company_email || emp.id)?.toLowerCase().trim() || '';
-                  const isFollowingCompany = followingIds.has(companyIdentifier); 
+                  const empEmailClean = emp.company_email?.toLowerCase().trim() || '';
+                  const empPrefix = empEmailClean.split('@')[0];
+                  
+                  // 💡 COMPROBACIÓN REPARADA: Comprueba por email exacto o por el alias del prefijo para evitar desfases
+                  const isFollowingCompany = Array.from(followingIds).some(email => 
+                    email === empEmailClean || (empPrefix && email.split('@')[0] === empPrefix)
+                  );
+
                   const initials = emp.name?.slice(0, 2).toUpperCase() || 'EM';
                   return (
                     <div 
@@ -332,7 +345,7 @@ export default function Comunidad() {
                       <button
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          toggleFollow(companyIdentifier); 
+                          toggleFollow(empEmailClean || emp.id); 
                         }} 
                         className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                           isFollowingCompany 
@@ -363,7 +376,6 @@ export default function Comunidad() {
                 return (
                   <div key={off.id} className="p-5 bg-card border border-border rounded-3xl shadow-sm flex items-start gap-4 text-left animate-in fade-in duration-200 hover:border-primary/20 transition-colors">
                     
-                    {/* 💡 CORREGIDO: El logotipo de la vacante ahora es interactivo y navega directo a su perfil */}
                     <div 
                       onClick={() => off.company_id && navigate(`/empresas/${off.company_id}`)}
                       className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center border border-border flex-shrink-0 shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
@@ -381,7 +393,6 @@ export default function Comunidad() {
                           {off.type}
                         </span>
                         
-                        {/* 💡 CORREGIDO: El nombre corporativo ahora redirige de forma nativa a CompanyProfile.jsx */}
                         <span className="text-xs font-medium text-muted-foreground">
                           publicado por{' '}
                           <strong 
