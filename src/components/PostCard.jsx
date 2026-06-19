@@ -61,7 +61,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setFollowing(followingIds?.has(lookupEmail));
   }, [followingIds, lookupEmail]);
 
-  // 💡 COMPROBACIÓN MULTITABLA REPARADA: Buscamos en colegios, empresas o perfiles normales
+  // COMPROBACIÓN MULTITABLA REPARADA: Buscamos en colegios, empresas o perfiles normales
   useEffect(() => {
     const loadAuthorProfile = async () => {
       // Caso A: Si es un Evento directo con school_id
@@ -85,8 +85,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         }
       }
 
-      // 💡 SOLUCIÓN DEL EMAIL CRUZADO: Si sabemos que el autor es una empresa, buscamos por su NOMBRE.
-      // Esto evita que si el post tiene @ucjc.edu y la empresa @gmail.com, se pierda la identidad.
+      // SOLUCIÓN DEL EMAIL CRUZADO: Si sabemos que el autor es una empresa, buscamos por su NOMBRE.
       if (currentPost.author_role === 'empresa' && currentPost.author_name) {
         const { data: companyByName } = await supabase
           .from('company_profiles')
@@ -109,7 +108,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
 
       if (!lookupEmail) return;
 
-      // Caso B: Verificamos si es una Empresa usando la columna company_email que añadimos
+      // Caso B: Verificamos si es una Empresa usando la columna company_email
       const { data: companyProfile } = await supabase
         .from('company_profiles')
         .select('*')
@@ -120,7 +119,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         setAuthorProfile({
           id: companyProfile.id,
           display_name: companyProfile.name,
-          avatar_url: companyProfile.logo_url, // Homologamos logo_url a avatar_url para el renderizado
+          avatar_url: companyProfile.logo_url, 
           role: 'empresa',
           user_email: lookupEmail,
           isCompany: true
@@ -136,7 +135,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
         .maybeSingle();
 
       if (normalProfile) {
-        // Doble verificación: Cruzamos su ID por si su rol es empresa pero se registró en profiles primero
         const { data: companyById } = await supabase
           .from('company_profiles')
           .select('*')
@@ -213,7 +211,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // 💡 RUTAS DE ORIGEN REPARADAS: Redirección directa al perfil correcto sin pasar por /usuario
+  // RUTAS DE ORIGEN REPARADAS: Redirección directa al perfil correcto sin pasar por /usuario
   const handleAuthorClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -224,7 +222,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       return;
     }
 
-    // Si es un Colegio, mandamos a la ruta de centros escolares
     if (authorProfile?.isSchool || displayRole === 'colegio' || schoolId) {
       const targetSchoolId = schoolId || authorProfile?.id;
       if (targetSchoolId) {
@@ -233,11 +230,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       }
     }
 
-    // 🚀 INTERCEPCIÓN GANADORA: Si es una empresa, saltamos directamente a tu CompanyProfile.jsx
     if (authorProfile?.isCompany || displayRole === 'empresa' || currentPost.author_role === 'empresa') {
       let targetCompanyId = authorProfile?.id || currentPost.author_id;
       
-      // 💡 RESCATE: Si nos falta el ID, lo buscamos en tiempo real por el nombre
       if (!targetCompanyId && currentPost.author_name) {
         const { data: compData } = await supabase
           .from('company_profiles')
@@ -256,7 +251,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
       }
     }
 
-    // Si es un usuario humano común, sigue su flujo tradicional
     const finalParam = authorProfile?.id || lookupEmail || currentPost.author_email;
     if (finalParam) {
       navigate(`/usuario/${encodeURIComponent(finalParam)}`);
@@ -486,6 +480,7 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
               )}
             </div>
+            {/* 💡 SANEADO: Eliminado cualquier rastro de hovers verdes o subrayados para mantener la consistencia estética con los perfiles normales */}
             <div className="flex-1 min-w-0 group-hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm text-foreground">{displayName}</span>
@@ -631,14 +626,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                               <button 
                                 onClick={() => startEditComment(comment)}
                                 className="text-muted-foreground hover:text-primary transition-colors p-0.5"
-                                title="Editar comentario"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
                               <button 
                                 onClick={() => handleDeleteComment(comment.id)}
                                 className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
-                                title="Borrar comentario"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
