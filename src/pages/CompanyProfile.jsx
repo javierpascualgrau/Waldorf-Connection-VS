@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft } from 'lucide-react'; 
+import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft, UserPlus, UserCheck } from 'lucide-react'; 
 import PostCard from '@/components/PostCard'; 
 
 const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
@@ -37,6 +37,10 @@ export default function CompanyProfile() {
     location: '',
     link_apply: ''
   });
+
+  // 💡 NUEVOS ESTADOS: Control del seguimiento local corporativo
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   const loadOffers = async (companyId) => {
     if (!companyId) return;
@@ -81,6 +85,26 @@ export default function CompanyProfile() {
           setEditForm(data);
           await loadOffers(data.id);
           await loadCompanyPosts(data.name); 
+
+          // 💡 COMPROBACIÓN ANTIDUPLICADOS: Comprobamos de forma híbrida si el usuario ya sigue el prefijo de la empresa
+          if (authUser?.email && data.company_email) {
+            const myEmailClean = authUser.email.toLowerCase().trim();
+            const compEmailClean = data.company_email.toLowerCase().trim();
+            const compPrefix = compEmailClean.split('@')[0];
+
+            const { data: follows } = await supabase
+              .from('user_follows')
+              .select('following_email')
+              .eq('follower_email', myEmailClean);
+
+            if (follows) {
+              const isFollowing = follows.some(f => {
+                const fEmail = f.following_email?.toLowerCase().trim() || '';
+                return fEmail === compEmailClean || fEmail.split('@')[0] === compPrefix;
+              });
+              setFollowing(isFollowing);
+            }
+          }
         }
       }
       setLoading(false);
@@ -102,7 +126,6 @@ export default function CompanyProfile() {
     }
   };
 
-  // 💡 ACCIÓN DE CONTACTAR CORREGIDA: Evita la duplicidad de hilos mediante una búsqueda inteligente por prefijo
   const handleContactar = async () => {
     if (!user?.email || !company?.company_email) {
       alert("Esta empresa no dispone de un correo de contacto asociado en el sistema.");
@@ -111,10 +134,9 @@ export default function CompanyProfile() {
     
     const myEmailClean = user.email.toLowerCase().trim();
     const companyEmailClean = company.company_email.toLowerCase().trim();
-    const companyPrefix = companyEmailClean.split('@')[0]; // Extraemos "startupcircle.grupo"
+    const companyPrefix = companyEmailClean.split('@')[0]; 
 
     try {
-      // 1️⃣ Buscamos si ya existe cualquier hilo antiguo con esta empresa usando su email actual o el prefijo histórico
       const { data: existingChats, error: searchError } = await supabase
         .from('chats')
         .select('*')
@@ -122,7 +144,6 @@ export default function CompanyProfile() {
 
       if (searchError) throw searchError;
 
-      // Filtramos en memoria local para encontrar el chat que coincida con el prefijo o el correo entero
       const duplicateChat = (existingChats || []).find(chat => {
         const u1 = chat.user_1_email?.toLowerCase().trim() || '';
         const u2 = chat.user_2_email?.toLowerCase().trim() || '';
@@ -131,12 +152,10 @@ export default function CompanyProfile() {
       });
 
       if (duplicateChat) {
-        // 🚀 ¡Redirección ganadora! Si ya existía un chat previo con ese prefijo, saltamos a él y evitamos crear otro
         navigate('/hilo', { state: { activeChatId: duplicateChat.id } });
         return;
       }
 
-      // 2️⃣ FALLBACK: Si es la primerísima vez que habláis, creamos el registro limpio
       const emails = [myEmailClean, companyEmailClean].sort();
       const { data: newChat, error: createError } = await supabase
         .from('chats')
@@ -155,6 +174,48 @@ export default function CompanyProfile() {
     } catch (error) {
       console.error("Error al procesar el enrutamiento de chat único:", error);
       alert("No se pudo conectar con el hilo de la conversación.");
+    }
+  };
+
+  // 💡 NUEVA ACCIÓN DE SEGUIMIENTO CORPORATIVO: Alterna seguimientos protegiendo desfases de correos
+  const handleFollow = async () => {
+    if (!user?.email || !company?.company_email || followLoading) return;
+    setFollowLoading(true);
+
+    const myEmailClean = user.email.toLowerCase().trim();
+    const compEmailClean = company.company_email.toLowerCase().trim();
+    const compPrefix = compEmailClean.split('@')[0];
+
+    try {
+      const { data: follows } = await supabase
+        .from('user_follows')
+        .select('following_email')
+        .eq('follower_email', myEmailClean);
+
+      const existingFollow = (follows || []).find(f => {
+        const fEmail = f.following_email?.toLowerCase().trim() || '';
+        return fEmail === compEmailClean || fEmail.split('@')[0] === compPrefix;
+      });
+
+      if (existingFollow) {
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_email', myEmailClean)
+          .eq('following_email', existingFollow.following_email);
+
+        if (!error) setFollowing(false);
+      } else {
+        const { error } = await supabase
+          .from('user_follows')
+          .insert([{ follower_email: myEmailClean, following_email: compEmailClean }]);
+
+        if (!error) setFollowing(true);
+      }
+    } catch (error) {
+      console.error("Error al procesar acción de seguimiento corporativo:", error);
+    } finally {
+      setFollowLoading(false);
     }
   };
 
@@ -385,13 +446,32 @@ export default function CompanyProfile() {
                   </div>
                 </div>
 
+                {/* 🚀 GRUPO DE BOTONES DE ACCIÓN: Contactar y Seguir alineados simétricamente */}
                 {!isOwner && (
-                  <button 
-                    onClick={handleContactar}
-                    className="flex items-center gap-2 bg-[#3A5F43] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:opacity-90 transition-opacity shadow-sm self-start sm:self-center"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" /> Contactar
-                  </button>
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <button 
+                      onClick={handleContactar}
+                      className="flex items-center gap-2 bg-[#3A5F43] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:opacity-90 transition-opacity shadow-sm"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> Contactar
+                    </button>
+
+                    <button
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                      className={`flex items-center gap-1.5 text-xs px-5 py-2.5 rounded-full font-semibold transition-colors shadow-sm ${
+                        following
+                          ? 'bg-muted text-muted-foreground border border-border'
+                          : 'bg-primary/5 text-primary border border-primary/10 hover:bg-primary hover:text-white'
+                      }`}
+                    >
+                      {following ? (
+                        <><UserCheck className="w-3.5 h-3.5" /><span>Siguiendo</span></>
+                      ) : (
+                        <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description || 'Sin descripción corporativa.'}</p>
