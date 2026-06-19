@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import PostCard from '@/components/PostCard';
-import { MapPin, ArrowLeft, Loader2, MessageSquare } from 'lucide-react';
+import { MapPin, ArrowLeft, Loader2, MessageSquare, UserPlus, UserCheck } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
@@ -16,6 +16,7 @@ export default function PerfilPublico() {
 
   const [likedIds, setLikedIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
+  const [followLoading, setFollowLoading] = useState(false);
 
   const ROLE_LABELS = {
     alumno: 'Alumno',
@@ -143,6 +144,45 @@ export default function PerfilPublico() {
     }
   };
 
+  // 💡 NUEVA FUNCIÓN ASÍNCRONA: Ejecuta el seguimiento y actualiza el estado local de forma reactiva
+  const handleFollow = async () => {
+    if (!user?.email || !profile?.user_email || followLoading) return;
+    setFollowLoading(true);
+
+    const myEmailClean = user.email.toLowerCase().trim();
+    const targetEmailClean = profile.user_email.toLowerCase().trim();
+    const isCurrentlyFollowing = followingIds.has(targetEmailClean);
+
+    if (isCurrentlyFollowing) {
+      const { error } = await supabase
+        .from('user_follows')
+        .delete()
+        .eq('follower_email', myEmailClean)
+        .eq('following_email', targetEmailClean);
+
+      if (!error) {
+        setFollowingIds(prev => {
+          const next = new Set(prev);
+          next.delete(targetEmailClean);
+          return next;
+        });
+      }
+    } else {
+      const { error } = await supabase
+        .from('user_follows')
+        .insert([{ follower_email: myEmailClean, following_email: targetEmailClean }]);
+
+      if (!error) {
+        setFollowingIds(prev => {
+          const next = new Set(prev);
+          next.add(targetEmailClean);
+          return next;
+        });
+      }
+    }
+    setFollowLoading(false);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
@@ -164,6 +204,8 @@ export default function PerfilPublico() {
 
   const displayName = profile.display_name || profile.full_name || 'Miembro';
   const initials = displayName.slice(0, 2).toUpperCase();
+  const targetEmailClean = profile.user_email?.toLowerCase().trim() || '';
+  const isFollowing = followingIds.has(targetEmailClean);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -184,10 +226,30 @@ export default function PerfilPublico() {
                 {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="font-cormorant text-3xl font-bold text-primary">{initials}</span>}
               </div>
             </div>
-            <div className="pt-2 sm:pt-0">
-              <button onClick={handleContactar} className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm mx-auto sm:mx-0">
+            
+            {/* 💡 BLOQUE DE ACCIONES CORREGIDO: Contenedor flex con soporte simétrico para Contactar y Seguir */}
+            <div className="pt-2 sm:pt-0 flex items-center justify-center sm:justify-start gap-2">
+              <button onClick={handleContactar} className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm">
                 <MessageSquare className="w-3.5 h-3.5" /> Contactar
               </button>
+
+              {user?.email && user.email.toLowerCase().trim() !== targetEmailClean && (
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`flex items-center gap-1.5 text-xs px-4 py-2 rounded-full font-medium transition-colors shadow-sm ${
+                    isFollowing
+                      ? 'bg-muted text-muted-foreground border border-border'
+                      : 'bg-primary/5 text-primary border border-primary/10 hover:bg-primary hover:text-white'
+                  }`}
+                >
+                  {isFollowing ? (
+                    <><UserCheck className="w-3.5 h-3.5" /><span>Siguiendo</span></>
+                  ) : (
+                    <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
