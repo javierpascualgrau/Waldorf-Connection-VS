@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2, UserPlus, UserCheck } from 'lucide-react';
 import CreateSchoolEventModal from './CreateSchoolEventModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
@@ -23,6 +23,10 @@ export default function SchoolProfile() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+
+  // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   const currentSchoolId = id || user?.id;
 
@@ -68,14 +72,60 @@ export default function SchoolProfile() {
         setSchool(schoolData);
         setEditForm(schoolData);
         await loadEvents(targetId);
+
+        // 💡 SINCRONIZACIÓN AL ARRANCAR: Comprobamos si ya sigues a este colegio en la tabla user_follows
+        if (authUser?.email && schoolData.school_email) {
+          const myEmailClean = authUser.email.toLowerCase().trim();
+          const schEmailClean = schoolData.school_email.toLowerCase().trim();
+
+          const { data: followRecord } = await supabase
+            .from('user_follows')
+            .select('id')
+            .eq('follower_email', myEmailClean)
+            .eq('following_email', schEmailClean)
+            .maybeSingle();
+
+          if (followRecord) setFollowing(true);
+        }
       }
       setLoading(false);
     };
     loadSchoolData();
   }, [id]);
 
-  // 💡 CLAVE: Comprueba de verdad si el usuario logueado es el dueño de este perfil de colegio
   const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
+
+  // 💡 ACCIÓN OPTIMISTA ESCOLAR: Cambia de estado visual en el mismo milisegundo que haces clic
+  const handleFollow = async () => {
+    if (!user?.email || !school?.school_email || followLoading) return;
+
+    const myEmailClean = user.email.toLowerCase().trim();
+    const schEmailClean = school.school_email.toLowerCase().trim();
+
+    const previousFollowingState = following;
+    setFollowing(!previousFollowingState);
+
+    try {
+      if (previousFollowingState) {
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_email', myEmailClean)
+          .eq('following_email', schEmailClean);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_follows')
+          .insert([{ follower_email: myEmailClean, following_email: schEmailClean }]);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error("Error operando seguimiento del centro educativo:", error);
+      setFollowing(previousFollowingState); // Reversión de emergencia si falla la red
+    }
+  };
 
   const uploadFile = async (event, type) => {
     try {
@@ -155,8 +205,6 @@ export default function SchoolProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
       <div className="flex items-center justify-between mb-5">
-        
-        {/* 💡 CORREGIDO: Retorno dinámico con historial de navegación y etiqueta "Volver" */}
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Volver
         </button>
@@ -180,29 +228,36 @@ export default function SchoolProfile() {
         <div className="h-44 bg-muted relative overflow-hidden group">
           <img src={isEditing ? editForm.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-          {isEditing && (
-            <label className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer backdrop-blur-sm transition-all flex items-center gap-2">
-              {uploadingCover ? 'Subiendo...' : <><Upload className="w-3 h-3" /> Cambiar Portada</>}
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'cover')} disabled={uploadingCover} />
-            </label>
-          )}
         </div>
 
         <div className="p-8 relative pt-20">
           <div className="absolute -top-16 left-8 w-32 h-32">
             <img src={isEditing ? editForm.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
-            {isEditing && (
-              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-3xl cursor-pointer opacity-0 hover:opacity-100 transition-opacity">
-                 <span className="text-white text-xs font-bold text-center px-2">{uploadingAvatar ? 'Subiendo...' : 'Cambiar Logo'}</span>
-                 <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'avatar')} disabled={uploadingAvatar} />
-              </label>
-            )}
           </div>
           
           {!isEditing ? (
             <>
-              <h1 className="font-cormorant text-4xl font-semibold text-foreground">{school.name}</h1>
-              <p className="text-muted-foreground flex items-center gap-1.5 mt-2"><MapPin className="w-4 h-4 text-primary" /> {school.location}</p>
+              {/* 💡 CORREGIDO: Contenedor flex con alineación a los extremos para albergar de forma limpia el botón exclusivo de seguir */}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <h1 className="font-cormorant text-4xl font-semibold text-foreground">{school.name}</h1>
+                  <p className="text-muted-foreground flex items-center gap-1.5 mt-2"><MapPin className="w-4 h-4 text-primary" /> {school.location}</p>
+                </div>
+
+                {/* 🚀 BOTÓN DE SEGUIR INSTITUCIONAL: Visible solo para miembros externos */}
+                {!isManager && user?.email && (
+                  <button 
+                    onClick={handleFollow}
+                    className={`flex items-center gap-1.5 text-xs px-5 py-2.5 rounded-full font-semibold transition-colors shadow-sm self-start sm:self-center ${
+                      following 
+                        ? 'bg-muted text-muted-foreground border border-border' 
+                        : 'bg-primary/5 text-primary border border-primary/10 hover:bg-primary hover:text-white'
+                    }`}
+                  >
+                    {following ? <><UserCheck className="w-3.5 h-3.5" /><span>Siguiendo</span></> : <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>}
+                  </button>
+                )}
+              </div>
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
             </>
           ) : (
