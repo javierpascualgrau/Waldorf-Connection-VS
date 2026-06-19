@@ -29,14 +29,13 @@ const EVENT_TYPE_COLORS = {
   otro: 'bg-gray-100 text-gray-700',
 };
 
-/* 💡 PASO 2: Recibimos followingIds en los parámetros por defecto */
-export default function SchoolEventCard({ event, userEmail, likedIds, followingIds = new Set() }) {
+/* 💡 CAPTURA: Añadido onFollowToggle a las propiedades recibidas */
+export default function SchoolEventCard({ event, userEmail, likedIds, followingIds = new Set(), onFollowToggle }) {
   const isLiked = likedIds?.has(event.id);
   const [likesCount, setLikesCount] = useState(event.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
   const [loading, setLoading] = useState(false);
 
-  // 💡 Lógica de seguimiento local
   const [schoolEmail, setSchoolEmail] = useState('');
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -46,7 +45,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
   const eventDate = event.event_date || event.date;
   const eventTime = event.event_time || event.time;
 
-  // Extraemos el correo del colegio de manera blindada para evaluar el seguimiento
   useEffect(() => {
     const fetchSchoolEmail = async () => {
       const docEmail = event.school_profiles?.[0]?.school_email || event.school_profile?.[0]?.school_email || event.school_email;
@@ -64,7 +62,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
     fetchSchoolEmail();
   }, [event]);
 
-  // Sincronizamos el estado visual del botón al arrancar
   useEffect(() => {
     if (schoolEmail) {
       setFollowing(followingIds?.has(schoolEmail));
@@ -91,7 +88,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
     setLoading(false);
   };
 
-  // Acción asíncrona de seguimiento de la cuenta escolar
   const handleFollow = async () => {
     if (followLoading || !userEmail || !schoolEmail) return;
     setFollowLoading(true);
@@ -105,20 +101,27 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
         .eq('follower_email', follower)
         .eq('following_email', schoolEmail);
 
-      if (!error) setFollowing(false);
+      if (!error) {
+        setFollowing(false);
+        // 💡 NOTIFICACIÓN REACTIVA: Avisamos al Feed que hemos dejado de seguir
+        if (onFollowToggle) onFollowToggle(schoolEmail, false); 
+      }
     } else {
       const { error } = await supabase
         .from('user_follows')
         .insert([{ follower_email: follower, following_email: schoolEmail }]);
 
-      if (!error) setFollowing(true);
+      if (!error) {
+        setFollowing(true);
+        // 💡 NOTIFICACIÓN REACTIVA: Avisamos al Feed que ahora lo seguimos
+        if (onFollowToggle) onFollowToggle(schoolEmail, true); 
+      }
     }
     setFollowLoading(false);
   };
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow text-left animate-fade-up">
-      {/* Image */}
       {event.image_url && (
         <img src={event.image_url} alt="" className="w-full h-48 object-cover" />
       )}
@@ -194,7 +197,7 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
           </div>
         )}
 
-        {/* 💡 ACCIONES: Añadido flex container justificado a los extremos para albergar de forma limpia el botón de seguir */}
+        {/* Actions */}
         <div className="pt-4 mt-4 border-t border-border/50 flex items-center justify-between">
           <button
             onClick={handleLike}
@@ -205,7 +208,6 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
             <span className="font-medium">{likesCount} me gusta</span>
           </button>
 
-          {/* 🚀 BOTÓN DE SEGUIMIENTO ESCOLAR DINÁMICO */}
           {userEmail && schoolEmail && (
             <button
               onClick={handleFollow}

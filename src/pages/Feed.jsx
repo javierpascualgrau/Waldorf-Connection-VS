@@ -21,6 +21,19 @@ export default function Feed() {
 
   const handlePostDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
 
+  // 💡 NUEVO CONECTOR RE REACTIVIDAD: Sincroniza al instante el Set de seguimientos del inicio
+  const handleFollowToggle = (email, isFollowing) => {
+    setFollowingIds(prev => {
+      const next = new Set(prev);
+      if (isFollowing) {
+        next.add(email.toLowerCase().trim());
+      } else {
+        next.delete(email.toLowerCase().trim());
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -59,13 +72,11 @@ export default function Feed() {
         });
       }
 
-      // 💡 EL MAPEO CAMALEÓNICO: Cubrimos todas las opciones posibles de lectura
+      // EL MAPEO CAMALEÓNICO ENRIQUECIDO
       const enrichedEvents = (eventsRes.data || []).map(ev => {
         const schoolInfo = schoolsMap[ev.school_id];
         if (schoolInfo) {
-          // Creamos un Array real para componentes que usan school_profiles[0]
           const schoolDataCombo = [schoolInfo];
-          // Le añadimos propiedades directas por si el componente lo lee como objeto (school_profiles.avatar_url)
           schoolDataCombo.avatar_url = schoolInfo.avatar_url;
           schoolDataCombo.name = schoolInfo.name;
           schoolDataCombo.id = schoolInfo.id;
@@ -73,12 +84,13 @@ export default function Feed() {
           return {
             ...ev,
             school_profiles: schoolDataCombo,
-            school_profile: schoolDataCombo, // Por si acaso se llama en singular
-            // Inyecciones planas en la raíz del evento por si lee directo de ev.school_avatar
+            school_profile: schoolDataCombo, 
             avatar_url: schoolInfo.avatar_url,
             school_avatar: schoolInfo.avatar_url,
             author_avatar: schoolInfo.avatar_url,
-            school_logo: schoolInfo.avatar_url
+            school_logo: schoolInfo.avatar_url,
+            // 💡 INYECCIÓN CLAVE: Pasamos el email del colegio a la raíz del evento para poder filtrarlo
+            school_email: schoolInfo.school_email?.toLowerCase().trim() 
           };
         }
         return ev;
@@ -100,7 +112,8 @@ export default function Feed() {
       filteredEvents = [...events].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
     } else if (tab === 'siguiendo') {
       filteredPosts = posts.filter(p => p.author_email && followingIds.has(p.author_email.toLowerCase().trim()));
-      filteredEvents = [];
+      // 💡 CORREGIDO: En lugar de vaciar el array con un [], filtramos de forma real usando los seguimientos activos
+      filteredEvents = events.filter(e => e.school_email && followingIds.has(e.school_email.toLowerCase().trim()));
     }
 
     const feed = [];
@@ -188,13 +201,14 @@ export default function Feed() {
                 onDeleted={handlePostDeleted}
               />
             ) : (
-              /* 💡 PASO 1: Inyectamos followingIds para que la tarjeta de eventos pueda evaluar el seguimiento */
               <SchoolEventCard
                 key={`event-${item.data.id}`}
                 event={item.data}
                 userEmail={user?.email}
                 likedIds={likedIds}
                 followingIds={followingIds}
+                /* 💡 PASO EXTRA: Conectamos la sincronización reactiva */
+                onFollowToggle={handleFollowToggle} 
               />
             )
           )}
