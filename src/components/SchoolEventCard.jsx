@@ -61,7 +61,7 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
   };
 
   return (
-    <div className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow animate-fade-up">
+    <div className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow text-left animate-fade-up">
       {/* Image */}
       {event.image_url && (
         <img src={event.image_url} alt="" className="w-full h-48 object-cover" />
@@ -74,15 +74,18 @@ export default function SchoolEventCard({ event, userEmail, likedIds }) {
           to={`/colegios/${event.school_id || ''}`} 
           className="flex items-center gap-3 mb-4 group block w-fit"
         >
-          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/25 transition-colors">
+          {/* 💡 SANEADO: La foto ahora usa la transición de opacidad unificada al hacer hover */}
+          <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:opacity-80 transition-opacity">
             {event.school_logo ? (
               <img src={event.school_logo} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
             )}
           </div>
-          <div>
-            <p className="text-sm font-semibold group-hover:text-primary group-hover:underline transition-all">
+          
+          {/* 💡 SANEADO: Eliminadas las clases hover:text-primary y hover:underline para que aclare de forma uniforme */}
+          <div className="group-hover:opacity-80 transition-opacity">
+            <p className="text-sm font-semibold text-foreground">
               {event.school_name || 'Colegio Waldorf'}
             </p>
             {event.event_type && (
