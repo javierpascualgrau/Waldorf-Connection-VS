@@ -1,15 +1,16 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle, MessageSquare } from 'lucide-react';
+import { Home, School, Users, User, PlusCircle, MessageSquare, ShoppingBag } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/api/supabaseClient'; 
+import { supabase } from '@/api/supabaseClient';
+import { getMemberIdentity } from '@/lib/identity';
 import CreatePostModal from './CreatePostModal';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Inicio' },
   { path: '/colegios', icon: School, label: 'Colegios' },
   { path: '/comunidad', icon: Users, label: 'Comunidad' },
-  { path: '/hilo', icon: MessageSquare, label: 'Hilo' }, 
-  { path: '/perfil', icon: User, label: 'Mi Perfil' }, 
+  { path: '/servicios', icon: ShoppingBag, label: 'Servicios' },
+  { path: '/perfil', icon: User, label: 'Mi Perfil' },
 ];
 
 export default function Layout() {
@@ -33,7 +34,7 @@ export default function Layout() {
       const { data: school } = await supabase
         .from('school_profiles')
         .select('*')
-        .or(`id.eq.${user.id},manager_id.eq.${user.id}`)
+        .eq('id', user.id)
         .maybeSingle();
 
       if (school) {
@@ -65,48 +66,16 @@ export default function Layout() {
       
       if (authUser) {
         setUser(authUser);
-        
-        // 💡 NUEVO: Traemos el id del colegio de forma reactiva nada más cargar la app
-        const { data: schoolData } = await supabase
-          .from('school_profiles')
-          .select('id')
-          .or(`id.eq.${authUser.id},manager_id.eq.${authUser.id}`)
-          .maybeSingle();
 
-        if (schoolData) {
-          setSchoolId(schoolData.id);
-        }
-        
-        let profileData = null;
+        const identity = await getMemberIdentity(authUser.id);
 
-        const { data: profById } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
-        
-        profileData = profById;
-
-        if (!profileData) {
-          const { data: profByEmail } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_email', authUser.email)
-            .maybeSingle();
-          profileData = profByEmail;
+        // 💡 El id del colegio es el propio uid de la cuenta cuando la identidad resuelta es un colegio
+        if (identity?.role === 'colegio') {
+          setSchoolId(authUser.id);
         }
 
-        if (!profileData) {
-          const { data: userProf } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', authUser.id)
-            .maybeSingle();
-          profileData = userProf;
-        }
-
-        if (profileData) {
-          setUserProfile(profileData);
+        if (identity) {
+          setUserProfile(identity);
         }
       }
     };
@@ -115,6 +84,7 @@ export default function Layout() {
   }, []);
 
   const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil';
+  const mostrarBotonHilo = location.pathname === '/';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -127,15 +97,27 @@ export default function Layout() {
             <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connection</span>
           </Link>
           
-          {mostrarBotonPublicar && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors flex-shrink-0 animate-fade-in"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Publicar</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {mostrarBotonHilo && (
+              <Link
+                to="/hilo"
+                className="flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors animate-fade-in"
+                aria-label="Hilo"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </Link>
+            )}
+
+            {mostrarBotonPublicar && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors animate-fade-in"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Publicar</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

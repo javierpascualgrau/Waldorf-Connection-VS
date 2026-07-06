@@ -10,14 +10,19 @@ const TABS = [
   { id: 'tendencias', label: 'Tendencias', icon: TrendingUp },
 ];
 
+const PAGE_SIZE = 15;
+
 export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
-  const [likedIds, setLikedIds] = useState(new Set()); 
+  const [likedIds, setLikedIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const handlePostDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
 
@@ -34,6 +39,37 @@ export default function Feed() {
     });
   };
 
+  const enrichEvents = (rawEvents, schoolsData) => {
+    const schoolsMap = {};
+    (schoolsData || []).forEach(s => {
+      schoolsMap[s.id] = s;
+    });
+
+    // EL MAPEO CAMALEÓNICO ENRIQUECIDO
+    return (rawEvents || []).map(ev => {
+      const schoolInfo = schoolsMap[ev.school_id];
+      if (schoolInfo) {
+        const schoolDataCombo = [schoolInfo];
+        schoolDataCombo.avatar_url = schoolInfo.avatar_url;
+        schoolDataCombo.name = schoolInfo.name;
+        schoolDataCombo.id = schoolInfo.id;
+
+        return {
+          ...ev,
+          school_profiles: schoolDataCombo,
+          school_profile: schoolDataCombo,
+          avatar_url: schoolInfo.avatar_url,
+          school_avatar: schoolInfo.avatar_url,
+          author_avatar: schoolInfo.avatar_url,
+          school_logo: schoolInfo.avatar_url,
+          // 💡 INYECCIÓN CLAVE: Pasamos el email del colegio a la raíz del evento para poder filtrarlo
+          school_email: schoolInfo.school_email?.toLowerCase().trim()
+        };
+      }
+      return ev;
+    });
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -42,11 +78,13 @@ export default function Feed() {
       setUser(authUser);
 
       const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
+      const from = 0;
+      const to = PAGE_SIZE - 1;
 
       const [postsRes, eventsRes, followsRes, likesRes, schoolsRes] = await Promise.all([
-        supabase.from('posts').select('*').order('created_date', { ascending: false }),
-        supabase.from('school_events').select('*').order('created_date', { ascending: false }),
-        myEmailClean 
+        supabase.from('posts').select('*').order('created_date', { ascending: false }).range(from, to),
+        supabase.from('school_events').select('*').order('created_date', { ascending: false }).range(from, to),
+        myEmailClean
           ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
         myEmailClean
@@ -65,43 +103,41 @@ export default function Feed() {
         setLikedIds(idsConLike);
       }
 
-      const schoolsMap = {};
-      if (schoolsRes.data) {
-        schoolsRes.data.forEach(s => {
-          schoolsMap[s.id] = s;
-        });
-      }
+      const newPosts = postsRes.data || [];
+      const newEvents = eventsRes.data || [];
 
-      // EL MAPEO CAMALEÓNICO ENRIQUECIDO
-      const enrichedEvents = (eventsRes.data || []).map(ev => {
-        const schoolInfo = schoolsMap[ev.school_id];
-        if (schoolInfo) {
-          const schoolDataCombo = [schoolInfo];
-          schoolDataCombo.avatar_url = schoolInfo.avatar_url;
-          schoolDataCombo.name = schoolInfo.name;
-          schoolDataCombo.id = schoolInfo.id;
-
-          return {
-            ...ev,
-            school_profiles: schoolDataCombo,
-            school_profile: schoolDataCombo, 
-            avatar_url: schoolInfo.avatar_url,
-            school_avatar: schoolInfo.avatar_url,
-            author_avatar: schoolInfo.avatar_url,
-            school_logo: schoolInfo.avatar_url,
-            // 💡 INYECCIÓN CLAVE: Pasamos el email del colegio a la raíz del evento para poder filtrarlo
-            school_email: schoolInfo.school_email?.toLowerCase().trim() 
-          };
-        }
-        return ev;
-      });
-
-      setPosts(postsRes.data || []);
-      setEvents(enrichedEvents);
+      setPosts(newPosts);
+      setEvents(enrichEvents(newEvents, schoolsRes.data));
+      setHasMore(newPosts.length === PAGE_SIZE || newEvents.length === PAGE_SIZE);
+      setPage(0);
       setLoading(false);
     };
     load();
   }, []);
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+
+    const nextPage = page + 1;
+    const from = nextPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const [postsRes, eventsRes, schoolsRes] = await Promise.all([
+      supabase.from('posts').select('*').order('created_date', { ascending: false }).range(from, to),
+      supabase.from('school_events').select('*').order('created_date', { ascending: false }).range(from, to),
+      supabase.from('school_profiles').select('*')
+    ]);
+
+    const newPosts = postsRes.data || [];
+    const newEvents = eventsRes.data || [];
+
+    setPosts(prev => [...prev, ...newPosts]);
+    setEvents(prev => [...prev, ...enrichEvents(newEvents, schoolsRes.data)]);
+    setHasMore(newPosts.length === PAGE_SIZE || newEvents.length === PAGE_SIZE);
+    setPage(nextPage);
+    setLoadingMore(false);
+  };
 
   const getFilteredFeed = () => {
     let filteredPosts = posts;
@@ -212,6 +248,18 @@ export default function Feed() {
               />
             )
           )}
+        </div>
+      )}
+
+      {!loading && feed.length > 0 && hasMore && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="text-xs font-medium text-primary hover:opacity-80 disabled:opacity-40 transition-opacity px-4 py-2"
+          >
+            {loadingMore ? 'Cargando...' : 'Cargar más'}
+          </button>
         </div>
       )}
     </div>

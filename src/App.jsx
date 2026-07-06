@@ -8,12 +8,14 @@ import Layout from '@/components/Layout';
 import Feed from '@/pages/Feed';
 import Colegios from '@/pages/Colegios';
 import Comunidad from '@/pages/Comunidad';
+import Servicios from '@/pages/Servicios';
 import Perfil from '@/pages/Perfil';
 import Login from '@/pages/Login';
 import PerfilPublico from '@/pages/PerfilPublico';
 import SchoolProfile from './pages/SchoolProfile';
 import Hilo from '@/pages/Hilo'; 
 import EventDetail from './pages/EventDetail';
+import ListingDetail from './pages/ListingDetail';
 
 // 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
 import CompanyProfile from './pages/CompanyProfile'; 
@@ -45,7 +47,9 @@ const AuthenticatedApp = () => {
       <Route path="/colegios" element={<Colegios />} />
       <Route path="/colegios/:id" element={<SchoolProfile />} />
       <Route path="/comunidad" element={<Comunidad />} />
+      <Route path="/servicios" element={<Servicios />} />
       <Route path="/eventos/:id" element={<EventDetail />} />
+      <Route path="/anuncios/:id" element={<ListingDetail />} />
       
       {/* 💡 AÑADIMOS LA RUTA PARA CARGAR EL PERFIL DE LAS EMPRESAS */}
       <Route path="/empresas/:id" element={<CompanyProfile />} />

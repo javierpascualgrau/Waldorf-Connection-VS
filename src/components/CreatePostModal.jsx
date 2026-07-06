@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, MapPin, Calendar, ImagePlus, Loader2 } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
+import { getMemberIdentity } from '@/lib/identity';
 
 const CATEGORIES = [
   { value: 'taller', label: 'Taller' },
@@ -59,24 +60,18 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     if (!content.trim()) return;
     setLoading(true);
 
-    // 1. Buscamos el perfil en tiempo real justo antes de guardar para evitar datos obsoletos
-    let freshProfile = userProfile;
+    // 1. Buscamos la identidad real (colegio/empresa/perfil) en tiempo real justo antes de
+    // guardar para evitar datos obsoletos
+    let freshIdentity = userProfile;
     if (user?.id) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (data) freshProfile = data;
+      const identity = await getMemberIdentity(user.id);
+      if (identity) freshIdentity = identity;
     }
 
-    const finalName = freshProfile?.display_name || 
-                     freshProfile?.full_name || 
-                     freshProfile?.name || 
-                     freshProfile?.nombre || 
-                     user?.user_metadata?.full_name || 
+    const finalName = freshIdentity?.name ||
+                     user?.user_metadata?.full_name ||
                      user?.user_metadata?.display_name ||
-                     user?.email?.split('@')[0] || 
+                     user?.email?.split('@')[0] ||
                      'Miembro de la comunidad';
 
     // 2. Empaquetamos los datos incluyendo el avatar fresquito
@@ -88,8 +83,8 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       is_service_offer: isService,
       image_url: imageUrl || null,
       author_name: finalName,
-      author_role: freshProfile?.role || 'Comunidad',
-      author_avatar: freshProfile?.avatar_url || null, // Sincronización total del avatar
+      author_role: freshIdentity?.role || 'Comunidad',
+      author_avatar: freshIdentity?.avatar || null, // Sincronización total del avatar
     };
 
     if (editPost) {

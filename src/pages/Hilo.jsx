@@ -5,6 +5,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 
+const MESSAGES_PAGE_SIZE = 50;
+
 export default function Hilo() {
   const { user } = useAuth();
   const location = useLocation();
@@ -15,6 +17,8 @@ export default function Hilo() {
   const [newMessage, setNewMessage] = useState('');
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const messagesEndRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -87,9 +91,23 @@ export default function Hilo() {
           if (p.user_email) profilesMap[p.user_email.toLowerCase().trim()] = p;
         });
 
+        // Contador de mensajes no leídos: una sola consulta agrupada en vez de
+        // una consulta por cada chat (evita N+1 round trips a la base de datos)
+        const chatIds = chatsData.map(c => c.id);
+        const { data: unreadRows } = await supabase
+          .from('chat_messages')
+          .select('chat_id')
+          .in('chat_id', chatIds)
+          .eq('is_read', false)
+          .not('sender_email', 'eq', myEmail);
+
+        const unreadCounts = {};
+        (unreadRows || []).forEach(r => {
+          unreadCounts[r.chat_id] = (unreadCounts[r.chat_id] || 0) + 1;
+        });
+
         // C. CRUCE DE IDENTIDADES EN MEMORIA LOCAL
-        const chatsWithProfiles = await Promise.all(
-          chatsData.map(async (chat) => {
+        const chatsWithProfiles = chatsData.map((chat) => {
             const u1 = chat.user_1_email?.toLowerCase().trim() || '';
             const u2 = chat.user_2_email?.toLowerCase().trim() || '';
             const otherEmail = u1 === myEmail ? u2 : u1;
@@ -137,17 +155,9 @@ export default function Hilo() {
               }
             }
 
-            // Contador de mensajes no leídos
-            const { count } = await supabase
-              .from('chat_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('chat_id', chat.id)
-              .eq('is_read', false)
-              .not('sender_email', 'eq', myEmail);
-
-            return { 
-              ...chat, 
-              unread_count: count || 0,
+            return {
+              ...chat,
+              unread_count: unreadCounts[chat.id] || 0,
               otherUser: { 
                 id: targetId, 
                 display_name: displayName, 
@@ -156,10 +166,9 @@ export default function Hilo() {
                 role: role,
                 isSchool: isSchool,
                 isCompany: isCompany
-              } 
+              }
             };
-          })
-        );
+          });
 
         setChats(chatsWithProfiles);
 
@@ -187,9 +196,12 @@ export default function Hilo() {
         .from('chat_messages')
         .select('*')
         .eq('chat_id', activeChat.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE);
 
-      if (data) setMessages(data);
+      const ordered = (data || []).slice().reverse();
+      setMessages(ordered);
+      setHasMoreMessages(ordered.length === MESSAGES_PAGE_SIZE);
       setLoadingMessages(false);
       setTimeout(scrollToBottom, 50);
 
@@ -228,6 +240,25 @@ export default function Hilo() {
       supabase.removeChannel(channel);
     };
   }, [activeChat, myEmail]);
+
+  const loadOlderMessages = async () => {
+    if (loadingOlderMessages || !hasMoreMessages || messages.length === 0) return;
+    setLoadingOlderMessages(true);
+
+    const oldestCreatedAt = messages[0].created_at;
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('chat_id', activeChat.id)
+      .lt('created_at', oldestCreatedAt)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_PAGE_SIZE);
+
+    const olderOrdered = (data || []).slice().reverse();
+    setMessages(prev => [...olderOrdered, ...prev]);
+    setHasMoreMessages(olderOrdered.length === MESSAGES_PAGE_SIZE);
+    setLoadingOlderMessages(false);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -278,7 +309,16 @@ export default function Hilo() {
       {!activeChat ? (
         <div className="absolute inset-0 flex flex-col bg-card animate-fade-in">
           <div className="p-4 border-b border-border space-y-3 flex-shrink-0">
-            <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/')}
+                className="p-1.5 -ml-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Volver a Inicio"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+            </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground/70" />
               <input 
@@ -370,7 +410,19 @@ export default function Hilo() {
             {loadingMessages ? (
               <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
             ) : (
-              messages.map((msg) => {
+              <>
+              {hasMoreMessages && (
+                <div className="flex justify-center pb-2">
+                  <button
+                    onClick={loadOlderMessages}
+                    disabled={loadingOlderMessages}
+                    className="text-[10px] font-medium text-primary hover:opacity-80 disabled:opacity-40 transition-opacity px-3 py-1.5"
+                  >
+                    {loadingOlderMessages ? 'Cargando...' : 'Cargar mensajes anteriores'}
+                  </button>
+                </div>
+              )}
+              {messages.map((msg) => {
                 const isMe = msg.sender_email === myEmail;
                 return (
                   <div key={msg.id} className={`flex items-center gap-2 group ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -389,7 +441,8 @@ export default function Hilo() {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
             <div ref={messagesEndRef} />
           </div>
