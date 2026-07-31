@@ -4,6 +4,9 @@ import { supabase } from '@/api/supabaseClient';
 import { ArrowLeft, MapPin, Tag, Trash2, Pencil, MessageCircle, Image as ImageIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
+import MakeOfferModal from '@/components/MakeOfferModal';
+import { goBack } from '@/lib/navigation';
+import { openMarketplaceListingChat } from '@/lib/marketplaceChat';
 
 const CATEGORY_LABELS = {
   material_escolar: 'Material escolar',
@@ -22,6 +25,7 @@ export default function ListingDetail() {
   const [user, setUser] = useState(null);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
 
   const [carouselApi, setCarouselApi] = useState();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -53,19 +57,23 @@ export default function ListingDetail() {
     return () => carouselApi.off('select', onSelect);
   }, [carouselApi]);
 
+  const handleComprar = () => {
+    if (listing.delivery_method === 'mano') {
+      handleContactar();
+      return;
+    }
+    if (listing.delivery_method === 'envio') {
+      navigate(`/anuncios/${listing.id}/envio`);
+      return;
+    }
+    navigate(`/anuncios/${listing.id}/entrega`);
+  };
+
   const handleContactar = async () => {
-    if (!user?.email || !listing?.author_email) return;
-
-    const emails = [user.email.toLowerCase().trim(), listing.author_email.toLowerCase().trim()].sort();
-
-    const { data } = await supabase
-      .from('chats')
-      .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
-      .select()
-      .single();
-
-    if (data) {
-      navigate('/hilo', { state: { activeChatId: data.id } });
+    if (!user?.email || !listing) return;
+    const chat = await openMarketplaceListingChat(user.email, listing);
+    if (chat) {
+      navigate('/hilo', { state: { activeChatId: chat.id } });
     }
   };
 
@@ -86,7 +94,7 @@ export default function ListingDetail() {
   return (
     <div className="max-w-5xl mx-auto px-4 pb-20 mt-6 animate-in fade-in duration-300">
 
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium mb-6">
+      <button onClick={() => goBack(navigate, '/servicios')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium mb-6">
         <ArrowLeft className="w-4 h-4" /> Volver atrás
       </button>
 
@@ -208,6 +216,33 @@ export default function ListingDetail() {
                   <Trash2 className="w-4 h-4" /> Eliminar mi anuncio
                 </button>
               </div>
+            ) : listing.listing_type === 'vendo' && listing.sold_at ? (
+              <div className="text-center text-sm font-semibold text-muted-foreground bg-muted rounded-xl py-2.5">
+                Este anuncio ya se ha vendido
+              </div>
+            ) : listing.listing_type === 'vendo' ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleContactar}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-muted text-foreground rounded-xl text-sm font-semibold py-2.5 hover:bg-muted/70 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Contactar
+                  </button>
+                  <button
+                    onClick={() => setShowOfferModal(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-muted text-foreground rounded-xl text-sm font-semibold py-2.5 hover:bg-muted/70 transition-all"
+                  >
+                    Hacer oferta
+                  </button>
+                </div>
+                <button
+                  onClick={handleComprar}
+                  className="w-full flex items-center justify-center gap-1.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold py-2.5 hover:bg-primary/90 transition-all"
+                >
+                  Comprar
+                </button>
+              </div>
             ) : (
               <button
                 onClick={handleContactar}
@@ -253,6 +288,18 @@ export default function ListingDetail() {
               .eq('id', listing.id)
               .maybeSingle();
             if (data) setListing(data);
+          }}
+        />
+      )}
+
+      {showOfferModal && (
+        <MakeOfferModal
+          listing={listing}
+          userEmail={user?.email}
+          onClose={() => setShowOfferModal(false)}
+          onSent={(chatId) => {
+            setShowOfferModal(false);
+            navigate('/hilo', { state: { activeChatId: chatId } });
           }}
         />
       )}

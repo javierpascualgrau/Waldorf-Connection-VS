@@ -85,6 +85,9 @@ export default function Layout() {
 
   const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil';
   const mostrarBotonHilo = location.pathname === '/';
+  // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
+  // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
+  const isMessagesRoute = location.pathname.startsWith('/hilo');
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -121,7 +124,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-4 pb-24">
+      <main className={`flex-1 mx-auto w-full px-4 py-4 pb-24 ${isMessagesRoute ? 'max-w-5xl' : 'max-w-2xl'}`}>
         <Outlet />
       </main>
 

@@ -16,9 +16,17 @@ import SchoolProfile from './pages/SchoolProfile';
 import Hilo from '@/pages/Hilo'; 
 import EventDetail from './pages/EventDetail';
 import ListingDetail from './pages/ListingDetail';
+import EmployabilityDetail from './pages/EmployabilityDetail';
+import DeliveryMethodChoice from './pages/DeliveryMethodChoice';
+import ShippingCheckout from './pages/ShippingCheckout';
+import MisVentas from './pages/MisVentas';
+import MisCompras from './pages/MisCompras';
 
 // 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
-import CompanyProfile from './pages/CompanyProfile'; 
+import CompanyProfile from './pages/CompanyProfile';
+
+// 🎨 Sandbox de diseño — solo dev, ver import.meta.env.DEV más abajo
+import DesignLab from '@/pages/DesignLab';
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth } = useAuth();
@@ -50,14 +58,27 @@ const AuthenticatedApp = () => {
       <Route path="/servicios" element={<Servicios />} />
       <Route path="/eventos/:id" element={<EventDetail />} />
       <Route path="/anuncios/:id" element={<ListingDetail />} />
+      <Route path="/anuncios/:id/entrega" element={<DeliveryMethodChoice />} />
+      <Route path="/anuncios/:id/envio" element={<ShippingCheckout />} />
+      <Route path="/mis-ventas" element={<MisVentas />} />
+      <Route path="/mis-compras" element={<MisCompras />} />
+      <Route path="/empleo/:id" element={<EmployabilityDetail />} />
       
       {/* 💡 AÑADIMOS LA RUTA PARA CARGAR EL PERFIL DE LAS EMPRESAS */}
       <Route path="/empresas/:id" element={<CompanyProfile />} />
       
-      <Route path="/hilo" element={<Hilo />} /> 
+      <Route path="/hilo" element={<Hilo />} />
+      <Route path="/hilo/:chatId" element={<Hilo />} />
       <Route path="/perfil" element={<Perfil />} />
       <Route path="/usuario/:id" element={<PerfilPublico />} />
     </Route>
+
+    {/* 🎨 /design-lab: sandbox visual, fuera de Layout a propósito (sin nav real ni datos reales).
+        import.meta.env.DEV hace que Vite la elimine del bundle en `npm run build`. */}
+    {import.meta.env.DEV && (
+      <Route path="/design-lab" element={<DesignLab />} />
+    )}
+
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );

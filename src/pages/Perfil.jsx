@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'; // 💡 NUEVO: Para redirigir tras cerrar sesión
+import { useNavigate, Link } from 'react-router-dom'; // 💡 NUEVO: Para redirigir tras cerrar sesión
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 // 💡 NUEVO: Añadido el icono 'LogOut' de lucide-react
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut } from 'lucide-react'; 
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut, ShoppingBag, Package } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import ChangePasswordModal from '@/components/ChangePasswordModal'; 
 import SchoolProfile from './SchoolProfile'; 
@@ -419,6 +419,22 @@ export default function Perfil() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Compraventa: pedidos como comprador y como vendedor */}
+      <div className="flex gap-2 mb-5">
+        <Link
+          to="/mis-compras"
+          className="flex-1 flex items-center justify-center gap-1.5 bg-card border border-border rounded-xl text-sm font-medium py-2.5 hover:border-primary/30 transition-colors"
+        >
+          <Package className="w-4 h-4 text-primary" /> Mis compras
+        </Link>
+        <Link
+          to="/mis-ventas"
+          className="flex-1 flex items-center justify-center gap-1.5 bg-card border border-border rounded-xl text-sm font-medium py-2.5 hover:border-primary/30 transition-colors"
+        >
+          <ShoppingBag className="w-4 h-4 text-primary" /> Mis ventas
+        </Link>
       </div>
 
       {/* Mis publicaciones */}

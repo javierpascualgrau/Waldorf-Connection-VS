@@ -5,6 +5,7 @@ import { getMemberIdentity } from '@/lib/identity';
 import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircle, Tag, School, ArrowLeftRight } from 'lucide-react';
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
+import CreateEmployabilityListingModal from '@/components/CreateEmployabilityListingModal';
 
 const SERVICIOS_TABS = [
   { id: 'compraventa', label: 'Compraventa', icon: ShoppingBag },
@@ -41,6 +42,15 @@ const TRIP_TYPE_FILTERS = [
   { label: 'Ida y vuelta', value: 'ambos' },
 ];
 
+const EMPLOYABILITY_CATEGORY_FILTERS = [
+  { label: 'Todas', value: 'Todas' },
+  { label: 'Educación', value: 'educacion' },
+  { label: 'Bienestar', value: 'bienestar' },
+  { label: 'Artes', value: 'artes' },
+  { label: 'Retiros', value: 'retiros' },
+  { label: 'Salud', value: 'salud' },
+];
+
 export default function Servicios() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('compraventa');
@@ -62,6 +72,12 @@ export default function Servicios() {
   const [selectedSchoolFilter, setSelectedSchoolFilter] = useState('Todos');
   const [selectedTripType, setSelectedTripType] = useState('Todos');
 
+  const [employabilityListings, setEmployabilityListings] = useState([]);
+  const [loadingEmployability, setLoadingEmployability] = useState(true);
+  const [showCreateEmploymentModal, setShowCreateEmploymentModal] = useState(false);
+  const [employmentType, setEmploymentType] = useState('oferta');
+  const [selectedEmploymentCategory, setSelectedEmploymentCategory] = useState('Todas');
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -76,6 +92,7 @@ export default function Servicios() {
       const { data } = await supabase
         .from('marketplace_listings')
         .select('*')
+        .is('sold_at', null)
         .order('created_at', { ascending: false });
       setListings(data || []);
 
@@ -89,6 +106,14 @@ export default function Servicios() {
       setRoutes(routesRes.data || []);
       setSchools(schoolsRes.data || []);
       setLoadingRoutes(false);
+
+      setLoadingEmployability(true);
+      const { data: employabilityData } = await supabase
+        .from('employability_listings')
+        .select('*')
+        .order('created_at', { ascending: false });
+      setEmployabilityListings(employabilityData || []);
+      setLoadingEmployability(false);
     };
     loadData();
   }, []);
@@ -121,6 +146,12 @@ export default function Servicios() {
     await supabase.from('school_routes').delete().eq('id', route.id);
   };
 
+  const handleDeleteEmploymentListing = async (listing) => {
+    if (!window.confirm('¿Quieres eliminar esta publicación?')) return;
+    setEmployabilityListings(prev => prev.filter(l => l.id !== listing.id));
+    await supabase.from('employability_listings').delete().eq('id', listing.id);
+  };
+
   const myEmailClean = user?.email?.toLowerCase().trim() || '';
 
   const filteredListings = listings.filter(l => {
@@ -140,6 +171,16 @@ export default function Servicios() {
     const matchesTripType = selectedTripType === 'Todos' || r.trip_type === selectedTripType;
     return matchesSearch && matchesSchool && matchesTripType;
   });
+
+  const filteredEmploymentListings = employabilityListings.filter(l => {
+    const matchesSearch = l.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = l.listing_type === employmentType;
+    const matchesCategory = selectedEmploymentCategory === 'Todas' || l.category === selectedEmploymentCategory;
+    return matchesSearch && matchesType && matchesCategory;
+  });
+
+  const selectedEmploymentCategoryLabel = EMPLOYABILITY_CATEGORY_FILTERS.find(c => c.value === selectedEmploymentCategory)?.label;
 
   return (
     <div className="max-w-3xl mx-auto pb-20 animate-in fade-in duration-300">
@@ -322,6 +363,7 @@ export default function Servicios() {
                 const { data } = await supabase
                   .from('marketplace_listings')
                   .select('*')
+                  .is('sold_at', null)
                   .order('created_at', { ascending: false });
                 setListings(data || []);
               }}
@@ -475,13 +517,165 @@ export default function Servicios() {
         </>
       )}
 
-      {/* EMPLEABILIDAD (próximamente) */}
+      {/* EMPLEABILIDAD */}
       {activeTab === 'empleo' && (
-        <div className="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
-          <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="font-cormorant text-xl text-muted-foreground">Empleabilidad — próximamente</p>
-          <p className="text-xs text-muted-foreground mt-1">Aquí podrás anunciarte ofreciendo clases, canguro y otros servicios.</p>
-        </div>
+        <>
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => setShowCreateEmploymentModal(true)}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Publicar
+            </button>
+          </div>
+
+          <div className="relative mb-4 max-w-2xl mx-auto">
+            <Search className="absolute left-4 top-3.5 h-4 w-4 text-muted-foreground/60" />
+            <input
+              type="text"
+              placeholder="Buscar por título o descripción..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-muted/30 border border-border/60 rounded-2xl pl-11 pr-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all"
+            />
+          </div>
+
+          <div className="flex gap-1.5 mb-3 bg-muted/50 p-1 rounded-2xl max-w-xs mx-auto">
+            <button
+              onClick={() => setEmploymentType('oferta')}
+              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                employmentType === 'oferta' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              Ofrezco
+            </button>
+            <button
+              onClick={() => setEmploymentType('busqueda')}
+              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                employmentType === 'busqueda' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              Busco
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 mb-6 overflow-x-auto pb-1">
+            {EMPLOYABILITY_CATEGORY_FILTERS.map(f => (
+              <button
+                key={f.value}
+                onClick={() => setSelectedEmploymentCategory(f.value)}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  selectedEmploymentCategory === f.value
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-muted/40 text-muted-foreground border-border/40 hover:border-border'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {loadingEmployability ? (
+            <div className="text-center py-12 animate-pulse text-muted-foreground text-sm">Cargando publicaciones...</div>
+          ) : filteredEmploymentListings.length === 0 ? (
+            <div className="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
+              <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="font-cormorant text-xl text-muted-foreground">
+                {selectedEmploymentCategory === 'Todas'
+                  ? 'Aún no hay publicaciones aquí'
+                  : `Aún no hay publicaciones en ${selectedEmploymentCategoryLabel}`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedEmploymentCategory === 'Todas'
+                  ? 'Sé el primero en ofrecer o buscar algo entre familias Waldorf.'
+                  : `Sé el primero en publicar tu ${employmentType === 'oferta' ? 'oferta' : 'búsqueda'} en ${selectedEmploymentCategoryLabel.toLowerCase()}.`}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filteredEmploymentListings.map(listing => {
+                const isMine = myEmailClean && listing.author_email?.toLowerCase().trim() === myEmailClean;
+                const categoryLabel = EMPLOYABILITY_CATEGORY_FILTERS.find(c => c.value === listing.category)?.label || listing.category;
+                const initials = listing.author_name?.slice(0, 2).toUpperCase() || 'W';
+                return (
+                  <div
+                    key={listing.id}
+                    onClick={() => navigate(`/empleo/${listing.id}`)}
+                    className="p-4 bg-card border border-border rounded-2xl shadow-sm flex flex-col gap-2 hover:border-primary/20 hover:shadow-md transition-all animate-in fade-in duration-200 cursor-pointer"
+                  >
+                    <div
+                      onClick={(e) => { e.stopPropagation(); navigate(`/usuario/${encodeURIComponent(listing.author_email)}`); }}
+                      className="flex items-center gap-2 group"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0 group-hover:opacity-80 transition-opacity">
+                        {listing.author_avatar ? (
+                          <img src={listing.author_avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-primary font-cormorant font-semibold text-[10px]">{initials}</span>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                        {listing.author_name || 'Miembro de la comunidad'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                        listing.listing_type === 'oferta'
+                          ? 'bg-primary/5 text-primary border-primary/10'
+                          : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                      }`}>
+                        {listing.listing_type === 'oferta' ? 'Ofrezco' : 'Busco'}
+                      </span>
+                      <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md flex items-center gap-1">
+                        <Tag className="w-2.5 h-2.5" /> {categoryLabel}
+                      </span>
+                    </div>
+
+                    <h3 className="text-sm font-semibold text-foreground leading-tight">{listing.title}</h3>
+                    {listing.description && (
+                      <p className="text-xs text-foreground/80 leading-relaxed">{listing.description}</p>
+                    )}
+
+                    <div className="pt-2 border-t border-border/50 mt-1">
+                      {isMine ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteEmploymentListing(listing); }}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-destructive/80 hover:text-destructive py-1.5 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Eliminar mi publicación
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleContactar(listing); }}
+                          className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" /> Contactar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showCreateEmploymentModal && (
+            <CreateEmployabilityListingModal
+              user={user}
+              identity={identity}
+              onClose={() => setShowCreateEmploymentModal(false)}
+              onCreated={async () => {
+                setShowCreateEmploymentModal(false);
+                const { data } = await supabase
+                  .from('employability_listings')
+                  .select('*')
+                  .order('created_at', { ascending: false });
+                setEmployabilityListings(data || []);
+              }}
+            />
+          )}
+        </>
       )}
 
     </div>

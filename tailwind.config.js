@@ -55,6 +55,14 @@ module.exports = {
                 sand: 'hsl(var(--sand))',
                 cream: 'hsl(var(--cream))',
                 bark: 'hsl(var(--bark))',
+                // Solo definidos dentro de .design-lab (ver src/index.css) — no existen en :root
+                lab: {
+                    mostaza: 'hsl(var(--lab-mostaza))',
+                    amarillo: 'hsl(var(--lab-amarillo))',
+                    naranja: 'hsl(var(--lab-naranja))',
+                    escarlata: 'hsl(var(--lab-escarlata))',
+                    rojochile: 'hsl(var(--lab-rojochile))',
+                },
             },
             animation: {
                 'accordion-down': 'accordion-down 0.2s ease-out',

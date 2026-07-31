@@ -79,6 +79,7 @@ export default function CreateMarketplaceListingModal({ user, identity, onClose,
         .from('marketplace_listings')
         .insert([{
           ...listingData,
+          author_id: user?.id || null,
           author_email: user?.email || '',
           author_name: identity?.name || user?.email?.split('@')[0] || 'Miembro de la comunidad',
           author_avatar: identity?.avatar || null,

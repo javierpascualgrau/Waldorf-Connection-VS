@@ -67,7 +67,7 @@
   * {
     @apply border-border outline-ring/50;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Antropos', sans-serif;
@@ -77,4 +77,43 @@
   h1, h2, h3 {
     @apply font-cormorant;
   }
+}
+
+/*
+ * ============================================================
+ * DESIGN LAB (/design-lab) — dev-only sandbox, see src/pages/DesignLab.jsx.
+ * Scoped entirely under .design-lab so it never touches :root/.dark and
+ * cannot bleed into any real route. Re-skins primary/secondary/accent/
+ * destructive/ring with the candidate brand palette so real components
+ * (Button, Badge, PostCard, nav item) can be previewed with it in context.
+ * ============================================================
+ */
+.design-lab {
+  --lab-mostaza: 47 100% 68%;    /* #FFDC5E */
+  --lab-amarillo: 46 100% 52%;   /* #FFC60A */
+  --lab-naranja: 28 100% 51%;    /* #FF7805 */
+  --lab-escarlata: 10 100% 50%;  /* #FF2A00 */
+  --lab-rojochile: 3 89% 47%;    /* #E3180D */
+
+  --primary: var(--lab-naranja);
+  --primary-foreground: var(--foreground);
+  --secondary: var(--lab-mostaza);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--lab-amarillo);
+  --accent-foreground: var(--foreground);
+  /* Rojo chile es el único color base lo bastante oscuro para texto claro legible (ver .design-lab[data-palette="pastel"]) */
+  --destructive: var(--lab-rojochile);
+  --destructive-foreground: var(--background);
+  --ring: var(--lab-escarlata);
+}
+
+.design-lab[data-palette="pastel"] {
+  --lab-mostaza: 47 100% 83%;    /* #FFECA6 */
+  --lab-amarillo: 46 100% 74%;   /* #FFE078 */
+  --lab-naranja: 28 100% 73%;    /* #FFB576 */
+  --lab-escarlata: 10 100% 73%;  /* #FF8A73 */
+  --lab-rojochile: 3 80% 71%;    /* #F0807A */
+
+  /* La versión pastel de rojo chile (rosa salmón) ya es demasiado clara para texto blanco legible */
+  --destructive-foreground: var(--foreground);
 }
