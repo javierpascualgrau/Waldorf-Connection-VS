@@ -11,12 +11,24 @@ const TABS = [
 ];
 
 const PAGE_SIZE = 15;
+const TRENDING_LIMIT = 10;
+
+// Lunes 00:00 de la semana natural en curso
+function getStartOfWeek() {
+  const start = new Date();
+  const day = start.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diffToMonday);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
 
 export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [likedIds, setLikedIds] = useState(new Set());
+  const [likedEventIds, setLikedEventIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +93,7 @@ export default function Feed() {
       const from = 0;
       const to = PAGE_SIZE - 1;
 
-      const [postsRes, eventsRes, followsRes, likesRes, schoolsRes] = await Promise.all([
+      const [postsRes, eventsRes, followsRes, likesRes, eventLikesRes, schoolsRes] = await Promise.all([
         supabase.from('posts').select('*').order('created_date', { ascending: false }).range(from, to),
         supabase.from('school_events').select('*').order('created_date', { ascending: false }).range(from, to),
         myEmailClean
@@ -89,6 +101,9 @@ export default function Feed() {
           : Promise.resolve({ data: [], error: null }),
         myEmailClean
           ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
+          : Promise.resolve({ data: [], error: null }),
+        myEmailClean
+          ? supabase.from('school_event_likes').select('event_id').eq('user_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
         supabase.from('school_profiles').select('*')
       ]);
@@ -101,6 +116,11 @@ export default function Feed() {
       if (likesRes.data) {
         const idsConLike = new Set(likesRes.data.map(l => String(l.post_id)));
         setLikedIds(idsConLike);
+      }
+
+      if (eventLikesRes.data) {
+        const eventIdsConLike = new Set(eventLikesRes.data.map(l => String(l.event_id)));
+        setLikedEventIds(eventIdsConLike);
       }
 
       const newPosts = postsRes.data || [];
@@ -140,13 +160,22 @@ export default function Feed() {
   };
 
   const getFilteredFeed = () => {
+    if (tab === 'tendencias') {
+      const startOfWeek = getStartOfWeek();
+      // 💡 Persona, empresa (posts) y colegio (events) se combinan y rankean por igual: misma ventana de fecha, mismo criterio de likes
+      return [
+        ...posts.map(p => ({ type: 'post', data: p })),
+        ...events.map(e => ({ type: 'event', data: e })),
+      ]
+        .filter(({ data }) => data.created_date && new Date(data.created_date) >= startOfWeek)
+        .sort((a, b) => (b.data.likes_count || 0) - (a.data.likes_count || 0))
+        .slice(0, TRENDING_LIMIT);
+    }
+
     let filteredPosts = posts;
     let filteredEvents = events;
 
-    if (tab === 'tendencias') {
-      filteredPosts = [...posts].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
-      filteredEvents = [...events].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
-    } else if (tab === 'siguiendo') {
+    if (tab === 'siguiendo') {
       filteredPosts = posts.filter(p => p.author_email && followingIds.has(p.author_email.toLowerCase().trim()));
       // 💡 CORREGIDO: En lugar de vaciar el array con un [], filtramos de forma real usando los seguimientos activos
       filteredEvents = events.filter(e => e.school_email && followingIds.has(e.school_email.toLowerCase().trim()));
@@ -165,12 +194,6 @@ export default function Feed() {
 
   return (
     <div>
-      {/* Hero */}
-      <div className="mb-6">
-        <h1 className="font-cormorant text-3xl font-semibold mb-1">Waldorf Connect</h1>
-        <p className="text-sm text-muted-foreground">Tu comunidad Waldorf en un solo lugar</p>
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-1.5 mb-5 bg-muted/50 p-1 rounded-2xl">
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -241,7 +264,7 @@ export default function Feed() {
                 key={`event-${item.data.id}`}
                 event={item.data}
                 userEmail={user?.email}
-                likedIds={likedIds}
+                likedEventIds={likedEventIds}
                 followingIds={followingIds}
                 /* 💡 PASO EXTRA: Conectamos la sincronización reactiva */
                 onFollowToggle={handleFollowToggle} 

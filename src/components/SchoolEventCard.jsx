@@ -30,11 +30,16 @@ const EVENT_TYPE_COLORS = {
 };
 
 /* 💡 CAPTURA: Añadido onFollowToggle a las propiedades recibidas */
-export default function SchoolEventCard({ event, userEmail, likedIds, followingIds = new Set(), onFollowToggle }) {
-  const isLiked = likedIds?.has(event.id);
+export default function SchoolEventCard({ event, userEmail, likedEventIds = new Set(), followingIds = new Set(), onFollowToggle }) {
+  const eventId = String(event.id);
+  const isLiked = likedEventIds?.has(eventId);
   const [likesCount, setLikesCount] = useState(event.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLiked(likedEventIds?.has(eventId));
+  }, [likedEventIds, eventId]);
 
   const [schoolEmail, setSchoolEmail] = useState('');
   const [following, setFollowing] = useState(false);
@@ -71,19 +76,44 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
   const handleLike = async () => {
     if (loading || !userEmail) return;
     setLoading(true);
-    
+
     const newCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
-    
-    const { error } = await supabase
+    const myEmailClean = userEmail.toLowerCase().trim();
+
+    if (liked) {
+      const { error: errorDelete } = await supabase
+        .from('school_event_likes')
+        .delete()
+        .eq('user_email', myEmailClean)
+        .eq('event_id', eventId);
+
+      if (errorDelete) {
+        console.error("Error al quitar el like del evento:", errorDelete);
+        setLoading(false);
+        return;
+      }
+    } else {
+      const { error: errorInsert } = await supabase
+        .from('school_event_likes')
+        .insert([{ user_email: myEmailClean, event_id: eventId }]);
+
+      if (errorInsert) {
+        console.error("Error al guardar el like del evento:", errorInsert);
+        setLoading(false);
+        return;
+      }
+    }
+
+    const { error: errorUpdate } = await supabase
       .from('school_events')
       .update({ likes_count: newCount })
       .eq('id', event.id);
 
-    if (!error) {
+    if (!errorUpdate) {
       setLikesCount(newCount);
       setLiked(!liked);
     } else {
-      console.error("Error al dar like al evento:", error);
+      console.error("Error al actualizar el contador de likes del evento:", errorUpdate);
     }
     setLoading(false);
   };
@@ -209,11 +239,14 @@ export default function SchoolEventCard({ event, userEmail, likedIds, followingI
           </button>
 
           {userEmail && schoolEmail && (
+            /* 💡 UNIFICADO: Mismas clases que PostCard.jsx (Gris si sigues, verde si no) */
             <button
               onClick={handleFollow}
               disabled={followLoading}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full transition-colors ${
-                following ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-primary/5'
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-all ${
+                following
+                  ? 'bg-muted text-muted-foreground border-border'
+                  : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
               }`}
             >
               {following ? (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2, Send, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2, Send, Loader2, X } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,16 +27,15 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
   const schoolId = post.school_id;
   const lookupEmail = authorEmailClean || schoolEmailClean;
 
-  const isFollowing = followingIds?.has(lookupEmail);
-
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [liked, setLiked] = useState(isLiked);
-  const [following, setFollowing] = useState(isFollowing);
+  const [following, setFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [currentPost, setCurrentPost] = useState(post);
+  const [lightboxImage, setLightboxImage] = useState(null);
   const menuRef = useRef();
 
   const [authorProfile, setAuthorProfile] = useState(null);
@@ -57,9 +56,20 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     setLiked(likedIds?.has(postId));
   }, [likedIds, postId]);
 
+  // 💡 COMPROBACIÓN SINCRONIZADA: Evalúa el botón por email completo o coincidencia por alias/prefijo corporativo
   useEffect(() => {
-    setFollowing(followingIds?.has(lookupEmail));
-  }, [followingIds, lookupEmail]);
+    if (lookupEmail) {
+      const cleanLookup = lookupEmail.toLowerCase().trim();
+      const lookupPrefix = cleanLookup.split('@')[0];
+      
+      const isFollowingUser = Array.from(followingIds || []).some(email => {
+        const cleanEmail = email.toLowerCase().trim();
+        return cleanEmail === cleanLookup || (currentPost.author_role === 'empresa' && lookupPrefix && cleanEmail.split('@')[0] === lookupPrefix);
+      });
+      
+      setFollowing(isFollowingUser);
+    }
+  }, [followingIds, lookupEmail, currentPost.author_role]);
 
   // COMPROBACIÓN MULTITABLA REPARADA: Buscamos en colegios, empresas o perfiles normales
   useEffect(() => {
@@ -210,6 +220,15 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setLightboxImage(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxImage]);
 
   // RUTAS DE ORIGEN REPARADAS: Redirección directa al perfil correcto sin pasar por /usuario
   const handleAuthorClick = async (e) => {
@@ -421,29 +440,49 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
     }
   };
 
+  // 💡 ACCIÓN OPTIMISTA INTERCONECTADA: Toggle inmediato libre de lag y a prueba de prefijos de dominio
   const handleFollow = async () => {
     if (followLoading || !userEmail || !lookupEmail || isOwner) return;
     setFollowLoading(true);
 
     const follower = userEmail.toLowerCase().trim();
-    const followed = lookupEmail;
+    const followed = lookupEmail.toLowerCase().trim();
+    const followedPrefix = followed.split('@')[0];
 
-    if (following) {
-      const { error } = await supabase
-        .from('user_follows')
-        .delete()
-        .eq('follower_email', follower)
-        .eq('following_email', followed);
+    // 🚀 INTERFAZ INMEDIATA (UI Optimista)
+    const previousFollowingState = following;
+    setFollowing(!previousFollowingState);
 
-      if (!error) setFollowing(false);
-    } else {
-      const { error } = await supabase
-        .from('user_follows')
-        .insert([{ follower_email: follower, following_email: followed }]);
+    try {
+      if (previousFollowingState) {
+        let emailToDelete = followed;
+        if (currentPost.author_role === 'empresa') {
+          const matchedEmail = Array.from(followingIds || []).find(email => 
+            email.toLowerCase().trim() === followed || (followedPrefix && email.toLowerCase().trim().split('@')[0] === followedPrefix)
+          );
+          if (matchedEmail) emailToDelete = matchedEmail;
+        }
 
-      if (!error) setFollowing(true);
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_email', follower)
+          .eq('following_email', emailToDelete);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_follows')
+          .insert([{ follower_email: follower, following_email: followed }]);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error("Error al gestionar seguimiento:", error);
+      setFollowing(previousFollowingState); // Reversión táctica si falla
+    } finally {
+      setFollowLoading(false);
     }
-    setFollowLoading(false);
   };
 
   const handleDelete = async () => {
@@ -480,7 +519,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                 <span className="text-primary font-cormorant font-semibold text-sm">{initials}</span>
               )}
             </div>
-            {/* 💡 SANEADO: Eliminado cualquier rastro de hovers verdes o subrayados para mantener la consistencia estética con los perfiles normales */}
             <div className="flex-1 min-w-0 group-hover:opacity-80 transition-opacity">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm text-foreground">{displayName}</span>
@@ -542,7 +580,12 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
 
         {/* Image */}
         {currentPost.image_url && (
-          <img src={currentPost.image_url} alt="" className="w-full rounded-xl object-cover max-h-64 mb-3" />
+          <img
+            src={currentPost.image_url}
+            alt=""
+            onClick={() => setLightboxImage(currentPost.image_url)}
+            className="w-full rounded-xl object-cover max-h-64 mb-3 cursor-pointer"
+          />
         )}
 
         {/* Meta */}
@@ -567,7 +610,6 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
           <div className="flex items-center gap-4">
             <button
               onClick={handleLike}
-              disabled={loading}
               className={`flex items-center p-1 transition-colors ${liked ? 'text-rose-500' : 'text-muted-foreground hover:text-rose-400'}`}
             >
               <Heart className={`w-5 h-5 ${liked ? 'fill-rose-500' : ''}`} />
@@ -581,11 +623,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             </button>
           </div>
           {userEmail && !isOwner && (
+            /* 💡 UNIFICADO: Clases idénticas a Comunidad.jsx (Gris si sigues, verde si no) */
             <button
               onClick={handleFollow}
               disabled={followLoading}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full transition-colors ${
-                following ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-primary/5'
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border transition-all ${
+                following 
+                  ? 'bg-muted text-muted-foreground border-border' 
+                  : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
               }`}
             >
               {following ? (
@@ -708,6 +753,26 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             if (data) setCurrentPost(data);
           }}
         />
+      )}
+
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+          />
+        </div>
       )}
     </>
   );
