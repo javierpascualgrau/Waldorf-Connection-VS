@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2, UserPlus, UserCheck } from 'lucide-react';
-import CreateSchoolEventModal from './CreateSchoolEventModal';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import CreatePostModal from '@/components/CreatePostModal';
+import PostCard from '@/components/PostCard';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -17,18 +18,53 @@ export default function SchoolProfile() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
-  const [newActivity, setNewActivity] = useState('');
-  
+  const [activeTab, setActiveTab] = useState('aldia');
+
+  const [dailyPosts, setDailyPosts] = useState([]);
+  const [likedPostIds, setLikedPostIds] = useState(new Set());
+  const [myFollowingIds, setMyFollowingIds] = useState(new Set());
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
   const currentSchoolId = id || user?.id;
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKeyDown = (e) => { if (e.key === 'Escape') setLightboxIndex(null); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex]);
+
+  // 💡 "Al día": posts del colegio (type='daily'), separados de los Eventos futuros
+  useEffect(() => {
+    const loadDailyPosts = async () => {
+      if (!currentSchoolId) return;
+      const myEmailClean = user?.email?.toLowerCase().trim() || '';
+
+      const [postsRes, likesRes, followsRes] = await Promise.all([
+        supabase.from('posts').select('*').eq('author_id', currentSchoolId).eq('type', 'daily').order('created_date', { ascending: false }),
+        myEmailClean
+          ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
+          : Promise.resolve({ data: [] }),
+        myEmailClean
+          ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      setDailyPosts(postsRes.data || []);
+      setLikedPostIds(new Set((likesRes.data || []).map(l => String(l.post_id))));
+      setMyFollowingIds(new Set((followsRes.data || []).map(f => f.following_email?.toLowerCase().trim())));
+    };
+    loadDailyPosts();
+  }, [currentSchoolId, user?.email]);
 
   const loadEvents = async (schoolId) => {
     if (!schoolId) return;
@@ -205,9 +241,11 @@ export default function SchoolProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
       <div className="flex items-center justify-between mb-5">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
-          <ArrowLeft className="w-4 h-4" /> Volver
-        </button>
+        {isManager ? <div /> : (
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" /> Volver
+          </button>
+        )}
 
         {isManager && (
           !isEditing ? (
@@ -279,9 +317,9 @@ export default function SchoolProfile() {
         </div>
       </div>
 
-      {/* REJILLA DE DETALLES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 space-y-6">
+      {/* REJILLA FIJA: DATOS DEL CENTRO Y GALERÍA */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="md:col-span-1">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">Datos del Centro</h2>
             <div className="flex items-center gap-3">
@@ -313,28 +351,10 @@ export default function SchoolProfile() {
               )}
             </div>
           </div>
-
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-primary" /> Talleres y Proyectos</h2>
-            <div className="flex flex-wrap gap-1.5">
-              {(!isEditing ? school.activities : editForm.activities)?.map((a, i) => (
-                <span key={i} className="bg-muted px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1">
-                  {a}
-                  {isEditing && <button onClick={() => setEditForm({...editForm, activities: editForm.activities.filter(act => act !== a)})} className="text-destructive font-bold ml-1 hover:text-destructive/80">×</button>}
-                </span>
-              ))}
-            </div>
-            {isEditing && (
-              <div className="flex gap-2 mt-4">
-                <input value={newActivity} onChange={e => setNewActivity(e.target.value)} placeholder="Añadir taller..." className="flex-1 bg-muted border border-border rounded-xl px-3 py-1 text-xs" />
-                <button onClick={() => { if(newActivity) { setEditForm({...editForm, activities: [...(editForm.activities || []), newActivity]}); setNewActivity(''); } }} className="bg-primary text-white p-1.5 rounded-xl"><Plus className="w-3 h-3" /></button>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* COLUMNA DER: GALERÍA Y TABLÓN PROTEGIDO */}
-        <div className="md:col-span-2 space-y-6">
+        {/* GALERÍA DE INSTALACIONES */}
+        <div className="md:col-span-2">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2"><ImageIcon className="w-4 h-4 text-primary" /> Galería de Instalaciones</h2>
@@ -347,10 +367,17 @@ export default function SchoolProfile() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(!isEditing ? school.images : editForm.images)?.map((img, i) => (
-                <div key={i} className="relative group rounded-2xl overflow-hidden border border-border h-32 bg-muted">
-                  <img src={img} className="h-full w-full object-cover" alt="galeria" />
+                <div
+                  key={i}
+                  onClick={() => setLightboxIndex(i)}
+                  className="relative group rounded-2xl overflow-hidden border border-border h-32 bg-muted cursor-pointer"
+                >
+                  <img src={img} className="h-full w-full object-cover transition-transform group-hover:scale-105" alt="galeria" />
                   {isEditing && (
-                    <button onClick={() => setEditForm({...editForm, images: editForm.images.filter((_, idx) => idx !== i)})} className="absolute top-2 right-2 bg-destructive text-white p-1 rounded-full text-xs shadow-sm">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditForm({...editForm, images: editForm.images.filter((_, idx) => idx !== i)}); }}
+                      className="absolute top-2 right-2 bg-destructive text-white p-1 rounded-full text-xs shadow-sm"
+                    >
                       <X className="w-3 h-3" />
                     </button>
                   )}
@@ -359,69 +386,159 @@ export default function SchoolProfile() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary" /> Eventos del Colegio
-              </h2>
-              {isManager && (
-                <button 
-                  onClick={() => setShowEventModal(true)} 
-                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
+          {lightboxIndex !== null && (() => {
+            const galleryImages = !isEditing ? school.images : editForm.images;
+            if (!galleryImages?.length) return null;
+            const safeIndex = ((lightboxIndex % galleryImages.length) + galleryImages.length) % galleryImages.length;
+            return (
+              <div
+                className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in"
+                onClick={() => setLightboxIndex(null)}
+              >
+                <button
+                  onClick={() => setLightboxIndex(null)}
+                  className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Publicar Evento
+                  <X className="w-6 h-6" />
                 </button>
-              )}
-            </div>
-            
-            <div className="space-y-4">
-              {schoolEvents.length > 0 ? (
-                schoolEvents.map(e => (
-                  <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
-                      <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
-                      <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
-                      <div className="flex gap-4 text-xs text-muted-foreground pt-3">
-                        <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
-                      </div>
-                    </div>
-                    
-                    {isManager && (
-                      <button 
-                        onClick={async () => {
-                          if (window.confirm("¿Seguro que quieres borrar este evento?")) {
-                            await supabase.from('school_events').delete().eq('id', e.id);
-                            loadEvents(currentSchoolId);
-                          }
-                        }} 
-                        className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+
+                {galleryImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setLightboxIndex(safeIndex - 1); }}
+                      className="absolute left-4 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                    >
+                      <ChevronLeft className="w-8 h-8" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setLightboxIndex(safeIndex + 1); }}
+                      className="absolute right-4 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                    >
+                      <ChevronRight className="w-8 h-8" />
+                    </button>
+                  </>
+                )}
+
+                <img
+                  src={galleryImages[safeIndex]}
+                  alt="galeria a pantalla completa"
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                  onClick={(e) => e.stopPropagation()}
+                />
+
+                {galleryImages.length > 1 && (
+                  <div className="absolute bottom-4 text-white/70 text-sm font-medium">
+                    {safeIndex + 1} / {galleryImages.length}
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
-                  Este centro educativo no tiene eventos activos en cartelera.
-                </p>
-              )}
-            </div>
-          </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
+      {/* BARRA DE PESTAÑAS: AL DÍA / EVENTOS DEL COLEGIO */}
+      <div className="flex gap-1.5 mb-5 bg-muted/50 p-1 rounded-2xl">
+        <button
+          onClick={() => setActiveTab('aldia')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${
+            activeTab === 'aldia' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" /> Al Día
+        </button>
+        <button
+          onClick={() => setActiveTab('eventos')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${
+            activeTab === 'eventos' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" /> Eventos del Colegio
+        </button>
+      </div>
+
+      {/* CONTENIDO DE PESTAÑA */}
+      {activeTab === 'aldia' ? (
+        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+          <div className="space-y-4">
+            {dailyPosts.length > 0 ? (
+              dailyPosts.map(post => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  userEmail={user?.email}
+                  likedIds={likedPostIds}
+                  followingIds={myFollowingIds}
+                  onDeleted={(postId) => setDailyPosts(prev => prev.filter(p => p.id !== postId))}
+                />
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
+                Este centro educativo aún no ha compartido nada de su día a día.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+          {isManager && (
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setShowEventModal(true)}
+                className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" /> Publicar Evento
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {schoolEvents.length > 0 ? (
+              schoolEvents.map(e => (
+                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
+                    <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
+                    <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
+                    <div className="flex gap-4 text-xs text-muted-foreground pt-3">
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
+                    </div>
+                  </div>
+
+                  {isManager && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm("¿Seguro que quieres borrar este evento?")) {
+                          await supabase.from('school_events').delete().eq('id', e.id);
+                          loadEvents(currentSchoolId);
+                        }
+                      }}
+                      className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
+                Este centro educativo no tiene eventos activos en cartelera.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {showEventModal && (
-        <CreateSchoolEventModal 
-          onClose={() => setShowEventModal(false)} 
+        <CreatePostModal
+          user={user}
+          initialType="event"
+          onClose={() => setShowEventModal(false)}
           onCreated={() => {
             setShowEventModal(false);
             loadEvents(currentSchoolId);
-          }} 
-          defaultSchoolName={school?.name} 
-          defaultSchoolId={currentSchoolId}              
+          }}
         />
       )}
     </div>

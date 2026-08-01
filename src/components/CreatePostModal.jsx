@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useRef, useEffect } from 'react';
-import { X, MapPin, Calendar, ImagePlus, Loader2 } from 'lucide-react';
+import { X, MapPin, Calendar, Clock, ImagePlus, Loader2 } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
 
@@ -18,11 +18,19 @@ const CATEGORIES = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null }) {
+const EVENT_CATEGORIES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo', 'Otro'];
+
+export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, initialType = 'daily' }) {
+  const [postType, setPostType] = useState(editPost ? 'daily' : initialType);
+  const [identity, setIdentity] = useState(null);
+
   const [content, setContent] = useState(editPost?.content || '');
+  const [title, setTitle] = useState('');
   const [category, setCategory] = useState(editPost?.category || 'otro');
+  const [eventCategory, setEventCategory] = useState('Taller');
   const [location, setLocation] = useState(editPost?.location || '');
   const [eventDate, setEventDate] = useState(editPost?.event_date?.split('T')[0] || '');
+  const [eventTime, setEventTime] = useState('');
   const [isService, setIsService] = useState(editPost?.is_service_offer || false);
   const [imageUrl, setImageUrl] = useState(editPost?.image_url || '');
   const [imagePreview, setImagePreview] = useState(editPost?.image_url || '');
@@ -30,10 +38,20 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
 
+  // 💡 Resolvemos la identidad real (colegio/empresa/perfil) al abrir el modal
+  // para saber si hay que ofrecer el selector Día a día / Evento futuro
+  useEffect(() => {
+    if (!user?.id) return;
+    getMemberIdentity(user.id).then(setIdentity);
+  }, [user?.id]);
+
+  const isSchool = identity?.role === 'colegio';
+  const isEvent = postType === 'event';
+
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     setUploadingImage(true);
     setImagePreview(URL.createObjectURL(file));
 
@@ -57,15 +75,41 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   };
 
   const handleSubmit = async () => {
-    if (!content.trim()) return;
+    if (isEvent ? (!title.trim() || !eventDate) : !content.trim()) return;
     setLoading(true);
 
     // 1. Buscamos la identidad real (colegio/empresa/perfil) en tiempo real justo antes de
     // guardar para evitar datos obsoletos
     let freshIdentity = userProfile;
     if (user?.id) {
-      const identity = await getMemberIdentity(user.id);
-      if (identity) freshIdentity = identity;
+      const idn = await getMemberIdentity(user.id);
+      if (idn) freshIdentity = idn;
+    }
+
+    if (isEvent) {
+      const { error } = await supabase.from('school_events').insert([{
+        title: title.trim(),
+        description: content,
+        event_type: eventCategory.toLowerCase(),
+        date: eventDate,
+        event_date: eventDate,
+        time: eventTime || null,
+        event_time: eventTime || null,
+        location,
+        image_url: imageUrl || null,
+        school_name: freshIdentity?.name,
+        school_id: user?.id,
+        created_date: new Date().toISOString(),
+      }]);
+
+      setLoading(false);
+      if (error) {
+        console.error("Error al publicar el evento:", error);
+        alert("Error al publicar el evento: " + error.message);
+        return;
+      }
+      onCreated();
+      return;
     }
 
     const finalName = freshIdentity?.name ||
@@ -85,6 +129,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       author_name: finalName,
       author_role: freshIdentity?.role || 'Comunidad',
       author_avatar: freshIdentity?.avatar || null, // Sincronización total del avatar
+      type: 'daily',
     };
 
     if (editPost) {
@@ -93,7 +138,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         .from('posts')
         .update(postData)
         .eq('id', editPost.id);
-        
+
       if (error) {
         console.error("Error al actualizar en Supabase:", error);
         alert("Bloqueo de seguridad: Supabase no te ha dejado editar este post.");
@@ -109,7 +154,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           author_email: user?.email || '',
           likes_count: 0,
           comments_count: 0,
-          author_id: user?.id 
+          author_id: user?.id
         }]);
 
       if (error) {
@@ -121,7 +166,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     }
 
     setLoading(false);
-    onCreated(); 
+    onCreated();
   };
 
   return (
@@ -130,17 +175,48 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
-            {editPost ? 'Editar publicación' : 'Nueva publicación'}
+            {editPost ? 'Editar publicación' : isEvent ? 'Nuevo evento del colegio' : 'Nueva publicación'}
           </h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {isSchool && !editPost && (
+          <div className="flex gap-1.5 mb-4 bg-muted/50 p-1 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setPostType('daily')}
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${!isEvent ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            >
+              Día a día
+            </button>
+            <button
+              type="button"
+              onClick={() => setPostType('event')}
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${isEvent ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            >
+              Evento futuro
+            </button>
+          </div>
+        )}
+
+        {isEvent && (
+          <div className="mb-3">
+            <label className="text-xs text-muted-foreground mb-1 block">Título del evento</label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Ej: Mercadillo de Primavera"
+              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+        )}
+
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}
-          placeholder="¿Qué quieres compartir con la comunidad Waldorf?"
+          placeholder={isEvent ? 'Describe el evento...' : '¿Qué quieres compartir con la comunidad Waldorf?'}
           className="w-full bg-muted/50 rounded-2xl p-4 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
         />
 
@@ -173,13 +249,13 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         </div>
 
         <div className="mt-3">
-          <label className="text-xs text-muted-foreground mb-1 block">Categoría</label>
+          <label className="text-xs text-muted-foreground mb-1 block">{isEvent ? 'Tipo de evento' : 'Categoría'}</label>
           <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
+            value={isEvent ? eventCategory : category}
+            onChange={e => isEvent ? setEventCategory(e.target.value) : setCategory(e.target.value)}
             className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            {CATEGORIES.map(c => (
+            {(isEvent ? EVENT_CATEGORIES.map(c => ({ value: c, label: c })) : CATEGORIES).map(c => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
@@ -206,22 +282,36 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            onClick={() => setIsService(!isService)}
-            className={`w-10 h-5 rounded-full transition-colors ${isService ? 'bg-primary' : 'bg-muted'} relative`}
-          >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isService ? 'left-5' : 'left-0.5'}`} />
-          </button>
-          <span className="text-sm text-muted-foreground">Ofrezco un servicio o taller</span>
-        </div>
+        {isEvent && (
+          <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+            <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <input
+              type="time"
+              value={eventTime}
+              onChange={e => setEventTime(e.target.value)}
+              className="bg-transparent text-sm flex-1 focus:outline-none text-muted-foreground"
+            />
+          </div>
+        )}
+
+        {!isEvent && (
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => setIsService(!isService)}
+              className={`w-10 h-5 rounded-full transition-colors ${isService ? 'bg-primary' : 'bg-muted'} relative`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isService ? 'left-5' : 'left-0.5'}`} />
+            </button>
+            <span className="text-sm text-muted-foreground">Ofrezco un servicio o taller</span>
+          </div>
+        )}
 
         <button
           onClick={handleSubmit}
-          disabled={loading || !content.trim() || uploadingImage}
+          disabled={loading || uploadingImage || (isEvent ? (!title.trim() || !eventDate) : !content.trim())}
           className="mt-5 w-full bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
-          {loading ? 'Guardando...' : editPost ? 'Guardar cambios' : 'Publicar'}
+          {loading ? 'Guardando...' : editPost ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : 'Publicar'}
         </button>
       </div>
     </div>

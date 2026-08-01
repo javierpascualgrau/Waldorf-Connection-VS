@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
-import CreateSchoolEventModal from './CreateSchoolEventModal';
+import CreatePostModal from '@/components/CreatePostModal';
 import { Link, useNavigate } from 'react-router-dom';
 
 const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
@@ -17,6 +17,7 @@ export default function Colegios() {
   const [loading, setLoading] = useState(true);
   
   const [currentUserSchool, setCurrentUserSchool] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,6 +32,7 @@ export default function Colegios() {
 
       // Verificamos la sesión del usuario actual de forma segura
       const { data: { user: authUser } } = await supabase.auth.getUser();
+      setCurrentUser(authUser);
       if (authUser) {
         const { data: userSchool } = await supabase
           .from('school_profiles')
@@ -220,11 +222,11 @@ export default function Colegios() {
       )}
 
       {showModal && (
-        <CreateSchoolEventModal 
-          onClose={() => setShowModal(false)} 
-          onCreated={() => window.location.reload()} 
-          defaultSchoolName={currentUserSchool?.name || 'Mi Colegio'}
-          defaultSchoolId={currentUserSchool?.id}
+        <CreatePostModal
+          user={currentUser}
+          initialType="event"
+          onClose={() => setShowModal(false)}
+          onCreated={() => window.location.reload()}
         />
       )}
     </div>

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import PostCard from '@/components/PostCard';
-import SchoolEventCard from '@/components/SchoolEventCard';
 import { Sparkles, TrendingUp, Users } from 'lucide-react';
 
 const TABS = [
@@ -26,9 +25,7 @@ function getStartOfWeek() {
 export default function Feed() {
   const [tab, setTab] = useState('para_ti');
   const [posts, setPosts] = useState([]);
-  const [events, setEvents] = useState([]);
   const [likedIds, setLikedIds] = useState(new Set());
-  const [likedEventIds, setLikedEventIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,50 +34,6 @@ export default function Feed() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const handlePostDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
-
-  // 💡 NUEVO CONECTOR RE REACTIVIDAD: Sincroniza al instante el Set de seguimientos del inicio
-  const handleFollowToggle = (email, isFollowing) => {
-    setFollowingIds(prev => {
-      const next = new Set(prev);
-      if (isFollowing) {
-        next.add(email.toLowerCase().trim());
-      } else {
-        next.delete(email.toLowerCase().trim());
-      }
-      return next;
-    });
-  };
-
-  const enrichEvents = (rawEvents, schoolsData) => {
-    const schoolsMap = {};
-    (schoolsData || []).forEach(s => {
-      schoolsMap[s.id] = s;
-    });
-
-    // EL MAPEO CAMALEÓNICO ENRIQUECIDO
-    return (rawEvents || []).map(ev => {
-      const schoolInfo = schoolsMap[ev.school_id];
-      if (schoolInfo) {
-        const schoolDataCombo = [schoolInfo];
-        schoolDataCombo.avatar_url = schoolInfo.avatar_url;
-        schoolDataCombo.name = schoolInfo.name;
-        schoolDataCombo.id = schoolInfo.id;
-
-        return {
-          ...ev,
-          school_profiles: schoolDataCombo,
-          school_profile: schoolDataCombo,
-          avatar_url: schoolInfo.avatar_url,
-          school_avatar: schoolInfo.avatar_url,
-          author_avatar: schoolInfo.avatar_url,
-          school_logo: schoolInfo.avatar_url,
-          // 💡 INYECCIÓN CLAVE: Pasamos el email del colegio a la raíz del evento para poder filtrarlo
-          school_email: schoolInfo.school_email?.toLowerCase().trim()
-        };
-      }
-      return ev;
-    });
-  };
 
   useEffect(() => {
     const load = async () => {
@@ -93,19 +46,15 @@ export default function Feed() {
       const from = 0;
       const to = PAGE_SIZE - 1;
 
-      const [postsRes, eventsRes, followsRes, likesRes, eventLikesRes, schoolsRes] = await Promise.all([
-        supabase.from('posts').select('*').order('created_date', { ascending: false }).range(from, to),
-        supabase.from('school_events').select('*').order('created_date', { ascending: false }).range(from, to),
+      // 💡 El Feed general solo muestra contenido "Día a día" (type='daily'); los eventos futuros de colegios viven en el Tablón de Eventos de Colegios
+      const [postsRes, followsRes, likesRes] = await Promise.all([
+        supabase.from('posts').select('*').eq('type', 'daily').order('created_date', { ascending: false }).range(from, to),
         myEmailClean
           ? supabase.from('user_follows').select('following_email').eq('follower_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
         myEmailClean
           ? supabase.from('post_likes').select('post_id').eq('user_email', myEmailClean)
           : Promise.resolve({ data: [], error: null }),
-        myEmailClean
-          ? supabase.from('school_event_likes').select('event_id').eq('user_email', myEmailClean)
-          : Promise.resolve({ data: [], error: null }),
-        supabase.from('school_profiles').select('*')
       ]);
 
       if (followsRes.data) {
@@ -118,17 +67,10 @@ export default function Feed() {
         setLikedIds(idsConLike);
       }
 
-      if (eventLikesRes.data) {
-        const eventIdsConLike = new Set(eventLikesRes.data.map(l => String(l.event_id)));
-        setLikedEventIds(eventIdsConLike);
-      }
-
       const newPosts = postsRes.data || [];
-      const newEvents = eventsRes.data || [];
 
       setPosts(newPosts);
-      setEvents(enrichEvents(newEvents, schoolsRes.data));
-      setHasMore(newPosts.length === PAGE_SIZE || newEvents.length === PAGE_SIZE);
+      setHasMore(newPosts.length === PAGE_SIZE);
       setPage(0);
       setLoading(false);
     };
@@ -143,18 +85,12 @@ export default function Feed() {
     const from = nextPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const [postsRes, eventsRes, schoolsRes] = await Promise.all([
-      supabase.from('posts').select('*').order('created_date', { ascending: false }).range(from, to),
-      supabase.from('school_events').select('*').order('created_date', { ascending: false }).range(from, to),
-      supabase.from('school_profiles').select('*')
-    ]);
+    const { data } = await supabase.from('posts').select('*').eq('type', 'daily').order('created_date', { ascending: false }).range(from, to);
 
-    const newPosts = postsRes.data || [];
-    const newEvents = eventsRes.data || [];
+    const newPosts = data || [];
 
     setPosts(prev => [...prev, ...newPosts]);
-    setEvents(prev => [...prev, ...enrichEvents(newEvents, schoolsRes.data)]);
-    setHasMore(newPosts.length === PAGE_SIZE || newEvents.length === PAGE_SIZE);
+    setHasMore(newPosts.length === PAGE_SIZE);
     setPage(nextPage);
     setLoadingMore(false);
   };
@@ -162,32 +98,17 @@ export default function Feed() {
   const getFilteredFeed = () => {
     if (tab === 'tendencias') {
       const startOfWeek = getStartOfWeek();
-      // 💡 Persona, empresa (posts) y colegio (events) se combinan y rankean por igual: misma ventana de fecha, mismo criterio de likes
-      return [
-        ...posts.map(p => ({ type: 'post', data: p })),
-        ...events.map(e => ({ type: 'event', data: e })),
-      ]
-        .filter(({ data }) => data.created_date && new Date(data.created_date) >= startOfWeek)
-        .sort((a, b) => (b.data.likes_count || 0) - (a.data.likes_count || 0))
+      return [...posts]
+        .filter(p => p.created_date && new Date(p.created_date) >= startOfWeek)
+        .sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0))
         .slice(0, TRENDING_LIMIT);
     }
 
-    let filteredPosts = posts;
-    let filteredEvents = events;
-
     if (tab === 'siguiendo') {
-      filteredPosts = posts.filter(p => p.author_email && followingIds.has(p.author_email.toLowerCase().trim()));
-      // 💡 CORREGIDO: En lugar de vaciar el array con un [], filtramos de forma real usando los seguimientos activos
-      filteredEvents = events.filter(e => e.school_email && followingIds.has(e.school_email.toLowerCase().trim()));
+      return posts.filter(p => p.author_email && followingIds.has(p.author_email.toLowerCase().trim()));
     }
 
-    const feed = [];
-    let pi = 0, ei = 0;
-    while (pi < filteredPosts.length || ei < filteredEvents.length) {
-      if (pi < filteredPosts.length) feed.push({ type: 'post', data: filteredPosts[pi++] });
-      if (ei < filteredEvents.length) feed.push({ type: 'event', data: filteredEvents[ei++] });
-    }
-    return feed;
+    return posts;
   };
 
   const feed = getFilteredFeed();
@@ -249,28 +170,16 @@ export default function Feed() {
         </div>
       ) : (
         <div className="space-y-4">
-          {feed.map((item) =>
-            item.type === 'post' ? (
-              <PostCard
-                key={`post-${item.data.id}`}
-                post={item.data}
-                userEmail={user?.email}
-                likedIds={likedIds} 
-                followingIds={followingIds}
-                onDeleted={handlePostDeleted}
-              />
-            ) : (
-              <SchoolEventCard
-                key={`event-${item.data.id}`}
-                event={item.data}
-                userEmail={user?.email}
-                likedEventIds={likedEventIds}
-                followingIds={followingIds}
-                /* 💡 PASO EXTRA: Conectamos la sincronización reactiva */
-                onFollowToggle={handleFollowToggle} 
-              />
-            )
-          )}
+          {feed.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              userEmail={user?.email}
+              likedIds={likedIds}
+              followingIds={followingIds}
+              onDeleted={handlePostDeleted}
+            />
+          ))}
         </div>
       )}
 
