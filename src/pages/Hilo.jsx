@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft, Tag, Check, X as XIcon } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft, Tag, Check, X as XIcon, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { goBack } from '@/lib/navigation';
 import { useMediaQuery } from '@/lib/useMediaQuery';
@@ -53,33 +53,57 @@ function ConversationPanel({
           </button>
         )}
 
-        <div
-          onClick={() => {
-            if (activeChat.otherUser.isSchool) {
-              navigate(`/colegios/${activeChat.otherUser.id}`);
-            } else if (activeChat.otherUser.isCompany) {
-              navigate(`/empresas/${activeChat.otherUser.id}`);
-            } else {
-              navigate(`/usuario/${activeChat.otherUser.id}`);
-            }
-          }}
-          className="flex items-center gap-2 cursor-pointer min-w-0 flex-1"
-        >
-          <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
-            {activeChat.otherUser.avatar_url ? (
-              <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
-            ) : (
-              <span className="text-primary font-semibold text-xs">{activeChat.otherUser.display_name?.slice(0, 2).toUpperCase()}</span>
-            )}
-          </div>
+        {activeChat.is_group ? (
           <div className="min-w-0 flex-1 text-left">
-            <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
-            <p className="text-[10px] text-muted-foreground truncate">Ver perfil ↗</p>
+            <h3 className="text-sm font-bold text-foreground truncate">{activeChat.group_name || 'Grupo'}</h3>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {(activeChat.participants?.length || 0) + 1} participantes
+            </p>
           </div>
-        </div>
+        ) : (
+          <div
+            onClick={() => {
+              if (activeChat.otherUser.isSchool) {
+                navigate(`/colegios/${activeChat.otherUser.id}`);
+              } else if (activeChat.otherUser.isCompany) {
+                navigate(`/empresas/${activeChat.otherUser.id}`);
+              } else {
+                navigate(`/usuario/${activeChat.otherUser.id}`);
+              }
+            }}
+            className="flex items-center gap-2 cursor-pointer min-w-0 flex-1"
+          >
+            <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
+              {activeChat.otherUser.avatar_url ? (
+                <img src={activeChat.otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
+              ) : (
+                <span className="text-primary font-semibold text-xs">{activeChat.otherUser.display_name?.slice(0, 2).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="text-sm font-bold text-foreground truncate">{activeChat.otherUser.display_name}</h3>
+              <p className="text-[10px] text-muted-foreground truncate">Ver perfil ↗</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {contextListing && (
+      {contextListing && activeChat.context_type === 'school_route' && (
+        <button
+          onClick={() => navigate(`/rutas/${contextListing.id}/gestionar`)}
+          className="flex items-center gap-2.5 p-2.5 border-b border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left flex-shrink-0"
+        >
+          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border flex-shrink-0 flex items-center justify-center">
+            <Tag className="w-4 h-4 text-muted-foreground/40" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-foreground truncate">{contextListing.school_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{contextListing.location}</p>
+          </div>
+        </button>
+      )}
+
+      {contextListing && activeChat.context_type === 'marketplace_listing' && (
         <button
           onClick={() => navigate(`/anuncios/${contextListing.id}`)}
           className="flex items-center gap-2.5 p-2.5 border-b border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left flex-shrink-0"
@@ -118,6 +142,11 @@ function ConversationPanel({
           )}
           {messages.map((msg) => {
             const isMe = msg.sender_email === myEmail;
+            // Solo en chats de grupo: de quién es este mensaje (en 1 a 1 ya se sabe por
+            // el propio diseño del hilo, no hace falta etiqueta).
+            const senderName = activeChat.is_group && !isMe
+              ? activeChat.participants?.find(p => p.email === msg.sender_email)?.display_name
+              : null;
 
             if (msg.message_type === 'offer') {
               const statusStyles = {
@@ -166,6 +195,9 @@ function ConversationPanel({
                 <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-xs shadow-sm ${
                   isMe ? 'bg-primary text-primary-foreground rounded-tr-none' : 'bg-muted/70 text-foreground rounded-tl-none border border-border/40'
                 }`}>
+                  {senderName && (
+                    <p className="text-[9px] font-semibold text-primary mb-0.5">{senderName}</p>
+                  )}
                   <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   <span className={`text-[9px] block text-right mt-1 opacity-70 ${isMe ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                     {format(new Date(msg.created_at), 'HH:mm')}
@@ -237,15 +269,44 @@ export default function Hilo() {
     const loadChats = async () => {
       setLoadingChats(true);
       try {
-        // A. Traemos todos los hilos de conversación del usuario
-        const { data: chatsData, error: chatsError } = await supabase
-          .from('chats')
-          .select('*')
-          .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
-          .order('last_message_at', { ascending: false });
+        // A. Traemos todos los hilos de conversación del usuario: los 1 a 1 (como siempre,
+        // sin tocar esta query) y, aparte, los de grupo (vía chat_participants, ya que un
+        // chat de grupo no rellena user_1_email/user_2_email). Se fusionan ANTES de nada
+        // más — si se hiciera después del corte temprano de "sin chats", un usuario sin
+        // ningún 1 a 1 pero con un grupo se quedaría con la bandeja vacía.
+        const [oneToOneRes, myParticipantRowsRes] = await Promise.all([
+          supabase
+            .from('chats')
+            .select('*')
+            .or(`user_1_email.eq.${myEmail},user_2_email.eq.${myEmail}`)
+            .order('last_message_at', { ascending: false }),
+          supabase.from('chat_participants').select('chat_id').eq('user_email', myEmail).is('left_at', null),
+        ]);
 
-        if (chatsError) throw chatsError;
-        if (!chatsData || chatsData.length === 0) {
+        if (oneToOneRes.error) throw oneToOneRes.error;
+
+        const groupChatIds = [...new Set((myParticipantRowsRes.data || []).map(p => p.chat_id))];
+        let groupChatsData = [];
+        let allGroupParticipants = [];
+        if (groupChatIds.length > 0) {
+          const [groupChatsRes, allParticipantsRes] = await Promise.all([
+            supabase.from('chats').select('*').in('id', groupChatIds).order('last_message_at', { ascending: false }),
+            supabase.from('chat_participants').select('chat_id, user_email').in('chat_id', groupChatIds).is('left_at', null),
+          ]);
+          if (groupChatsRes.error) console.error('Error cargando chats de grupo:', groupChatsRes.error);
+          groupChatsData = groupChatsRes.data || [];
+          allGroupParticipants = allParticipantsRes.data || [];
+        }
+
+        const participantsByChatId = {};
+        allGroupParticipants.forEach(p => {
+          if (!participantsByChatId[p.chat_id]) participantsByChatId[p.chat_id] = [];
+          participantsByChatId[p.chat_id].push(p.user_email);
+        });
+
+        const chatsData = [...(oneToOneRes.data || []), ...groupChatsData];
+
+        if (chatsData.length === 0) {
           setChats([]);
           setLoadingChats(false);
           return;
@@ -338,6 +399,42 @@ export default function Hilo() {
 
         // C. CRUCE DE IDENTIDADES EN MEMORIA LOCAL
         const chatsWithProfiles = chatsData.map((chat) => {
+            // Chat de grupo: resuelve la lista de participantes activos (menos yo) contra
+            // los mismos mapas de identidad ya construidos arriba. No toca en absoluto el
+            // camino 1 a 1 de abajo (early return, rama completamente separada).
+            if (chat.is_group) {
+              const participantEmails = (participantsByChatId[chat.id] || []).filter(e => e !== myEmail);
+              const participants = participantEmails.map(email => {
+                const prefix = email.split('@')[0];
+                const schoolMatch = schoolsMap[email] || schoolsMap[prefix];
+                const companyMatch = companiesMap[email] || companiesMap[prefix];
+                const profileMatch = profilesMap[email];
+                let name = prefix;
+                let avatar = null;
+                if (schoolMatch) {
+                  name = schoolMatch.name;
+                  avatar = schoolMatch.avatar_url;
+                } else if (companyMatch) {
+                  name = companyMatch.name;
+                  avatar = companyMatch.logo_url;
+                } else if (profileMatch) {
+                  name = profileMatch.display_name || name;
+                  avatar = profileMatch.avatar_url;
+                }
+                return { email, display_name: name, avatar_url: avatar };
+              });
+
+              return {
+                ...chat,
+                unread_count: unreadCounts[chat.id] || 0,
+                last_message: lastMessageByChat[chat.id] || null,
+                context_listing: null,
+                participants,
+                displayName: chat.group_name || 'Grupo',
+                displayAvatarUrl: null,
+              };
+            }
+
             const u1 = chat.user_1_email?.toLowerCase().trim() || '';
             const u2 = chat.user_2_email?.toLowerCase().trim() || '';
             const otherEmail = u1 === myEmail ? u2 : u1;
@@ -400,7 +497,9 @@ export default function Hilo() {
                 role: role,
                 isSchool: isSchool,
                 isCompany: isCompany
-              }
+              },
+              displayName,
+              displayAvatarUrl: avatarUrl,
             };
           });
 
@@ -439,19 +538,30 @@ export default function Hilo() {
     }
   }, [chats, chatId, location.state]);
 
-  // 1.6 Tarjeta fija del anuncio del que trata la conversación (si el chat tiene contexto)
+  // 1.6 Tarjeta fija del anuncio/ruta del que trata la conversación (si el chat tiene contexto)
   useEffect(() => {
-    if (activeChat?.context_type !== 'marketplace_listing' || !activeChat?.context_id) {
+    if (!activeChat?.context_id) {
       setContextListing(null);
       return;
     }
     const loadContextListing = async () => {
-      const { data } = await supabase
-        .from('marketplace_listings')
-        .select('id, title, price, image_urls')
-        .eq('id', activeChat.context_id)
-        .maybeSingle();
-      setContextListing(data);
+      if (activeChat.context_type === 'marketplace_listing') {
+        const { data } = await supabase
+          .from('marketplace_listings')
+          .select('id, title, price, image_urls')
+          .eq('id', activeChat.context_id)
+          .maybeSingle();
+        setContextListing(data);
+      } else if (activeChat.context_type === 'school_route') {
+        const { data } = await supabase
+          .from('school_routes')
+          .select('id, school_name, location, trip_type')
+          .eq('id', activeChat.context_id)
+          .maybeSingle();
+        setContextListing(data);
+      } else {
+        setContextListing(null);
+      }
     };
     loadContextListing();
   }, [activeChat]);
@@ -614,7 +724,7 @@ export default function Hilo() {
   };
 
   const filteredChats = chats.filter(chat =>
-    chat.otherUser.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    chat.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!user) {
@@ -685,7 +795,7 @@ export default function Hilo() {
               <p className="text-xs text-muted-foreground text-center p-8 italic">No hay conversaciones activas.</p>
             ) : (
               filteredChats.map((chat) => {
-                const initials = chat.otherUser.display_name?.slice(0, 2).toUpperCase() || 'U';
+                const initials = chat.displayName?.slice(0, 2).toUpperCase() || 'U';
                 return (
                   <div
                     key={chat.id}
@@ -694,8 +804,10 @@ export default function Hilo() {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
-                        {chat.otherUser.avatar_url ? (
-                          <img src={chat.otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                        {chat.is_group ? (
+                          <Users className="w-4 h-4 text-primary" />
+                        ) : chat.displayAvatarUrl ? (
+                          <img src={chat.displayAvatarUrl} className="w-full h-full object-cover" alt="" />
                         ) : (
                           <span className="text-primary font-semibold text-xs">{initials}</span>
                         )}
@@ -703,10 +815,10 @@ export default function Hilo() {
 
                       <div className="min-w-0 text-left">
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
-                          {chat.otherUser.display_name}
+                          {chat.displayName}
                         </p>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
-                          {chat.otherUser.role}
+                          {chat.is_group ? `${(chat.participants?.length || 0) + 1} participantes` : chat.otherUser.role}
                         </p>
                       </div>
 
@@ -752,7 +864,7 @@ export default function Hilo() {
               <p className="text-xs text-muted-foreground text-center p-8 italic">No hay conversaciones activas.</p>
             ) : (
               filteredChats.map((chat) => {
-                const initials = chat.otherUser.display_name?.slice(0, 2).toUpperCase() || 'U';
+                const initials = chat.displayName?.slice(0, 2).toUpperCase() || 'U';
                 const isActive = activeChat?.id === chat.id;
                 return (
                   <div
@@ -763,8 +875,10 @@ export default function Hilo() {
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
-                      {chat.otherUser.avatar_url ? (
-                        <img src={chat.otherUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                      {chat.is_group ? (
+                        <Users className="w-4 h-4 text-primary" />
+                      ) : chat.displayAvatarUrl ? (
+                        <img src={chat.displayAvatarUrl} className="w-full h-full object-cover" alt="" />
                       ) : (
                         <span className="text-primary font-semibold text-xs">{initials}</span>
                       )}
@@ -772,7 +886,7 @@ export default function Hilo() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className={`text-sm truncate ${chat.unread_count > 0 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`}>
-                          {chat.otherUser.display_name}
+                          {chat.displayName}
                         </p>
                         {chat.last_message && (
                           <span className="text-[9px] text-muted-foreground flex-shrink-0">

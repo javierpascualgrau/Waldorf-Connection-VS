@@ -9,17 +9,23 @@ const TRIP_TYPES = [
   { value: 'ambos', label: 'Ida y vuelta' },
 ];
 
-export default function CreateSchoolRouteModal({ user, identity, onClose, onCreated, editRoute = null }) {
+export default function CreateSchoolRouteModal({ user, identity, onClose, onCreated, editRoute = null, prefill = null }) {
   const [schools, setSchools] = useState([]);
-  const [schoolId, setSchoolId] = useState(editRoute?.school_id || '');
-  const [tripType, setTripType] = useState(editRoute?.trip_type || 'ambos');
-  const [location, setLocation] = useState(editRoute?.location || '');
+  const [schoolId, setSchoolId] = useState(editRoute?.school_id || prefill?.schoolId || '');
+  const [tripType, setTripType] = useState(editRoute?.trip_type || prefill?.tripType || 'ambos');
+  const [location, setLocation] = useState(editRoute?.location || prefill?.location || '');
   const [notes, setNotes] = useState(editRoute?.notes || '');
+  const [seats, setSeats] = useState(editRoute?.seats ?? 4);
+  const [salidaTime, setSalidaTime] = useState(editRoute?.salida_time?.slice(0, 5) || '');
+  const [entradaTime, setEntradaTime] = useState(editRoute?.entrada_time?.slice(0, 5) || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loadSchools = async () => {
-      const { data } = await supabase.from('school_profiles').select('id, name').order('name', { ascending: true });
+      const { data } = await supabase
+        .from('school_profiles')
+        .select('id, name, location, location_lat, location_lng')
+        .order('name', { ascending: true });
       setSchools(data || []);
       if (!editRoute && data?.length && !schoolId) setSchoolId(data[0].id);
     };
@@ -32,12 +38,49 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
     setLoading(true);
 
     const selectedSchool = schools.find(s => s.id === schoolId);
+
+    // Origen: solo se geocodifica si es una ruta nueva o si la zona cambió al editar
+    // (evita llamadas redundantes a Mapbox al guardar cambios que no tocan la dirección).
+    let originLat = editRoute?.origin_lat ?? null;
+    let originLng = editRoute?.origin_lng ?? null;
+    if (location.trim() && (!editRoute || location !== editRoute.location)) {
+      const { data } = await supabase.functions.invoke('geocode-address', { body: { address: location } });
+      if (data && !data.error) {
+        originLat = data.lat;
+        originLng = data.lng;
+      }
+    }
+
+    // Destino: reutiliza las coordenadas ya cacheadas del colegio si las tiene; si no,
+    // pide geocodificarlas (y cachearlas) — solo si es ruta nueva o cambió el colegio.
+    let destinationLat = editRoute?.destination_lat ?? null;
+    let destinationLng = editRoute?.destination_lng ?? null;
+    if (!editRoute || schoolId !== editRoute.school_id) {
+      if (selectedSchool?.location_lat != null && selectedSchool?.location_lng != null) {
+        destinationLat = selectedSchool.location_lat;
+        destinationLng = selectedSchool.location_lng;
+      } else {
+        const { data } = await supabase.functions.invoke('geocode-address', { body: { cache_on_school_id: schoolId } });
+        if (data && !data.error) {
+          destinationLat = data.lat;
+          destinationLng = data.lng;
+        }
+      }
+    }
+
     const routeData = {
       school_id: schoolId,
       school_name: selectedSchool?.name || editRoute?.school_name || '',
       trip_type: tripType,
       location,
       notes,
+      seats: Number(seats) || 1,
+      salida_time: salidaTime || null,
+      entrada_time: entradaTime || null,
+      origin_lat: originLat,
+      origin_lng: originLng,
+      destination_lat: destinationLat,
+      destination_lng: destinationLng,
     };
 
     let error;
@@ -51,6 +94,7 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
         .from('school_routes')
         .insert([{
           ...routeData,
+          author_id: user?.id || null,
           author_email: user?.email || '',
           author_name: identity?.name || user?.email?.split('@')[0] || 'Miembro de la comunidad',
           author_avatar: identity?.avatar || null,
@@ -122,12 +166,45 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Hora de salida</label>
+              <input
+                type="time"
+                value={salidaTime}
+                onChange={e => setSalidaTime(e.target.value)}
+                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Hora de entrada</label>
+              <input
+                type="time"
+                value={entradaTime}
+                onChange={e => setEntradaTime(e.target.value)}
+                className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Notas (horarios, días, coche...)</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Plazas libres</label>
+            <input
+              type="number"
+              min="1"
+              max="8"
+              value={seats}
+              onChange={e => setSeats(e.target.value)}
+              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Notas (días, coche...)</label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Ej: Todos los días a las 8:30, tengo sitio para 2 niños más"
+              placeholder="Ej: Todos los días, tengo sitio para 2 niños más"
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>

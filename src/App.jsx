@@ -21,6 +21,10 @@ import DeliveryMethodChoice from './pages/DeliveryMethodChoice';
 import ShippingCheckout from './pages/ShippingCheckout';
 import MisVentas from './pages/MisVentas';
 import MisCompras from './pages/MisCompras';
+import BuscarRuta from './pages/BuscarRuta';
+import GestionRuta from './pages/GestionRuta';
+import GrupoRutaCalendario from './pages/GrupoRutaCalendario';
+import MisRutas from './pages/MisRutas';
 
 // 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
 import CompanyProfile from './pages/CompanyProfile';
@@ -63,6 +67,10 @@ const AuthenticatedApp = () => {
       <Route path="/mis-ventas" element={<MisVentas />} />
       <Route path="/mis-compras" element={<MisCompras />} />
       <Route path="/empleo/:id" element={<EmployabilityDetail />} />
+      <Route path="/rutas/buscar" element={<BuscarRuta />} />
+      <Route path="/rutas/:id/gestionar" element={<GestionRuta />} />
+      <Route path="/rutas/:id/calendario" element={<GrupoRutaCalendario />} />
+      <Route path="/mis-rutas" element={<MisRutas />} />
       
       {/* 💡 AÑADIMOS LA RUTA PARA CARGAR EL PERFIL DE LAS EMPRESAS */}
       <Route path="/empresas/:id" element={<CompanyProfile />} />

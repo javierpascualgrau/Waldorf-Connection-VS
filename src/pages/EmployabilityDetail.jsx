@@ -44,15 +44,17 @@ export default function EmployabilityDetail() {
 
     const emails = [user.email.toLowerCase().trim(), listing.author_email.toLowerCase().trim()].sort();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('chats')
       .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
       .select()
       .single();
 
-    if (data) {
-      navigate('/hilo', { state: { activeChatId: data.id } });
+    if (error) {
+      alert('No se ha podido abrir el chat: ' + error.message);
+      return;
     }
+    navigate('/hilo', { state: { activeChatId: data.id } });
   };
 
   const handleDelete = async () => {
