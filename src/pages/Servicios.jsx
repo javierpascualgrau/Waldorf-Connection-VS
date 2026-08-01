@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
-import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircle, Tag, School, ArrowLeftRight } from 'lucide-react';
+import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircle, Tag, School, ArrowLeftRight, UserPlus, Compass, Check, X as XIcon } from 'lucide-react';
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
 import CreateEmployabilityListingModal from '@/components/CreateEmployabilityListingModal';
@@ -71,6 +71,12 @@ export default function Servicios() {
   const [showCreateRouteModal, setShowCreateRouteModal] = useState(false);
   const [selectedSchoolFilter, setSelectedSchoolFilter] = useState('Todos');
   const [selectedTripType, setSelectedTripType] = useState('Todos');
+  const [myMemberRouteIds, setMyMemberRouteIds] = useState(new Set());
+  const [myPendingRequestRouteIds, setMyPendingRequestRouteIds] = useState(new Set());
+  const [routeMemberCounts, setRouteMemberCounts] = useState({});
+  const [requestingRouteId, setRequestingRouteId] = useState(null);
+  const [joinRequestRouteId, setJoinRequestRouteId] = useState(null);
+  const [zonaDraft, setZonaDraft] = useState('');
 
   const [employabilityListings, setEmployabilityListings] = useState([]);
   const [loadingEmployability, setLoadingEmployability] = useState(true);
@@ -99,12 +105,27 @@ export default function Servicios() {
       setLoading(false);
 
       setLoadingRoutes(true);
-      const [routesRes, schoolsRes] = await Promise.all([
+      const [routesRes, schoolsRes, activeMembersRes] = await Promise.all([
         supabase.from('school_routes').select('*').order('created_at', { ascending: false }),
         supabase.from('school_profiles').select('id, name').order('name', { ascending: true }),
+        supabase.from('school_route_members').select('route_id').is('left_at', null),
       ]);
       setRoutes(routesRes.data || []);
       setSchools(schoolsRes.data || []);
+
+      const counts = {};
+      (activeMembersRes.data || []).forEach(m => { counts[m.route_id] = (counts[m.route_id] || 0) + 1; });
+      setRouteMemberCounts(counts);
+
+      if (authUser) {
+        const [myMembershipsRes, myRequestsRes] = await Promise.all([
+          supabase.from('school_route_members').select('route_id').eq('member_id', authUser.id).is('left_at', null),
+          supabase.from('school_route_requests').select('route_id').eq('requester_id', authUser.id).eq('status', 'pendiente'),
+        ]);
+        setMyMemberRouteIds(new Set((myMembershipsRes.data || []).map(m => m.route_id)));
+        setMyPendingRequestRouteIds(new Set((myRequestsRes.data || []).map(r => r.route_id)));
+      }
+
       setLoadingRoutes(false);
 
       setLoadingEmployability(true);
@@ -123,15 +144,17 @@ export default function Servicios() {
 
     const emails = [user.email.toLowerCase().trim(), listing.author_email.toLowerCase().trim()].sort();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('chats')
       .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
       .select()
       .single();
 
-    if (data) {
-      navigate('/hilo', { state: { activeChatId: data.id } });
+    if (error) {
+      alert('No se ha podido abrir el chat: ' + error.message);
+      return;
     }
+    navigate('/hilo', { state: { activeChatId: data.id } });
   };
 
   const handleDelete = async (listing) => {
@@ -144,6 +167,22 @@ export default function Servicios() {
     if (!window.confirm('¿Quieres eliminar esta ruta?')) return;
     setRoutes(prev => prev.filter(r => r.id !== route.id));
     await supabase.from('school_routes').delete().eq('id', route.id);
+  };
+
+  const handleRequestJoin = async (route, zona) => {
+    setRequestingRouteId(route.id);
+    const { data, error } = await supabase.functions.invoke('request-join-route', {
+      body: { route_id: route.id, zona, requester_name: identity?.name, requester_avatar: identity?.avatar },
+    });
+    setRequestingRouteId(null);
+
+    if (error || data?.error) {
+      alert(data?.error || 'No se ha podido enviar la solicitud.');
+      return;
+    }
+    setMyPendingRequestRouteIds(prev => new Set(prev).add(route.id));
+    setJoinRequestRouteId(null);
+    setZonaDraft('');
   };
 
   const handleDeleteEmploymentListing = async (listing) => {
@@ -375,7 +414,13 @@ export default function Servicios() {
       {/* RUTAS ESCOLARES */}
       {activeTab === 'rutas' && (
         <>
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end gap-2 mb-4">
+            <button
+              onClick={() => navigate('/rutas/buscar')}
+              className="flex items-center gap-1.5 bg-muted text-foreground px-4 py-2 rounded-full text-xs font-medium hover:bg-muted/70 transition-colors"
+            >
+              <Compass className="w-3.5 h-3.5" /> Buscar ruta
+            </button>
             <button
               onClick={() => setShowCreateRouteModal(true)}
               className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
@@ -435,6 +480,9 @@ export default function Servicios() {
               {filteredRoutes.map(route => {
                 const isMine = myEmailClean && route.author_email?.toLowerCase().trim() === myEmailClean;
                 const initials = route.author_name?.slice(0, 2).toUpperCase() || 'W';
+                const seatsAvailable = (route.seats ?? 0) - (routeMemberCounts[route.id] || 0);
+                const isMember = myMemberRouteIds.has(route.id);
+                const hasPendingRequest = myPendingRequestRouteIds.has(route.id);
                 return (
                   <div
                     key={route.id}
@@ -460,6 +508,11 @@ export default function Servicios() {
                       <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border bg-primary/5 text-primary border-primary/10 flex items-center gap-1">
                         <ArrowLeftRight className="w-2.5 h-2.5" /> {TRIP_TYPE_LABELS[route.trip_type] || route.trip_type}
                       </span>
+                      {route.status === 'abierto' && (
+                        <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
+                          {seatsAvailable > 0 ? `${seatsAvailable} plazas libres` : 'Sin plazas'}
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-sm font-semibold text-foreground leading-tight flex items-center gap-1.5">
@@ -476,21 +529,70 @@ export default function Servicios() {
                       <p className="text-xs text-foreground/80 leading-relaxed">{route.notes}</p>
                     )}
 
-                    <div className="pt-2 border-t border-border/50 mt-1">
+                    <div className="pt-2 border-t border-border/50 mt-1 flex flex-col gap-1.5">
                       {isMine ? (
-                        <button
-                          onClick={() => handleDeleteRoute(route)}
-                          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-destructive/80 hover:text-destructive py-1.5 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Eliminar mi ruta
-                        </button>
+                        <>
+                          <button
+                            onClick={() => navigate(`/rutas/${route.id}/gestionar`)}
+                            className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" /> Gestionar grupo
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRoute(route)}
+                            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-destructive/80 hover:text-destructive py-1.5 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Eliminar mi ruta
+                          </button>
+                        </>
                       ) : (
-                        <button
-                          onClick={() => handleContactar(route)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" /> Contactar
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleContactar(route)}
+                            className="w-full flex items-center justify-center gap-1.5 bg-muted text-foreground rounded-xl text-xs font-semibold py-1.5 hover:bg-muted/70 transition-all"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Contactar
+                          </button>
+                          {route.status === 'abierto' && !isMember && (
+                            joinRequestRouteId === route.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  autoFocus
+                                  value={zonaDraft}
+                                  onChange={e => setZonaDraft(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim());
+                                    if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); }
+                                  }}
+                                  placeholder="¿En qué zona vives?"
+                                  className="flex-1 min-w-0 bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                />
+                                <button
+                                  onClick={() => handleRequestJoin(route, zonaDraft.trim())}
+                                  disabled={!zonaDraft.trim() || requestingRouteId === route.id}
+                                  className="p-2 rounded-full bg-primary text-white disabled:opacity-50 flex-shrink-0"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); }}
+                                  className="p-2 rounded-full bg-muted text-muted-foreground flex-shrink-0"
+                                >
+                                  <XIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); }}
+                                disabled={hasPendingRequest}
+                                className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-primary/5 disabled:hover:text-primary"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                {hasPendingRequest ? 'Solicitud enviada' : 'Solicitar unirse'}
+                              </button>
+                            )
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
