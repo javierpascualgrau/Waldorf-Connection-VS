@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
-import CreatePostModal from '@/components/CreatePostModal';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil } from 'lucide-react';
 import PostCard from '@/components/PostCard';
+import CreatePostModal from '@/components/CreatePostModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -27,8 +27,10 @@ export default function SchoolProfile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
-  const [showEventModal, setShowEventModal] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  const [openEventMenuId, setOpenEventMenuId] = useState(null);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
   const [following, setFollowing] = useState(false);
@@ -42,6 +44,22 @@ export default function SchoolProfile() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex]);
+
+  useEffect(() => {
+    if (openEventMenuId === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.event-actions-menu')) setOpenEventMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openEventMenuId]);
+
+  const handleDeleteEvent = async (eventId) => {
+    setOpenEventMenuId(null);
+    if (!window.confirm("¿Seguro que quieres borrar este evento?")) return;
+    await supabase.from('school_events').delete().eq('id', eventId);
+    loadEvents(currentSchoolId);
+  };
 
   // 💡 "Al día": posts del colegio (type='daily'), separados de los Eventos futuros
   useEffect(() => {
@@ -130,6 +148,19 @@ export default function SchoolProfile() {
   }, [id]);
 
   const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      navigate('/'); // Redirigimos al inicio estático
+      window.location.reload(); // Forzamos recarga para limpiar memoria y caché del auth
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error.message);
+      alert("Error al intentar cerrar la sesión.");
+    }
+  };
 
   // 💡 ACCIÓN OPTIMISTA ESCOLAR: Cambia de estado visual en el mismo milisegundo que haces clic
   const handleFollow = async () => {
@@ -249,9 +280,18 @@ export default function SchoolProfile() {
 
         {isManager && (
           !isEditing ? (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-              <Edit3 className="w-4 h-4" /> Gestionar Perfil
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
+                <Edit3 className="w-4 h-4" /> Gestionar Perfil
+              </button>
+            </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => { setEditForm(school); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
@@ -481,44 +521,63 @@ export default function SchoolProfile() {
         </div>
       ) : (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-          {isManager && (
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setShowEventModal(true)}
-                className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" /> Publicar Evento
-              </button>
-            </div>
-          )}
-
           <div className="space-y-4">
             {schoolEvents.length > 0 ? (
               schoolEvents.map(e => (
-                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
+                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
+                        <img
+                          src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'}
+                          className="w-full h-full object-cover"
+                          alt={school.name}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-foreground text-sm leading-tight truncate">{school.name}</h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
+                          {e.event_type || 'Evento'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isManager && (
+                      <div className="relative event-actions-menu flex-shrink-0">
+                        <button
+                          onClick={() => setOpenEventMenuId(openEventMenuId === e.id ? null : e.id)}
+                          className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {openEventMenuId === e.id && (
+                          <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
+                            <button
+                              onClick={() => { setOpenEventMenuId(null); setEditingEvent(e); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(e.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
-                    <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{e.title}</h3>
                     <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
                     <div className="flex gap-4 text-xs text-muted-foreground pt-3">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
                       <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
                     </div>
                   </div>
-
-                  {isManager && (
-                    <button
-                      onClick={async () => {
-                        if (window.confirm("¿Seguro que quieres borrar este evento?")) {
-                          await supabase.from('school_events').delete().eq('id', e.id);
-                          loadEvents(currentSchoolId);
-                        }
-                      }}
-                      className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               ))
             ) : (
@@ -530,13 +589,13 @@ export default function SchoolProfile() {
         </div>
       )}
 
-      {showEventModal && (
+      {editingEvent && (
         <CreatePostModal
           user={user}
-          initialType="event"
-          onClose={() => setShowEventModal(false)}
+          editEvent={editingEvent}
+          onClose={() => setEditingEvent(null)}
           onCreated={() => {
-            setShowEventModal(false);
+            setEditingEvent(null);
             loadEvents(currentSchoolId);
           }}
         />

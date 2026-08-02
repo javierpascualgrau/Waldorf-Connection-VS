@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
-import CreatePostModal from '@/components/CreatePostModal';
+import { Search, MapPin, Filter, Calendar, Clock, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import CreatePostModal from '@/components/CreatePostModal';
 
 const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
 
@@ -13,43 +13,49 @@ export default function Colegios() {
   const [eventoFiltro, setEventoFiltro] = useState('Todos'); 
   const [schools, setSchools] = useState([]);
   const [events, setEvents] = useState([]);
-  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  const [currentUserSchool, setCurrentUserSchool] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const [openEventMenuId, setOpenEventMenuId] = useState(null);
+  const [editingEvent, setEditingEvent] = useState(null);
+
+  const fetchEvents = async () => {
+    const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
+    setEvents(eData || []);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       const { data: sData, error: sError } = await supabase.from('school_profiles').select('*');
-      const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
-      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+
       if (sError) console.error("Error cargando colegios:", sError);
 
       setSchools(sData || []);
-      setEvents(eData || []);
-
-      // Verificamos la sesión del usuario actual de forma segura
-      const { data: { user: authUser } } = await supabase.auth.getUser();
       setCurrentUser(authUser);
-      if (authUser) {
-        const { data: userSchool } = await supabase
-          .from('school_profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
-        
-        // Si no se localiza el perfil de colegio, userSchool vendrá como null
-        setCurrentUserSchool(userSchool);
-      } else {
-        setCurrentUserSchool(null);
-      }
+      await fetchEvents();
 
       setLoading(false);
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (openEventMenuId === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.event-actions-menu')) setOpenEventMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openEventMenuId]);
+
+  const handleDeleteEvent = async (eventId) => {
+    setOpenEventMenuId(null);
+    if (!window.confirm("¿Seguro que quieres borrar este evento?")) return;
+    await supabase.from('school_events').delete().eq('id', eventId);
+    fetchEvents();
+  };
 
   const filteredSchools = schools.filter(s => 
     (s.name?.toLowerCase().includes(search.toLowerCase()) || false) || 
@@ -146,46 +152,66 @@ export default function Colegios() {
         </div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          
-          {/* 💡 BLINDAJE ESTRICTO: Comprobamos la existencia real de la ID del perfil del colegio */}
-          {currentUserSchool?.id && (
-            <div className="flex justify-end mb-4">
-               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
-                 <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
-               </button>
-            </div>
-          )}
-          
           {filteredEvents.length > 0 ? (
             filteredEvents.map(event => {
               const targetSchool = schools.find(s => s.id === event.school_id || s.name === event.school_name);
               const logoUrl = targetSchool?.avatar_url;
               const initials = (event.school_name || 'CL').slice(0, 2).toUpperCase();
+              const isOwner = currentUser && event.school_id === currentUser.id;
 
               return (
                 <div key={event.id} className="p-6 bg-card border border-border rounded-3xl shadow-sm text-left transition-all hover:border-primary/20">
-                  
-                  {/* CABECERA VINCULADA */}
-                  <div 
-                    onClick={() => targetSchool && navigate(`/colegios/${targetSchool.id}`)}
-                    className="flex items-center gap-3 cursor-pointer group mb-4 inline-flex"
-                  >
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0 group-hover:border-primary/40 transition-colors">
-                      {logoUrl ? (
-                        <img src={logoUrl} className="w-full h-full object-cover" alt="logo colegio" />
-                      ) : (
-                        <span className="text-xs font-bold text-primary">{initials}</span>
-                      )}
+
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    {/* CABECERA VINCULADA */}
+                    <div
+                      onClick={() => targetSchool && navigate(`/colegios/${targetSchool.id}`)}
+                      className="flex items-center gap-3 cursor-pointer group min-w-0"
+                    >
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0 group-hover:border-primary/40 transition-colors">
+                        {logoUrl ? (
+                          <img src={logoUrl} className="w-full h-full object-cover" alt="logo colegio" />
+                        ) : (
+                          <span className="text-xs font-bold text-primary">{initials}</span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors truncate">
+                          {event.school_name || targetSchool?.name}
+                        </h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
+                          {event.event_type || 'Evento'}
+                        </span>
+                      </div>
                     </div>
-                    
-                    <div>
-                      <h3 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">
-                        {event.school_name || targetSchool?.name}
-                      </h3>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
-                        {event.event_type || 'Evento'}
-                      </span>
-                    </div>
+
+                    {isOwner && (
+                      <div className="relative event-actions-menu flex-shrink-0">
+                        <button
+                          onClick={() => setOpenEventMenuId(openEventMenuId === event.id ? null : event.id)}
+                          className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {openEventMenuId === event.id && (
+                          <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
+                            <button
+                              onClick={() => { setOpenEventMenuId(null); setEditingEvent(event); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(event.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* CONTENIDO REDIRIGIBLE */}
@@ -221,12 +247,15 @@ export default function Colegios() {
         </div>
       )}
 
-      {showModal && (
+      {editingEvent && (
         <CreatePostModal
           user={currentUser}
-          initialType="event"
-          onClose={() => setShowModal(false)}
-          onCreated={() => window.location.reload()}
+          editEvent={editingEvent}
+          onClose={() => setEditingEvent(null)}
+          onCreated={() => {
+            setEditingEvent(null);
+            fetchEvents();
+          }}
         />
       )}
     </div>
