@@ -20,20 +20,22 @@ const CATEGORIES = [
 
 const EVENT_CATEGORIES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo', 'Otro'];
 
-export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, initialType = 'daily' }) {
-  const [postType, setPostType] = useState(editPost ? 'daily' : initialType);
+export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, editEvent = null, initialType = 'daily' }) {
+  const [postType, setPostType] = useState(editPost ? 'daily' : editEvent ? 'event' : initialType);
   const [identity, setIdentity] = useState(null);
 
-  const [content, setContent] = useState(editPost?.content || '');
-  const [title, setTitle] = useState('');
+  const [content, setContent] = useState(editPost?.content || editEvent?.description || '');
+  const [title, setTitle] = useState(editEvent?.title || '');
   const [category, setCategory] = useState(editPost?.category || 'otro');
-  const [eventCategory, setEventCategory] = useState('Taller');
-  const [location, setLocation] = useState(editPost?.location || '');
-  const [eventDate, setEventDate] = useState(editPost?.event_date?.split('T')[0] || '');
-  const [eventTime, setEventTime] = useState('');
+  const [eventCategory, setEventCategory] = useState(
+    editEvent ? (EVENT_CATEGORIES.find(c => c.toLowerCase() === editEvent.event_type) || 'Otro') : 'Taller'
+  );
+  const [location, setLocation] = useState(editPost?.location || editEvent?.location || '');
+  const [eventDate, setEventDate] = useState(editPost?.event_date?.split('T')[0] || editEvent?.date || editEvent?.event_date || '');
+  const [eventTime, setEventTime] = useState(editEvent?.time || editEvent?.event_time || '');
   const [isService, setIsService] = useState(editPost?.is_service_offer || false);
-  const [imageUrl, setImageUrl] = useState(editPost?.image_url || '');
-  const [imagePreview, setImagePreview] = useState(editPost?.image_url || '');
+  const [imageUrl, setImageUrl] = useState(editPost?.image_url || editEvent?.image_url || '');
+  const [imagePreview, setImagePreview] = useState(editPost?.image_url || editEvent?.image_url || '');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
@@ -87,7 +89,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     }
 
     if (isEvent) {
-      const { error } = await supabase.from('school_events').insert([{
+      const eventData = {
         title: title.trim(),
         description: content,
         event_type: eventCategory.toLowerCase(),
@@ -97,10 +99,16 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         event_time: eventTime || null,
         location,
         image_url: imageUrl || null,
-        school_name: freshIdentity?.name,
-        school_id: user?.id,
-        created_date: new Date().toISOString(),
-      }]);
+      };
+
+      const { error } = editEvent
+        ? await supabase.from('school_events').update(eventData).eq('id', editEvent.id)
+        : await supabase.from('school_events').insert([{
+            ...eventData,
+            school_name: freshIdentity?.name,
+            school_id: user?.id,
+            created_date: new Date().toISOString(),
+          }]);
 
       setLoading(false);
       if (error) {
@@ -175,14 +183,14 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
-            {editPost ? 'Editar publicación' : isEvent ? 'Nuevo evento del colegio' : 'Nueva publicación'}
+            {editPost ? 'Editar publicación' : editEvent ? 'Editar evento' : isEvent ? 'Nuevo evento del colegio' : 'Nueva publicación'}
           </h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {isSchool && !editPost && (
+        {isSchool && !editPost && !editEvent && (
           <div className="flex gap-1.5 mb-4 bg-muted/50 p-1 rounded-2xl">
             <button
               type="button"
@@ -311,7 +319,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           disabled={loading || uploadingImage || (isEvent ? (!title.trim() || !eventDate) : !content.trim())}
           className="mt-5 w-full bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
-          {loading ? 'Guardando...' : editPost ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : 'Publicar'}
+          {loading ? 'Guardando...' : (editPost || editEvent) ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : 'Publicar'}
         </button>
       </div>
     </div>

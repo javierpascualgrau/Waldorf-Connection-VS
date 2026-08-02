@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil } from 'lucide-react';
 import PostCard from '@/components/PostCard';
+import CreatePostModal from '@/components/CreatePostModal';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -30,6 +29,9 @@ export default function SchoolProfile() {
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
+  const [openEventMenuId, setOpenEventMenuId] = useState(null);
+  const [editingEvent, setEditingEvent] = useState(null);
+
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -42,6 +44,22 @@ export default function SchoolProfile() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex]);
+
+  useEffect(() => {
+    if (openEventMenuId === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.event-actions-menu')) setOpenEventMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openEventMenuId]);
+
+  const handleDeleteEvent = async (eventId) => {
+    setOpenEventMenuId(null);
+    if (!window.confirm("¿Seguro que quieres borrar este evento?")) return;
+    await supabase.from('school_events').delete().eq('id', eventId);
+    loadEvents(currentSchoolId);
+  };
 
   // 💡 "Al día": posts del colegio (type='daily'), separados de los Eventos futuros
   useEffect(() => {
@@ -506,10 +524,10 @@ export default function SchoolProfile() {
           <div className="space-y-4">
             {schoolEvents.length > 0 ? (
               schoolEvents.map(e => (
-                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 overflow-hidden border border-border">
+                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
                         <img
                           src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'}
                           className="w-full h-full object-cover"
@@ -517,17 +535,41 @@ export default function SchoolProfile() {
                         />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-sm text-foreground truncate">{school.name}</span>
-                          <span className="text-xs text-muted-foreground flex-shrink-0">Colegio</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {e.created_date ? format(new Date(e.created_date), "d MMM", { locale: es }) : ''}
+                        <h3 className="font-semibold text-foreground text-sm leading-tight truncate">{school.name}</h3>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
+                          {e.event_type || 'Evento'}
                         </span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary flex-shrink-0">{e.event_type || 'Evento'}</span>
+
+                    {isManager && (
+                      <div className="relative event-actions-menu flex-shrink-0">
+                        <button
+                          onClick={() => setOpenEventMenuId(openEventMenuId === e.id ? null : e.id)}
+                          className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {openEventMenuId === e.id && (
+                          <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
+                            <button
+                              onClick={() => { setOpenEventMenuId(null); setEditingEvent(e); }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(e.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
                   <div className="space-y-1">
                     <h3 className="text-lg font-semibold text-foreground">{e.title}</h3>
                     <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
@@ -536,20 +578,6 @@ export default function SchoolProfile() {
                       <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
                     </div>
                   </div>
-
-                  {isManager && (
-                    <button
-                      onClick={async () => {
-                        if (window.confirm("¿Seguro que quieres borrar este evento?")) {
-                          await supabase.from('school_events').delete().eq('id', e.id);
-                          loadEvents(currentSchoolId);
-                        }
-                      }}
-                      className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               ))
             ) : (
@@ -559,6 +587,18 @@ export default function SchoolProfile() {
             )}
           </div>
         </div>
+      )}
+
+      {editingEvent && (
+        <CreatePostModal
+          user={user}
+          editEvent={editingEvent}
+          onClose={() => setEditingEvent(null)}
+          onCreated={() => {
+            setEditingEvent(null);
+            loadEvents(currentSchoolId);
+          }}
+        />
       )}
     </div>
   );
