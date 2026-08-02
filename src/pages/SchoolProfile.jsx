@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, Plus, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
-import CreatePostModal from '@/components/CreatePostModal';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
@@ -27,7 +28,6 @@ export default function SchoolProfile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
-  const [showEventModal, setShowEventModal] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
@@ -130,6 +130,19 @@ export default function SchoolProfile() {
   }, [id]);
 
   const isManager = user && (school?.id === user.id || school?.manager_id === user.id);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      navigate('/'); // Redirigimos al inicio estático
+      window.location.reload(); // Forzamos recarga para limpiar memoria y caché del auth
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error.message);
+      alert("Error al intentar cerrar la sesión.");
+    }
+  };
 
   // 💡 ACCIÓN OPTIMISTA ESCOLAR: Cambia de estado visual en el mismo milisegundo que haces clic
   const handleFollow = async () => {
@@ -249,9 +262,18 @@ export default function SchoolProfile() {
 
         {isManager && (
           !isEditing ? (
-            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-              <Edit3 className="w-4 h-4" /> Gestionar Perfil
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
+                <Edit3 className="w-4 h-4" /> Gestionar Perfil
+              </button>
+            </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => { setEditForm(school); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
@@ -481,24 +503,33 @@ export default function SchoolProfile() {
         </div>
       ) : (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-          {isManager && (
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setShowEventModal(true)}
-                className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" /> Publicar Evento
-              </button>
-            </div>
-          )}
-
           <div className="space-y-4">
             {schoolEvents.length > 0 ? (
               schoolEvents.map(e => (
                 <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left group">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 overflow-hidden border border-border">
+                        <img
+                          src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'}
+                          className="w-full h-full object-cover"
+                          alt={school.name}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-sm text-foreground truncate">{school.name}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">Colegio</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {e.created_date ? format(new Date(e.created_date), "d MMM", { locale: es }) : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary flex-shrink-0">{e.event_type || 'Evento'}</span>
+                  </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-primary">{e.event_type || 'Evento'}</span>
-                    <h3 className="text-lg font-semibold text-foreground pt-1.5">{e.title}</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{e.title}</h3>
                     <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
                     <div className="flex gap-4 text-xs text-muted-foreground pt-3">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
@@ -528,18 +559,6 @@ export default function SchoolProfile() {
             )}
           </div>
         </div>
-      )}
-
-      {showEventModal && (
-        <CreatePostModal
-          user={user}
-          initialType="event"
-          onClose={() => setShowEventModal(false)}
-          onCreated={() => {
-            setShowEventModal(false);
-            loadEvents(currentSchoolId);
-          }}
-        />
       )}
     </div>
   );

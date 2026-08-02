@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, PlusCircle, MapPin, Filter, Calendar, Clock } from 'lucide-react';
-import CreatePostModal from '@/components/CreatePostModal';
+import { Search, MapPin, Filter, Calendar, Clock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const CATEGORIAS_EVENTOS = ['Todos', 'Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo'];
@@ -13,38 +12,18 @@ export default function Colegios() {
   const [eventoFiltro, setEventoFiltro] = useState('Todos'); 
   const [schools, setSchools] = useState([]);
   const [events, setEvents] = useState([]);
-  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  const [currentUserSchool, setCurrentUserSchool] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       const { data: sData, error: sError } = await supabase.from('school_profiles').select('*');
       const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
-      
+
       if (sError) console.error("Error cargando colegios:", sError);
 
       setSchools(sData || []);
       setEvents(eData || []);
-
-      // Verificamos la sesión del usuario actual de forma segura
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      setCurrentUser(authUser);
-      if (authUser) {
-        const { data: userSchool } = await supabase
-          .from('school_profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
-        
-        // Si no se localiza el perfil de colegio, userSchool vendrá como null
-        setCurrentUserSchool(userSchool);
-      } else {
-        setCurrentUserSchool(null);
-      }
 
       setLoading(false);
     };
@@ -146,16 +125,6 @@ export default function Colegios() {
         </div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          
-          {/* 💡 BLINDAJE ESTRICTO: Comprobamos la existencia real de la ID del perfil del colegio */}
-          {currentUserSchool?.id && (
-            <div className="flex justify-end mb-4">
-               <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:scale-105 transition-transform">
-                 <PlusCircle className="w-4 h-4" /> Publicar Nuevo Evento
-               </button>
-            </div>
-          )}
-          
           {filteredEvents.length > 0 ? (
             filteredEvents.map(event => {
               const targetSchool = schools.find(s => s.id === event.school_id || s.name === event.school_name);
@@ -219,15 +188,6 @@ export default function Colegios() {
             </div>
           )}
         </div>
-      )}
-
-      {showModal && (
-        <CreatePostModal
-          user={currentUser}
-          initialType="event"
-          onClose={() => setShowModal(false)}
-          onCreated={() => window.location.reload()}
-        />
       )}
     </div>
   );

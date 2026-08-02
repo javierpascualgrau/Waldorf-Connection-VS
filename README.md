@@ -1,4 +1,4 @@
-# 🏛️ Waldorf Connection
+# 🏛️ Waldorf Live
 
 Una plataforma comunitaria viva e integradora diseñada para conectar a familias, alumnos, profesores y exalumnos de escuelas Waldorf (como la Escuela Libre Micael). Un espacio respetuoso enfocado en fortalecer los vínculos reales, la colaboración de proximidad y la visibilidad de la pedagogía.
 

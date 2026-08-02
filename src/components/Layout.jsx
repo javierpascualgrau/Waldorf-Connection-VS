@@ -83,7 +83,8 @@ export default function Layout() {
     getSession();
   }, []);
 
-  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil';
+  // 💡 También se muestra en el perfil propio del colegio (misma cabecera, mismo botón)
+  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil' || (schoolId && location.pathname === `/colegios/${schoolId}`);
   const mostrarBotonHilo = location.pathname === '/';
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
   // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
@@ -97,7 +98,7 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-primary-foreground text-xs font-cormorant font-semibold">W</span>
             </div>
-            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Connection</span>
+            <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Live</span>
           </Link>
           
           <div className="flex items-center gap-2 flex-shrink-0">

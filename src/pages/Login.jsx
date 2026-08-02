@@ -61,7 +61,7 @@ export default function Login() {
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
             <Sparkles className="text-primary w-6 h-6" />
           </div>
-          <h1 className="font-cormorant text-4xl font-bold text-foreground italic">Waldorf Connect</h1>
+          <h1 className="font-cormorant text-4xl font-bold text-foreground italic">Waldorf Live</h1>
           <p className="text-muted-foreground mt-2 text-sm">
             {isSignUp ? 'Crea tu cuenta en la comunidad' : 'Bienvenido de nuevo a casa'}
           </p>

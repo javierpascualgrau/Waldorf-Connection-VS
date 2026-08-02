@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Waldorf Connection: a community platform (feed, school events, private messaging, marketplace/services, member profiles) for Waldorf schools, families, students and alumni. React + Vite + Tailwind frontend, Supabase (Postgres + Auth + Storage + Realtime) backend, deployed on Vercel.
+Waldorf Live: a community platform (feed, school events, private messaging, marketplace/services, member profiles) for Waldorf schools, families, students and alumni. React + Vite + Tailwind frontend, Supabase (Postgres + Auth + Storage + Realtime) backend, deployed on Vercel.
 
 ## Commands
 
