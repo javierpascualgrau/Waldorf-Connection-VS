@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { X, MapPin } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
+import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
 
 const TRIP_TYPES = [
   { value: 'ida', label: 'Ida' },
@@ -14,6 +15,11 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
   const [schoolId, setSchoolId] = useState(editRoute?.school_id || prefill?.schoolId || '');
   const [tripType, setTripType] = useState(editRoute?.trip_type || prefill?.tripType || 'ambos');
   const [location, setLocation] = useState(editRoute?.location || prefill?.location || '');
+  const [originCoords, setOriginCoords] = useState(
+    editRoute?.origin_lat != null && editRoute?.origin_lng != null
+      ? { lat: editRoute.origin_lat, lng: editRoute.origin_lng }
+      : null
+  );
   const [notes, setNotes] = useState(editRoute?.notes || '');
   const [seats, setSeats] = useState(editRoute?.seats ?? 4);
   const [salidaTime, setSalidaTime] = useState(editRoute?.salida_time?.slice(0, 5) || '');
@@ -39,11 +45,15 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
 
     const selectedSchool = schools.find(s => s.id === schoolId);
 
-    // Origen: solo se geocodifica si es una ruta nueva o si la zona cambió al editar
-    // (evita llamadas redundantes a Mapbox al guardar cambios que no tocan la dirección).
+    // Origen: si el usuario eligió una sugerencia del autocompletado ya tenemos coordenadas
+    // precisas sin llamar a ningún backend. Si escribió texto libre sin seleccionar nada,
+    // se mantiene el fallback de geocodificar en el submit (solo si es nuevo o cambió).
     let originLat = editRoute?.origin_lat ?? null;
     let originLng = editRoute?.origin_lng ?? null;
-    if (location.trim() && (!editRoute || location !== editRoute.location)) {
+    if (originCoords && location.trim()) {
+      originLat = originCoords.lat;
+      originLng = originCoords.lng;
+    } else if (location.trim() && (!editRoute || location !== editRoute.location)) {
       const { data } = await supabase.functions.invoke('geocode-address', { body: { address: location } });
       if (data && !data.error) {
         originLat = data.lat;
@@ -158,11 +168,12 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
 
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
             <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <input
+            <AddressAutocompleteInput
               value={location}
-              onChange={e => setLocation(e.target.value)}
+              onChange={(text) => { setLocation(text); setOriginCoords(null); }}
+              onSelect={({ address, lat, lng }) => { setLocation(address); setOriginCoords({ lat, lng }); }}
               placeholder="Zona donde vives (ej: Majadahonda)"
-              className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+              className="flex-1"
             />
           </div>
 

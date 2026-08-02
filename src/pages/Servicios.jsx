@@ -6,6 +6,7 @@ import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircl
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
 import CreateEmployabilityListingModal from '@/components/CreateEmployabilityListingModal';
+import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
 
 const SERVICIOS_TABS = [
   { id: 'compraventa', label: 'Compraventa', icon: ShoppingBag },
@@ -77,6 +78,7 @@ export default function Servicios() {
   const [requestingRouteId, setRequestingRouteId] = useState(null);
   const [joinRequestRouteId, setJoinRequestRouteId] = useState(null);
   const [zonaDraft, setZonaDraft] = useState('');
+  const [zonaCoords, setZonaCoords] = useState(null);
 
   const [employabilityListings, setEmployabilityListings] = useState([]);
   const [loadingEmployability, setLoadingEmployability] = useState(true);
@@ -169,10 +171,17 @@ export default function Servicios() {
     await supabase.from('school_routes').delete().eq('id', route.id);
   };
 
-  const handleRequestJoin = async (route, zona) => {
+  const handleRequestJoin = async (route, zona, coords) => {
     setRequestingRouteId(route.id);
     const { data, error } = await supabase.functions.invoke('request-join-route', {
-      body: { route_id: route.id, zona, requester_name: identity?.name, requester_avatar: identity?.avatar },
+      body: {
+        route_id: route.id,
+        zona,
+        zona_lat: coords?.lat ?? null,
+        zona_lng: coords?.lng ?? null,
+        requester_name: identity?.name,
+        requester_avatar: identity?.avatar,
+      },
     });
     setRequestingRouteId(null);
 
@@ -183,6 +192,7 @@ export default function Servicios() {
     setMyPendingRequestRouteIds(prev => new Set(prev).add(route.id));
     setJoinRequestRouteId(null);
     setZonaDraft('');
+    setZonaCoords(null);
   };
 
   const handleDeleteEmploymentListing = async (listing) => {
@@ -556,26 +566,28 @@ export default function Servicios() {
                           {route.status === 'abierto' && !isMember && (
                             joinRequestRouteId === route.id ? (
                               <div className="flex items-center gap-1.5">
-                                <input
+                                <AddressAutocompleteInput
                                   autoFocus
                                   value={zonaDraft}
-                                  onChange={e => setZonaDraft(e.target.value)}
+                                  onChange={(text) => { setZonaDraft(text); setZonaCoords(null); }}
+                                  onSelect={({ address, lat, lng }) => { setZonaDraft(address); setZonaCoords({ lat, lng }); }}
                                   onKeyDown={e => {
-                                    if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim());
-                                    if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); }
+                                    if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim(), zonaCoords);
+                                    if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }
                                   }}
                                   placeholder="¿En qué zona vives?"
-                                  className="flex-1 min-w-0 bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  className="flex-1 min-w-0"
+                                  inputClassName="w-full bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
                                 />
                                 <button
-                                  onClick={() => handleRequestJoin(route, zonaDraft.trim())}
+                                  onClick={() => handleRequestJoin(route, zonaDraft.trim(), zonaCoords)}
                                   disabled={!zonaDraft.trim() || requestingRouteId === route.id}
                                   className="p-2 rounded-full bg-primary text-white disabled:opacity-50 flex-shrink-0"
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); }}
+                                  onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }}
                                   className="p-2 rounded-full bg-muted text-muted-foreground flex-shrink-0"
                                 >
                                   <XIcon className="w-3.5 h-3.5" />
@@ -583,7 +595,7 @@ export default function Servicios() {
                               </div>
                             ) : (
                               <button
-                                onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); }}
+                                onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); setZonaCoords(null); }}
                                 disabled={hasPendingRequest}
                                 className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-primary/5 disabled:hover:text-primary"
                               >
