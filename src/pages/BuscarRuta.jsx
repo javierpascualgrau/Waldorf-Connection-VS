@@ -2,19 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
-import { ArrowLeft, MapPin, ArrowLeftRight, Users, Clock, MessageCircle, UserPlus, Compass, Check, X as XIcon } from 'lucide-react';
+import { ArrowLeft, MapPin, ArrowLeftRight, Users, Clock, Compass } from 'lucide-react';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
 import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
 import RouteSearchMap from '@/components/RouteSearchMap';
 import { Slider } from '@/components/ui/slider';
 import { goBack } from '@/lib/navigation';
-
-const TRIP_TYPE_FILTERS = [
-  { label: 'Todos', value: '' },
-  { label: 'Ida', value: 'ida' },
-  { label: 'Vuelta', value: 'vuelta' },
-  { label: 'Ida y vuelta', value: 'ambos' },
-];
 
 const TRIP_TYPE_LABELS = { ida: 'Ida', vuelta: 'Vuelta', ambos: 'Ida y vuelta' };
 
@@ -29,9 +22,6 @@ export default function BuscarRuta() {
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [radiusOrigin, setRadiusOrigin] = useState(10);
-  const [radiusDestination, setRadiusDestination] = useState(10);
-  const [departureTime, setDepartureTime] = useState('');
-  const [tripType, setTripType] = useState('');
   const [seatsNeeded, setSeatsNeeded] = useState('');
 
   const [searched, setSearched] = useState(false);
@@ -39,11 +29,6 @@ export default function BuscarRuta() {
   const [results, setResults] = useState([]);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [requestingRouteId, setRequestingRouteId] = useState(null);
-  const [joinRequestRouteId, setJoinRequestRouteId] = useState(null);
-  const [zonaDraft, setZonaDraft] = useState('');
-  const [zonaCoords, setZonaCoords] = useState(null);
-  const [requestedRouteIds, setRequestedRouteIds] = useState(new Set());
 
   useEffect(() => {
     const init = async () => {
@@ -51,7 +36,7 @@ export default function BuscarRuta() {
       setUser(authUser);
       if (authUser) setIdentity(await getMemberIdentity(authUser.id));
 
-      const { data } = await supabase.from('school_profiles').select('id, name').order('name', { ascending: true });
+      const { data } = await supabase.from('school_profiles').select('id, name, location, location_lat, location_lng').order('name', { ascending: true });
       setSchools(data || []);
     };
     init();
@@ -72,9 +57,6 @@ export default function BuscarRuta() {
         destination_lat: destinationCoords.lat,
         destination_lng: destinationCoords.lng,
         radiusOrigin,
-        radiusDestination,
-        departure_time: departureTime || undefined,
-        trip_type: tripType || undefined,
         seats_needed: seatsNeeded ? Number(seatsNeeded) : undefined,
       },
     });
@@ -87,47 +69,6 @@ export default function BuscarRuta() {
       return;
     }
     setResults(data.routes || []);
-  };
-
-  const handleContactar = async (route) => {
-    if (!user?.email || !route.author_email) return;
-    const emails = [user.email.toLowerCase().trim(), route.author_email.toLowerCase().trim()].sort();
-
-    const { data, error } = await supabase
-      .from('chats')
-      .upsert({ user_1_email: emails[0], user_2_email: emails[1] }, { onConflict: 'user_1_email,user_2_email' })
-      .select()
-      .single();
-
-    if (error) {
-      alert('No se ha podido abrir el chat: ' + error.message);
-      return;
-    }
-    navigate('/hilo', { state: { activeChatId: data.id } });
-  };
-
-  const handleRequestJoin = async (route, zona, coords) => {
-    setRequestingRouteId(route.id);
-    const { data, error: fnError } = await supabase.functions.invoke('request-join-route', {
-      body: {
-        route_id: route.id,
-        zona,
-        zona_lat: coords?.lat ?? null,
-        zona_lng: coords?.lng ?? null,
-        requester_name: identity?.name,
-        requester_avatar: identity?.avatar,
-      },
-    });
-    setRequestingRouteId(null);
-
-    if (fnError || data?.error) {
-      alert(data?.error || 'No se ha podido enviar la solicitud.');
-      return;
-    }
-    setRequestedRouteIds(prev => new Set(prev).add(route.id));
-    setJoinRequestRouteId(null);
-    setZonaDraft('');
-    setZonaCoords(null);
   };
 
   // Coincidencia laxa con el nombre de un colegio ya existente, para prellenar el modal
@@ -168,68 +109,35 @@ export default function BuscarRuta() {
             onSelect={({ address, lat, lng }) => { setDestination(address); setDestinationCoords({ lat, lng }); }}
             placeholder="Destino (colegio o dirección)"
             className="flex-1"
+            schools={schools}
           />
         </div>
 
         {(originCoords || destinationCoords) && (
-          <div className="space-y-3 pt-1">
+          <div className="space-y-2 pt-1">
             <RouteSearchMap
               origin={originCoords}
               destination={destinationCoords}
               radiusOrigin={radiusOrigin}
-              radiusDestination={radiusDestination}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] text-muted-foreground mb-1.5 block">Radio origen: {radiusOrigin} km</label>
-                <Slider value={[radiusOrigin]} onValueChange={([v]) => setRadiusOrigin(v)} min={1} max={25} step={1} />
-              </div>
-              <div>
-                <label className="text-[10px] text-muted-foreground mb-1.5 block">Radio destino: {radiusDestination} km</label>
-                <Slider value={[radiusDestination]} onValueChange={([v]) => setRadiusDestination(v)} min={1} max={25} step={1} />
-              </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground mb-1.5 block">Radio origen: {radiusOrigin} km</label>
+              <Slider value={[radiusOrigin]} onValueChange={([v]) => setRadiusOrigin(v)} min={1} max={25} step={1} />
+              <p className="text-[10px] text-muted-foreground mt-1.5">Ajusta la distancia para encontrar personas que viven cerca de tu zona.</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
-            <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <input
-              type="time"
-              value={departureTime}
-              onChange={e => setDepartureTime(e.target.value)}
-              className="bg-transparent text-sm flex-1 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
-            <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <input
-              type="number"
-              min="1"
-              value={seatsNeeded}
-              onChange={e => setSeatsNeeded(e.target.value)}
-              placeholder="Plazas"
-              className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {TRIP_TYPE_FILTERS.map(f => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setTripType(f.value)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                tripType === f.value
-                  ? 'bg-primary text-white border-primary shadow-sm'
-                  : 'bg-muted/40 text-muted-foreground border-border/40 hover:border-border'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+          <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <input
+            type="number"
+            min="1"
+            value={seatsNeeded}
+            onChange={e => setSeatsNeeded(e.target.value)}
+            placeholder="Plazas"
+            className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+          />
         </div>
 
         <button
@@ -261,12 +169,12 @@ export default function BuscarRuta() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {results.map(route => {
-              const isMine = user?.email && route.author_email?.toLowerCase().trim() === user.email.toLowerCase().trim();
               const initials = route.author_name?.slice(0, 2).toUpperCase() || 'W';
               return (
                 <div
                   key={route.id}
-                  className="p-4 bg-card border border-border rounded-2xl shadow-sm flex flex-col gap-2"
+                  onClick={() => navigate(`/rutas/oferta/${route.id}`)}
+                  className="p-4 bg-card border border-border rounded-2xl shadow-sm flex flex-col gap-2 cursor-pointer hover:border-primary/30 hover:shadow-md transition-all"
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
@@ -305,55 +213,6 @@ export default function BuscarRuta() {
                     </p>
                   )}
 
-                  {!isMine && (
-                    <div className="pt-2 border-t border-border/50 mt-1 flex flex-col gap-1.5">
-                      <button
-                        onClick={() => handleContactar(route)}
-                        className="w-full flex items-center justify-center gap-1.5 bg-muted text-foreground rounded-xl text-xs font-semibold py-1.5 hover:bg-muted/70 transition-all"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" /> Contactar
-                      </button>
-                      {joinRequestRouteId === route.id ? (
-                        <div className="flex items-center gap-1.5">
-                          <AddressAutocompleteInput
-                            autoFocus
-                            value={zonaDraft}
-                            onChange={(text) => { setZonaDraft(text); setZonaCoords(null); }}
-                            onSelect={({ address, lat, lng }) => { setZonaDraft(address); setZonaCoords({ lat, lng }); }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim(), zonaCoords);
-                              if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }
-                            }}
-                            placeholder="¿En qué zona vives?"
-                            className="flex-1 min-w-0"
-                            inputClassName="w-full bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          />
-                          <button
-                            onClick={() => handleRequestJoin(route, zonaDraft.trim(), zonaCoords)}
-                            disabled={!zonaDraft.trim() || requestingRouteId === route.id}
-                            className="p-2 rounded-full bg-primary text-white disabled:opacity-50 flex-shrink-0"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }}
-                            className="p-2 rounded-full bg-muted text-muted-foreground flex-shrink-0"
-                          >
-                            <XIcon className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); setZonaCoords(null); }}
-                          disabled={requestedRouteIds.has(route.id)}
-                          className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-primary/5 disabled:hover:text-primary"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          {requestedRouteIds.has(route.id) ? 'Solicitud enviada' : 'Solicitar unirse'}
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -365,7 +224,12 @@ export default function BuscarRuta() {
         <CreateSchoolRouteModal
           user={user}
           identity={identity}
-          prefill={{ location: origin, tripType: tripType || 'ambos', schoolId: matchedSchoolId }}
+          prefill={{
+            location: origin,
+            schoolId: matchedSchoolId,
+            destination: destinationCoords ? destination : undefined,
+            destinationCoords: destinationCoords || undefined,
+          }}
           onClose={() => setShowCreateModal(false)}
           onCreated={() => {
             setShowCreateModal(false);

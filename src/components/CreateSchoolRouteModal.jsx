@@ -1,24 +1,26 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react';
-import { X, MapPin } from 'lucide-react';
+import { X, MapPin, Compass } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
-
-const TRIP_TYPES = [
-  { value: 'ida', label: 'Ida' },
-  { value: 'vuelta', label: 'Vuelta' },
-  { value: 'ambos', label: 'Ida y vuelta' },
-];
 
 export default function CreateSchoolRouteModal({ user, identity, onClose, onCreated, editRoute = null, prefill = null }) {
   const [schools, setSchools] = useState([]);
   const [schoolId, setSchoolId] = useState(editRoute?.school_id || prefill?.schoolId || '');
-  const [tripType, setTripType] = useState(editRoute?.trip_type || prefill?.tripType || 'ambos');
   const [location, setLocation] = useState(editRoute?.location || prefill?.location || '');
   const [originCoords, setOriginCoords] = useState(
     editRoute?.origin_lat != null && editRoute?.origin_lng != null
       ? { lat: editRoute.origin_lat, lng: editRoute.origin_lng }
       : null
+  );
+  // Destino: independiente del desplegable de Colegio una vez editado a mano — solo
+  // controla las coordenadas del cálculo de distancia (es intencional que pueda
+  // desincronizarse del colegio elegido si el usuario lo cambia).
+  const [destination, setDestination] = useState(editRoute?.destination_address || editRoute?.school_name || prefill?.destination || '');
+  const [destinationCoords, setDestinationCoords] = useState(
+    editRoute?.destination_lat != null && editRoute?.destination_lng != null
+      ? { lat: editRoute.destination_lat, lng: editRoute.destination_lng }
+      : prefill?.destinationCoords || null
   );
   const [notes, setNotes] = useState(editRoute?.notes || '');
   const [seats, setSeats] = useState(editRoute?.seats ?? 4);
@@ -33,14 +35,45 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
         .select('id, name, location, location_lat, location_lng')
         .order('name', { ascending: true });
       setSchools(data || []);
-      if (!editRoute && data?.length && !schoolId) setSchoolId(data[0].id);
+      if (!editRoute && data?.length && !schoolId) {
+        setSchoolId(data[0].id);
+        if (!prefill?.destination) {
+          setDestination(data[0].location || data[0].name);
+          setDestinationCoords(
+            data[0].location_lat != null && data[0].location_lng != null
+              ? { lat: data[0].location_lat, lng: data[0].location_lng }
+              : null
+          );
+        }
+      }
     };
     loadSchools();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleSchoolChange = (newSchoolId) => {
+    setSchoolId(newSchoolId);
+    const school = schools.find(s => s.id === newSchoolId);
+    if (school) {
+      setDestination(school.location || school.name);
+      setDestinationCoords(
+        school.location_lat != null && school.location_lng != null
+          ? { lat: school.location_lat, lng: school.location_lng }
+          : null
+      );
+    }
+  };
+
   const handleSubmit = async () => {
     if (!schoolId) return;
+    // author_id es obligatorio para poder gestionar el grupo/turnos más tarde. `user` llega
+    // como prop desde supabase.auth.getUser() en el padre — si por lo que sea (sesión
+    // desactualizada, pestaña abierta desde antes de iniciar sesión) todavía no tiene id,
+    // mejor bloquear la publicación con un aviso claro que insertar la ruta sin dueño.
+    if (!editRoute && !user?.id) {
+      alert('Tu sesión parece desactualizada. Recarga la página e inténtalo de nuevo.');
+      return;
+    }
     setLoading(true);
 
     const selectedSchool = schools.find(s => s.id === schoolId);
@@ -61,28 +94,26 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
       }
     }
 
-    // Destino: reutiliza las coordenadas ya cacheadas del colegio si las tiene; si no,
-    // pide geocodificarlas (y cachearlas) — solo si es ruta nueva o cambió el colegio.
+    // Destino: igual que el origen — coordenadas directas si se eligió una sugerencia
+    // (colegio o dirección libre), si no, fallback de geocodificar el texto escrito.
     let destinationLat = editRoute?.destination_lat ?? null;
     let destinationLng = editRoute?.destination_lng ?? null;
-    if (!editRoute || schoolId !== editRoute.school_id) {
-      if (selectedSchool?.location_lat != null && selectedSchool?.location_lng != null) {
-        destinationLat = selectedSchool.location_lat;
-        destinationLng = selectedSchool.location_lng;
-      } else {
-        const { data } = await supabase.functions.invoke('geocode-address', { body: { cache_on_school_id: schoolId } });
-        if (data && !data.error) {
-          destinationLat = data.lat;
-          destinationLng = data.lng;
-        }
+    if (destinationCoords && destination.trim()) {
+      destinationLat = destinationCoords.lat;
+      destinationLng = destinationCoords.lng;
+    } else if (destination.trim() && (!editRoute || destination !== (editRoute.destination_address || editRoute.school_name || ''))) {
+      const { data } = await supabase.functions.invoke('geocode-address', { body: { address: destination } });
+      if (data && !data.error) {
+        destinationLat = data.lat;
+        destinationLng = data.lng;
       }
     }
 
     const routeData = {
       school_id: schoolId,
       school_name: selectedSchool?.name || editRoute?.school_name || '',
-      trip_type: tripType,
       location,
+      destination_address: destination,
       notes,
       seats: Number(seats) || 1,
       salida_time: salidaTime || null,
@@ -140,30 +171,13 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
             <label className="text-xs text-muted-foreground mb-1 block">Colegio *</label>
             <select
               value={schoolId}
-              onChange={e => setSchoolId(e.target.value)}
+              onChange={e => handleSchoolChange(e.target.value)}
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               {schools.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Trayecto que ofreces</label>
-            <div className="flex gap-2">
-              {TRIP_TYPES.map(t => (
-                <button
-                  key={t.value}
-                  onClick={() => setTripType(t.value)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
-                    tripType === t.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 text-muted-foreground border-transparent'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
@@ -175,6 +189,21 @@ export default function CreateSchoolRouteModal({ user, identity, onClose, onCrea
               placeholder="Zona donde vives (ej: Majadahonda)"
               className="flex-1"
             />
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Destino</label>
+            <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+              <Compass className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <AddressAutocompleteInput
+                value={destination}
+                onChange={(text) => { setDestination(text); setDestinationCoords(null); }}
+                onSelect={({ address, lat, lng }) => { setDestination(address); setDestinationCoords({ lat, lng }); }}
+                placeholder="Destino (colegio o dirección)"
+                className="flex-1"
+                schools={schools}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">

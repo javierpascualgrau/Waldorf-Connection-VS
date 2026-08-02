@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useRef, useEffect } from 'react';
+import { School } from 'lucide-react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
@@ -7,6 +8,11 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 // España). Mismo patrón de debounce/dropdown que src/components/ProfileSearch.jsx.
 // Solo renderiza el <input> + su desplegable — el icono y el fondo los pone quien lo use,
 // para encajar en el estilo de cada sitio sin imponer un wrapper rígido.
+//
+// `schools` (opcional): colegios registrados en la comunidad ({id, name, location,
+// location_lat, location_lng}) que aparecen como sugerencias destacadas por encima de los
+// resultados libres de Mapbox — al hacer foco con el campo vacío se muestran todos; al
+// escribir, se filtran por nombre. Solo se usa en el campo de "destino".
 export default function AddressAutocompleteInput({
   value,
   onChange,
@@ -16,6 +22,7 @@ export default function AddressAutocompleteInput({
   inputClassName = 'bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground min-w-0 w-full',
   autoFocus = false,
   onKeyDown,
+  schools,
 }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -46,7 +53,6 @@ export default function AddressAutocompleteInput({
         const res = await fetch(url);
         const body = await res.json();
         setResults(res.ok ? body.features || [] : []);
-        setOpen(true);
       } catch (err) {
         console.error('Error buscando direcciones en Mapbox:', err);
         setResults([]);
@@ -56,6 +62,12 @@ export default function AddressAutocompleteInput({
     }, 300);
   }, [value]);
 
+  const schoolMatches = (schools || []).filter((s) => {
+    if (s.location_lat == null || s.location_lng == null) return false;
+    const q = value?.trim().toLowerCase();
+    return !q || s.name.toLowerCase().includes(q);
+  });
+
   const handleSelect = (feature) => {
     const address = feature.properties?.full_address || feature.properties?.name || value;
     const [lng, lat] = feature.geometry.coordinates;
@@ -64,13 +76,18 @@ export default function AddressAutocompleteInput({
     setOpen(false);
   };
 
+  const handleSelectSchool = (school) => {
+    onSelect({ address: school.location, lat: Number(school.location_lat), lng: Number(school.location_lng), schoolId: school.id });
+    setOpen(false);
+  };
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <input
         autoFocus={autoFocus}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => results.length > 0 && setOpen(true)}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => (schoolMatches.length > 0 || results.length > 0) && setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         className={inputClassName}
@@ -78,10 +95,26 @@ export default function AddressAutocompleteInput({
 
       {open && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto">
+          {schoolMatches.length > 0 && (
+            <ul>
+              {schoolMatches.map((school) => (
+                <li
+                  key={school.id}
+                  onClick={() => handleSelectSchool(school)}
+                  className="px-3 py-2.5 text-xs hover:bg-muted/50 transition-colors cursor-pointer border-b border-border/50 flex items-center gap-2"
+                >
+                  <School className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  <span className="flex-1 min-w-0 truncate">{school.name}</span>
+                  <span className="text-[9px] font-medium uppercase tracking-widest px-1.5 py-0.5 bg-primary/10 text-primary rounded-md flex-shrink-0">Colegio</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {loading ? (
             <div className="p-3 text-center text-xs text-muted-foreground">Buscando...</div>
           ) : results.length === 0 ? (
-            <div className="p-3 text-center text-xs text-muted-foreground">Sin resultados</div>
+            schoolMatches.length === 0 && <div className="p-3 text-center text-xs text-muted-foreground">Sin resultados</div>
           ) : (
             <ul>
               {results.map((feature) => (

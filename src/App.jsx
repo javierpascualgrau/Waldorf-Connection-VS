@@ -25,6 +25,7 @@ import BuscarRuta from './pages/BuscarRuta';
 import GestionRuta from './pages/GestionRuta';
 import GrupoRutaCalendario from './pages/GrupoRutaCalendario';
 import MisRutas from './pages/MisRutas';
+import RouteOfferDetail from './pages/RouteOfferDetail';
 
 // 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
 import CompanyProfile from './pages/CompanyProfile';
@@ -68,6 +69,7 @@ const AuthenticatedApp = () => {
       <Route path="/mis-compras" element={<MisCompras />} />
       <Route path="/empleo/:id" element={<EmployabilityDetail />} />
       <Route path="/rutas/buscar" element={<BuscarRuta />} />
+      <Route path="/rutas/oferta/:id" element={<RouteOfferDetail />} />
       <Route path="/rutas/:id/gestionar" element={<GestionRuta />} />
       <Route path="/rutas/:id/calendario" element={<GrupoRutaCalendario />} />
       <Route path="/mis-rutas" element={<MisRutas />} />
