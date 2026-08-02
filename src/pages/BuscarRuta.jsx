@@ -4,6 +4,9 @@ import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
 import { ArrowLeft, MapPin, ArrowLeftRight, Users, Clock, MessageCircle, UserPlus, Compass, Check, X as XIcon } from 'lucide-react';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
+import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
+import RouteSearchMap from '@/components/RouteSearchMap';
+import { Slider } from '@/components/ui/slider';
 import { goBack } from '@/lib/navigation';
 
 const TRIP_TYPE_FILTERS = [
@@ -22,7 +25,11 @@ export default function BuscarRuta() {
   const [schools, setSchools] = useState([]);
 
   const [origin, setOrigin] = useState('');
+  const [originCoords, setOriginCoords] = useState(null);
   const [destination, setDestination] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState(null);
+  const [radiusOrigin, setRadiusOrigin] = useState(10);
+  const [radiusDestination, setRadiusDestination] = useState(10);
   const [departureTime, setDepartureTime] = useState('');
   const [tripType, setTripType] = useState('');
   const [seatsNeeded, setSeatsNeeded] = useState('');
@@ -35,6 +42,7 @@ export default function BuscarRuta() {
   const [requestingRouteId, setRequestingRouteId] = useState(null);
   const [joinRequestRouteId, setJoinRequestRouteId] = useState(null);
   const [zonaDraft, setZonaDraft] = useState('');
+  const [zonaCoords, setZonaCoords] = useState(null);
   const [requestedRouteIds, setRequestedRouteIds] = useState(new Set());
 
   useEffect(() => {
@@ -51,7 +59,7 @@ export default function BuscarRuta() {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!origin.trim() || !destination.trim()) return;
+    if (!originCoords || !destinationCoords) return;
 
     setSearching(true);
     setError('');
@@ -59,8 +67,12 @@ export default function BuscarRuta() {
 
     const { data, error: fnError } = await supabase.functions.invoke('search-school-routes', {
       body: {
-        origin,
-        destination,
+        origin_lat: originCoords.lat,
+        origin_lng: originCoords.lng,
+        destination_lat: destinationCoords.lat,
+        destination_lng: destinationCoords.lng,
+        radiusOrigin,
+        radiusDestination,
         departure_time: departureTime || undefined,
         trip_type: tripType || undefined,
         seats_needed: seatsNeeded ? Number(seatsNeeded) : undefined,
@@ -94,10 +106,17 @@ export default function BuscarRuta() {
     navigate('/hilo', { state: { activeChatId: data.id } });
   };
 
-  const handleRequestJoin = async (route, zona) => {
+  const handleRequestJoin = async (route, zona, coords) => {
     setRequestingRouteId(route.id);
     const { data, error: fnError } = await supabase.functions.invoke('request-join-route', {
-      body: { route_id: route.id, zona, requester_name: identity?.name, requester_avatar: identity?.avatar },
+      body: {
+        route_id: route.id,
+        zona,
+        zona_lat: coords?.lat ?? null,
+        zona_lng: coords?.lng ?? null,
+        requester_name: identity?.name,
+        requester_avatar: identity?.avatar,
+      },
     });
     setRequestingRouteId(null);
 
@@ -108,6 +127,7 @@ export default function BuscarRuta() {
     setRequestedRouteIds(prev => new Set(prev).add(route.id));
     setJoinRequestRouteId(null);
     setZonaDraft('');
+    setZonaCoords(null);
   };
 
   // Coincidencia laxa con el nombre de un colegio ya existente, para prellenar el modal
@@ -132,22 +152,45 @@ export default function BuscarRuta() {
       <form onSubmit={handleSearch} className="bg-card border border-border rounded-2xl p-4 space-y-3 mb-6">
         <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
           <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <input
+          <AddressAutocompleteInput
             value={origin}
-            onChange={e => setOrigin(e.target.value)}
+            onChange={(text) => { setOrigin(text); setOriginCoords(null); }}
+            onSelect={({ address, lat, lng }) => { setOrigin(address); setOriginCoords({ lat, lng }); }}
             placeholder="Origen (tu zona, ej: Majadahonda)"
-            className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+            className="flex-1"
           />
         </div>
         <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
           <Compass className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <input
+          <AddressAutocompleteInput
             value={destination}
-            onChange={e => setDestination(e.target.value)}
+            onChange={(text) => { setDestination(text); setDestinationCoords(null); }}
+            onSelect={({ address, lat, lng }) => { setDestination(address); setDestinationCoords({ lat, lng }); }}
             placeholder="Destino (colegio o dirección)"
-            className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+            className="flex-1"
           />
         </div>
+
+        {(originCoords || destinationCoords) && (
+          <div className="space-y-3 pt-1">
+            <RouteSearchMap
+              origin={originCoords}
+              destination={destinationCoords}
+              radiusOrigin={radiusOrigin}
+              radiusDestination={radiusDestination}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground mb-1.5 block">Radio origen: {radiusOrigin} km</label>
+                <Slider value={[radiusOrigin]} onValueChange={([v]) => setRadiusOrigin(v)} min={1} max={25} step={1} />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground mb-1.5 block">Radio destino: {radiusDestination} km</label>
+                <Slider value={[radiusDestination]} onValueChange={([v]) => setRadiusDestination(v)} min={1} max={25} step={1} />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
@@ -191,7 +234,7 @@ export default function BuscarRuta() {
 
         <button
           type="submit"
-          disabled={searching || !origin.trim() || !destination.trim()}
+          disabled={searching || !originCoords || !destinationCoords}
           className="w-full bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
           {searching ? 'Buscando...' : 'Buscar'}
@@ -244,7 +287,10 @@ export default function BuscarRuta() {
                       {route.seats_available > 0 ? `${route.seats_available} plazas` : 'Sin plazas'}
                     </span>
                     <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
-                      {route.distance_km} km
+                      {route.distance_origin_km} km origen
+                    </span>
+                    <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
+                      {route.distance_destination_km} km destino
                     </span>
                   </div>
 
@@ -269,26 +315,28 @@ export default function BuscarRuta() {
                       </button>
                       {joinRequestRouteId === route.id ? (
                         <div className="flex items-center gap-1.5">
-                          <input
+                          <AddressAutocompleteInput
                             autoFocus
                             value={zonaDraft}
-                            onChange={e => setZonaDraft(e.target.value)}
+                            onChange={(text) => { setZonaDraft(text); setZonaCoords(null); }}
+                            onSelect={({ address, lat, lng }) => { setZonaDraft(address); setZonaCoords({ lat, lng }); }}
                             onKeyDown={e => {
-                              if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim());
-                              if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); }
+                              if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim(), zonaCoords);
+                              if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }
                             }}
                             placeholder="¿En qué zona vives?"
-                            className="flex-1 min-w-0 bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            className="flex-1 min-w-0"
+                            inputClassName="w-full bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
                           />
                           <button
-                            onClick={() => handleRequestJoin(route, zonaDraft.trim())}
+                            onClick={() => handleRequestJoin(route, zonaDraft.trim(), zonaCoords)}
                             disabled={!zonaDraft.trim() || requestingRouteId === route.id}
                             className="p-2 rounded-full bg-primary text-white disabled:opacity-50 flex-shrink-0"
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); }}
+                            onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }}
                             className="p-2 rounded-full bg-muted text-muted-foreground flex-shrink-0"
                           >
                             <XIcon className="w-3.5 h-3.5" />
@@ -296,7 +344,7 @@ export default function BuscarRuta() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); }}
+                          onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); setZonaCoords(null); }}
                           disabled={requestedRouteIds.has(route.id)}
                           className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-primary/5 disabled:hover:text-primary"
                         >

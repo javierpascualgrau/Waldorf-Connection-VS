@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, Check, X as XIcon, Lock, Calendar } from 'lucide-react';
+import { ArrowLeft, Check, X as XIcon, Lock, Calendar, MapPin } from 'lucide-react';
 import { goBack } from '@/lib/navigation';
+import { haversineKm } from '@/lib/geo';
+import RequestLocationMiniMap from '@/components/RequestLocationMiniMap';
 
 export default function GestionRuta() {
   const { id } = useParams();
@@ -117,33 +119,71 @@ export default function GestionRuta() {
           <div className="space-y-2">
             {requests.map(r => {
               const initials = r.requester_name?.slice(0, 2).toUpperCase() || 'W';
+              const hasZonaCoords = r.zona_lat != null && r.zona_lng != null;
+              const routeOrigin = route.origin_lat != null && route.origin_lng != null ? { lat: route.origin_lat, lng: route.origin_lng } : null;
+              const routeDestination = route.destination_lat != null && route.destination_lng != null ? { lat: route.destination_lat, lng: route.destination_lng } : null;
+              const distanceOriginKm = hasZonaCoords && routeOrigin
+                ? Math.round(haversineKm(r.zona_lat, r.zona_lng, routeOrigin.lat, routeOrigin.lng) * 10) / 10
+                : null;
+              const distanceDestinationKm = hasZonaCoords && routeDestination
+                ? Math.round(haversineKm(r.zona_lat, r.zona_lng, routeDestination.lat, routeDestination.lng) * 10) / 10
+                : null;
+
               return (
-                <div key={r.id} className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl">
-                  <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
-                    {r.requester_avatar ? (
-                      <img src={r.requester_avatar} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-primary font-cormorant font-semibold text-xs">{initials}</span>
-                    )}
+                <div key={r.id} className="p-3 bg-card border border-border rounded-xl space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
+                      {r.requester_avatar ? (
+                        <img src={r.requester_avatar} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-primary font-cormorant font-semibold text-xs">{initials}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{r.requester_name || 'Miembro de la comunidad'}</p>
+                      {r.zona && (
+                        <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5 flex-shrink-0" /> {r.zona}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleRespond(r, true)}
+                      disabled={respondingId === r.id}
+                      className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleRespond(r, false)}
+                      disabled={respondingId === r.id}
+                      className="p-2 rounded-full bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{r.requester_name || 'Miembro de la comunidad'}</p>
-                    {r.zona && <p className="text-[10px] text-muted-foreground truncate">{r.zona}</p>}
-                  </div>
-                  <button
-                    onClick={() => handleRespond(r, true)}
-                    disabled={respondingId === r.id}
-                    className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleRespond(r, false)}
-                    disabled={respondingId === r.id}
-                    className="p-2 rounded-full bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </button>
+
+                  {hasZonaCoords && (
+                    <div className="pl-12 space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {distanceOriginKm != null && (
+                          <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
+                            {distanceOriginKm} km del origen
+                          </span>
+                        )}
+                        {distanceDestinationKm != null && (
+                          <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md">
+                            {distanceDestinationKm} km del destino
+                          </span>
+                        )}
+                      </div>
+                      <RequestLocationMiniMap
+                        zona={{ lat: r.zona_lat, lng: r.zona_lng }}
+                        routeOrigin={routeOrigin}
+                        routeDestination={routeDestination}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}

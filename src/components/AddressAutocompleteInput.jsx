@@ -15,6 +15,7 @@ export default function AddressAutocompleteInput({
   className = '',
   inputClassName = 'bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground min-w-0 w-full',
   autoFocus = false,
+  onKeyDown,
 }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -70,6 +71,7 @@ export default function AddressAutocompleteInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         className={inputClassName}
       />
