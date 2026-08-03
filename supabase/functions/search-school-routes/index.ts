@@ -2,15 +2,10 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getCallerUser, getSupabaseAdmin } from "../_shared/supabaseAdmin.ts";
 import { haversineKm } from "../_shared/geo.ts";
 
-// Penalización por diferencia horaria: 10 minutos de diferencia ≈ 1km de distancia.
-// Heurística de partida, documentada y fácil de ajustar.
-const MINUTES_PER_KM_EQUIVALENT = 10;
-
-function timeToMinutes(t: string | null): number | null {
-  if (!t) return null;
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
+// Radio de destino fijo (no ajustable desde la UI, a diferencia del de origen): el destino
+// es un colegio conocido, así que un margen pequeño basta para admitir imprecisiones de
+// geocoding sin necesidad de que el usuario lo controle.
+const DESTINATION_RADIUS_KM = 5;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -25,9 +20,6 @@ Deno.serve(async (req) => {
       destination_lat,
       destination_lng,
       radiusOrigin,
-      radiusDestination,
-      departure_time,
-      trip_type,
       seats_needed,
     } = await req.json();
 
@@ -38,11 +30,10 @@ Deno.serve(async (req) => {
       return json({ error: "Faltan las coordenadas de origen o destino." }, 400);
     }
     const radiusOriginKm = Number(radiusOrigin) || 10;
-    const radiusDestinationKm = Number(radiusDestination) || 10;
 
     const admin = getSupabaseAdmin();
 
-    let query = admin
+    const { data: routes } = await admin
       .from("school_routes")
       .select("*")
       .eq("status", "abierto")
@@ -51,12 +42,6 @@ Deno.serve(async (req) => {
       .not("destination_lat", "is", null)
       .not("destination_lng", "is", null);
 
-    // Compatibilidad de trayecto: una ruta 'ambos' cubre cualquier búsqueda de ida/vuelta.
-    if (trip_type) {
-      query = query.or(`trip_type.eq.${trip_type},trip_type.eq.ambos`);
-    }
-
-    const { data: routes } = await query;
     if (!routes || routes.length === 0) return json({ routes: [] });
 
     const routeIds = routes.map((r) => r.id);
@@ -71,8 +56,6 @@ Deno.serve(async (req) => {
       memberCounts[m.route_id] = (memberCounts[m.route_id] ?? 0) + 1;
     });
 
-    const searchMinutes = timeToMinutes(departure_time ?? null);
-
     const scored = routes
       .map((route) => {
         const seatsAvailable = route.seats - (memberCounts[route.id] ?? 0);
@@ -84,21 +67,17 @@ Deno.serve(async (req) => {
           route.destination_lng,
         );
 
-        const routeMinutes = timeToMinutes(route.salida_time);
-        const timeDiffMin =
-          searchMinutes != null && routeMinutes != null ? Math.abs(searchMinutes - routeMinutes) : 0;
-
         return {
           ...route,
           seats_available: seatsAvailable,
           distance_origin_km: Math.round(distanceOriginKm * 10) / 10,
           distance_destination_km: Math.round(distanceDestinationKm * 10) / 10,
-          score: distanceOriginKm + distanceDestinationKm + timeDiffMin / MINUTES_PER_KM_EQUIVALENT,
+          score: distanceOriginKm + distanceDestinationKm,
           _rawOriginKm: distanceOriginKm,
           _rawDestinationKm: distanceDestinationKm,
         };
       })
-      .filter((r) => r._rawOriginKm <= radiusOriginKm && r._rawDestinationKm <= radiusDestinationKm)
+      .filter((r) => r._rawOriginKm <= radiusOriginKm && r._rawDestinationKm <= DESTINATION_RADIUS_KM)
       .filter((r) => (seats_needed ? r.seats_available >= seats_needed : true))
       .sort((a, b) => a.score - b.score)
       .map(({ _rawOriginKm, _rawDestinationKm, ...r }) => r);

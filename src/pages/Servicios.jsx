@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
-import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircle, Tag, School, ArrowLeftRight, UserPlus, Compass, Check, X as XIcon } from 'lucide-react';
+import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircle, Tag, School, ArrowLeftRight, Compass } from 'lucide-react';
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
 import CreateEmployabilityListingModal from '@/components/CreateEmployabilityListingModal';
-import AddressAutocompleteInput from '@/components/AddressAutocompleteInput';
 
 const SERVICIOS_TABS = [
   { id: 'compraventa', label: 'Compraventa', icon: ShoppingBag },
@@ -72,13 +71,7 @@ export default function Servicios() {
   const [showCreateRouteModal, setShowCreateRouteModal] = useState(false);
   const [selectedSchoolFilter, setSelectedSchoolFilter] = useState('Todos');
   const [selectedTripType, setSelectedTripType] = useState('Todos');
-  const [myMemberRouteIds, setMyMemberRouteIds] = useState(new Set());
-  const [myPendingRequestRouteIds, setMyPendingRequestRouteIds] = useState(new Set());
   const [routeMemberCounts, setRouteMemberCounts] = useState({});
-  const [requestingRouteId, setRequestingRouteId] = useState(null);
-  const [joinRequestRouteId, setJoinRequestRouteId] = useState(null);
-  const [zonaDraft, setZonaDraft] = useState('');
-  const [zonaCoords, setZonaCoords] = useState(null);
 
   const [employabilityListings, setEmployabilityListings] = useState([]);
   const [loadingEmployability, setLoadingEmployability] = useState(true);
@@ -119,15 +112,6 @@ export default function Servicios() {
       (activeMembersRes.data || []).forEach(m => { counts[m.route_id] = (counts[m.route_id] || 0) + 1; });
       setRouteMemberCounts(counts);
 
-      if (authUser) {
-        const [myMembershipsRes, myRequestsRes] = await Promise.all([
-          supabase.from('school_route_members').select('route_id').eq('member_id', authUser.id).is('left_at', null),
-          supabase.from('school_route_requests').select('route_id').eq('requester_id', authUser.id).eq('status', 'pendiente'),
-        ]);
-        setMyMemberRouteIds(new Set((myMembershipsRes.data || []).map(m => m.route_id)));
-        setMyPendingRequestRouteIds(new Set((myRequestsRes.data || []).map(r => r.route_id)));
-      }
-
       setLoadingRoutes(false);
 
       setLoadingEmployability(true);
@@ -163,36 +147,6 @@ export default function Servicios() {
     if (!window.confirm('¿Quieres eliminar este anuncio?')) return;
     setListings(prev => prev.filter(l => l.id !== listing.id));
     await supabase.from('marketplace_listings').delete().eq('id', listing.id);
-  };
-
-  const handleDeleteRoute = async (route) => {
-    if (!window.confirm('¿Quieres eliminar esta ruta?')) return;
-    setRoutes(prev => prev.filter(r => r.id !== route.id));
-    await supabase.from('school_routes').delete().eq('id', route.id);
-  };
-
-  const handleRequestJoin = async (route, zona, coords) => {
-    setRequestingRouteId(route.id);
-    const { data, error } = await supabase.functions.invoke('request-join-route', {
-      body: {
-        route_id: route.id,
-        zona,
-        zona_lat: coords?.lat ?? null,
-        zona_lng: coords?.lng ?? null,
-        requester_name: identity?.name,
-        requester_avatar: identity?.avatar,
-      },
-    });
-    setRequestingRouteId(null);
-
-    if (error || data?.error) {
-      alert(data?.error || 'No se ha podido enviar la solicitud.');
-      return;
-    }
-    setMyPendingRequestRouteIds(prev => new Set(prev).add(route.id));
-    setJoinRequestRouteId(null);
-    setZonaDraft('');
-    setZonaCoords(null);
   };
 
   const handleDeleteEmploymentListing = async (listing) => {
@@ -488,18 +442,16 @@ export default function Servicios() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredRoutes.map(route => {
-                const isMine = myEmailClean && route.author_email?.toLowerCase().trim() === myEmailClean;
                 const initials = route.author_name?.slice(0, 2).toUpperCase() || 'W';
                 const seatsAvailable = (route.seats ?? 0) - (routeMemberCounts[route.id] || 0);
-                const isMember = myMemberRouteIds.has(route.id);
-                const hasPendingRequest = myPendingRequestRouteIds.has(route.id);
                 return (
                   <div
                     key={route.id}
-                    className="p-4 bg-card border border-border rounded-2xl shadow-sm flex flex-col gap-2 hover:border-primary/20 hover:shadow-md transition-all animate-in fade-in duration-200"
+                    onClick={() => navigate(`/rutas/oferta/${route.id}`)}
+                    className="p-4 bg-card border border-border rounded-2xl shadow-sm flex flex-col gap-2 cursor-pointer hover:border-primary/20 hover:shadow-md transition-all animate-in fade-in duration-200"
                   >
                     <div
-                      onClick={() => navigate(`/usuario/${encodeURIComponent(route.author_email)}`)}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/usuario/${encodeURIComponent(route.author_email)}`); }}
                       className="flex items-center gap-2 group cursor-pointer"
                     >
                       <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0 group-hover:opacity-80 transition-opacity">
@@ -538,75 +490,6 @@ export default function Servicios() {
                     {route.notes && (
                       <p className="text-xs text-foreground/80 leading-relaxed">{route.notes}</p>
                     )}
-
-                    <div className="pt-2 border-t border-border/50 mt-1 flex flex-col gap-1.5">
-                      {isMine ? (
-                        <>
-                          <button
-                            onClick={() => navigate(`/rutas/${route.id}/gestionar`)}
-                            className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" /> Gestionar grupo
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRoute(route)}
-                            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-destructive/80 hover:text-destructive py-1.5 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Eliminar mi ruta
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleContactar(route)}
-                            className="w-full flex items-center justify-center gap-1.5 bg-muted text-foreground rounded-xl text-xs font-semibold py-1.5 hover:bg-muted/70 transition-all"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" /> Contactar
-                          </button>
-                          {route.status === 'abierto' && !isMember && (
-                            joinRequestRouteId === route.id ? (
-                              <div className="flex items-center gap-1.5">
-                                <AddressAutocompleteInput
-                                  autoFocus
-                                  value={zonaDraft}
-                                  onChange={(text) => { setZonaDraft(text); setZonaCoords(null); }}
-                                  onSelect={({ address, lat, lng }) => { setZonaDraft(address); setZonaCoords({ lat, lng }); }}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && zonaDraft.trim()) handleRequestJoin(route, zonaDraft.trim(), zonaCoords);
-                                    if (e.key === 'Escape') { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }
-                                  }}
-                                  placeholder="¿En qué zona vives?"
-                                  className="flex-1 min-w-0"
-                                  inputClassName="w-full bg-muted/50 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-                                />
-                                <button
-                                  onClick={() => handleRequestJoin(route, zonaDraft.trim(), zonaCoords)}
-                                  disabled={!zonaDraft.trim() || requestingRouteId === route.id}
-                                  className="p-2 rounded-full bg-primary text-white disabled:opacity-50 flex-shrink-0"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => { setJoinRequestRouteId(null); setZonaDraft(''); setZonaCoords(null); }}
-                                  className="p-2 rounded-full bg-muted text-muted-foreground flex-shrink-0"
-                                >
-                                  <XIcon className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => { setJoinRequestRouteId(route.id); setZonaDraft(''); setZonaCoords(null); }}
-                                disabled={hasPendingRequest}
-                                className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-primary/5 disabled:hover:text-primary"
-                              >
-                                <UserPlus className="w-3.5 h-3.5" />
-                                {hasPendingRequest ? 'Solicitud enviada' : 'Solicitar unirse'}
-                              </button>
-                            )
-                          )}
-                        </>
-                      )}
-                    </div>
                   </div>
                 );
               })}

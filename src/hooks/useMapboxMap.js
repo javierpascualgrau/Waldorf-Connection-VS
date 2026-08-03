@@ -49,5 +49,17 @@ export function useMapboxMap({ center, zoom = 12, scrollZoom = true, doubleClick
     }
   }, []);
 
+  // Los contenedores de mapa de esta app antes siempre tenían una altura fija
+  // (aspect-square, h-64...); RouteOfferDetail.jsx introduce uno cuya altura depende
+  // del layout (se estira para igualar la columna vecina) y cambia con el viewport —
+  // sin este observer, Mapbox se queda con el lienzo del tamaño inicial y se ve mal
+  // recortado tras cualquier cambio de tamaño del contenedor.
+  useEffect(() => {
+    if (!map || !containerRef.current) return;
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [map]);
+
   return { containerRef, map, error };
 }
