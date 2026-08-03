@@ -21,6 +21,7 @@ import DeliveryMethodChoice from './pages/DeliveryMethodChoice';
 import ShippingCheckout from './pages/ShippingCheckout';
 import MisVentas from './pages/MisVentas';
 import MisCompras from './pages/MisCompras';
+import MapaComunidad from './pages/MapaComunidad';
 import BuscarRuta from './pages/BuscarRuta';
 import GestionRuta from './pages/GestionRuta';
 import GrupoRutaCalendario from './pages/GrupoRutaCalendario';
@@ -75,6 +76,7 @@ const AuthenticatedApp = () => {
       {/* 💡 AÑADIMOS LA RUTA PARA CARGAR EL PERFIL DE LAS EMPRESAS */}
       <Route path="/empresas/:id" element={<CompanyProfile />} />
       
+      <Route path="/mapa" element={<MapaComunidad />} />
       <Route path="/hilo" element={<Hilo />} />
       <Route path="/hilo/:chatId" element={<Hilo />} />
       <Route path="/perfil" element={<Perfil />} />

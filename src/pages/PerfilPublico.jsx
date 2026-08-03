@@ -25,6 +25,7 @@ export default function PerfilPublico() {
     exalumno: 'Exalumno',
     colegio: 'Colegio',
     simpatizante: 'Simpatizante',
+    staff: 'Staff',
   };
 
   useEffect(() => {

@@ -14,6 +14,7 @@ const ROLE_LABELS = {
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
   empresa: 'Empresa',
+  staff: 'Staff',
 };
 
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {

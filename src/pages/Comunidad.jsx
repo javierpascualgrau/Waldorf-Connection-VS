@@ -10,7 +10,8 @@ const ROLE_FILTERS = [
   { label: 'Alumnos', value: 'alumno' },
   { label: 'Padres', value: 'padre_madre' },
   { label: 'Exalumnos', value: 'exalumno' },
-  { label: 'Simpatizantes', value: 'simpatizante' }
+  { label: 'Simpatizantes', value: 'simpatizante' },
+  { label: 'Staff', value: 'staff' }
 ];
 
 export default function Comunidad() {
@@ -27,6 +28,7 @@ export default function Comunidad() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [currentUser, setCurrentUser] = useState(null);
+  const [myProfile, setMyProfile] = useState(null);
   const [followingIds, setFollowingIds] = useState(new Set());
 
   useEffect(() => {
@@ -36,6 +38,16 @@ export default function Comunidad() {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         setCurrentUser(authUser);
         const myEmailClean = authUser?.email?.toLowerCase().trim() || '';
+
+        // 💡 Cargamos nuestro propio rol e intereses para poder priorizar afinidades
+        if (authUser?.id) {
+          const { data: myProfileData } = await supabase
+            .from('profiles')
+            .select('role, interests')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          setMyProfile(myProfileData);
+        }
 
         // 1. Cargar miembros
         const { data: profiles } = await supabase
@@ -141,12 +153,28 @@ export default function Comunidad() {
   };
 
   // Filtrados inteligentes
-  const filteredMiembros = miembros.filter(m => {
-    const isNotMe = m.id !== currentUser?.id;
-    const matchesSearch = m.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || m.location?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = selectedRole === 'Todos' || m.role === selectedRole;
-    return isNotMe && matchesSearch && matchesRole;
-  });
+  const myInterests = new Set((myProfile?.interests || []).map(i => i.toLowerCase()));
+
+  // 💡 ORDEN POR AFINIDAD: primero quienes no sigues, y entre esos, quienes comparten tu rol e intereses
+  const filteredMiembros = miembros
+    .filter(m => {
+      const isNotMe = m.id !== currentUser?.id;
+      const matchesSearch = m.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || m.location?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = selectedRole === 'Todos' || m.role === selectedRole;
+      return isNotMe && matchesSearch && matchesRole;
+    })
+    .map(m => {
+      const memberEmail = m.user_email?.toLowerCase().trim() || '';
+      const isFollowing = followingIds.has(memberEmail);
+      const sameRole = myProfile?.role && m.role === myProfile.role ? 1 : 0;
+      const sharedInterests = (m.interests || []).filter(i => myInterests.has(i.toLowerCase())).length;
+      return { ...m, isFollowing, affinityScore: sameRole + sharedInterests };
+    })
+    .sort((a, b) => {
+      if (a.isFollowing !== b.isFollowing) return a.isFollowing ? 1 : -1;
+      if (b.affinityScore !== a.affinityScore) return b.affinityScore - a.affinityScore;
+      return (a.display_name || '').localeCompare(b.display_name || '');
+    });
 
   const filteredOfertas = ofertas.filter(o => 
     o.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -250,7 +278,7 @@ export default function Comunidad() {
             {filteredMiembros.length > 0 ? (
               filteredMiembros.map(m => {
                 const memberEmail = m.user_email?.toLowerCase().trim() || '';
-                const isFollowing = followingIds.has(memberEmail);
+                const isFollowing = m.isFollowing;
                 const initials = m.display_name?.slice(0, 2).toUpperCase() || 'W';
                 return (
                   <div 

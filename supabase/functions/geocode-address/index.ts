@@ -9,12 +9,12 @@ Deno.serve(async (req) => {
     const caller = await getCallerUser(req);
     if (!caller) return json({ error: "No autenticado." }, 401);
 
-    const { address, cache_on_school_id } = await req.json();
+    const { address, cache_on_school_id, cache_on_company_id } = await req.json();
     const admin = getSupabaseAdmin();
 
-    // Si se pide cachear la dirección de un colegio, se ignora por completo el `address`
-    // del body (nunca escribimos en el perfil de un colegio a partir de un texto que no
-    // sea el suyo propio) y se hace una única llamada a Mapbox con su location real.
+    // Si se pide cachear la dirección de un colegio o empresa, se ignora por completo el
+    // `address` del body (nunca escribimos en un perfil a partir de un texto que no sea el
+    // suyo propio) y se hace una única llamada a Mapbox con su location real.
     if (cache_on_school_id) {
       const { data: school } = await admin
         .from("school_profiles")
@@ -33,6 +33,28 @@ Deno.serve(async (req) => {
         .from("school_profiles")
         .update({ location_lat: coords.lat, location_lng: coords.lng })
         .eq("id", cache_on_school_id);
+
+      return json(coords);
+    }
+
+    if (cache_on_company_id) {
+      const { data: company } = await admin
+        .from("company_profiles")
+        .select("location")
+        .eq("id", cache_on_company_id)
+        .maybeSingle();
+
+      if (!company?.location) {
+        return json({ error: "La empresa no tiene ubicación configurada." }, 409);
+      }
+
+      const coords = await geocodeAddress(company.location);
+      if (!coords) return json({ error: "No se ha podido geocodificar la ubicación de la empresa." }, 502);
+
+      await admin
+        .from("company_profiles")
+        .update({ location_lat: coords.lat, location_lng: coords.lng })
+        .eq("id", cache_on_company_id);
 
       return json(coords);
     }

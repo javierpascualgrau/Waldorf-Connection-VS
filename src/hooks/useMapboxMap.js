@@ -11,29 +11,43 @@ export function useMapboxMap({ center, zoom = 12, scrollZoom = true, doubleClick
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const instance = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: center ? [center.lng, center.lat] : [-3.7038, 40.4168],
-      zoom,
-    });
+    if (!mapboxgl.accessToken) {
+      setError('Falta configurar VITE_MAPBOX_ACCESS_TOKEN en .env.local.');
+      return;
+    }
 
-    if (!scrollZoom) instance.scrollZoom.disable();
-    if (!doubleClickZoom) instance.doubleClickZoom.disable();
+    // 💡 Un token ausente/inválido hace que mapboxgl.Map lance una excepción síncrona;
+    // sin este try/catch, al no haber Error Boundary, se desmonta toda la app (no solo el mapa).
+    try {
+      const instance = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: center ? [center.lng, center.lat] : [-3.7038, 40.4168],
+        zoom,
+      });
 
-    instance.on('load', () => setMap(instance));
-    mapRef.current = instance;
+      if (!scrollZoom) instance.scrollZoom.disable();
+      if (!doubleClickZoom) instance.doubleClickZoom.disable();
 
-    return () => {
-      instance.remove();
-      mapRef.current = null;
-      setMap(null);
-    };
+      instance.on('load', () => setMap(instance));
+      instance.on('error', (e) => setError(e?.error?.message || 'Error al cargar el mapa.'));
+      mapRef.current = instance;
+
+      return () => {
+        instance.remove();
+        mapRef.current = null;
+        setMap(null);
+      };
+    } catch (err) {
+      console.error('Error al inicializar Mapbox:', err);
+      setError(err.message || 'Error al inicializar el mapa.');
+    }
   }, []);
 
-  return { containerRef, map };
+  return { containerRef, map, error };
 }

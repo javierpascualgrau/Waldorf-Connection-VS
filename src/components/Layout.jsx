@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle, MessageSquare, ShoppingBag } from 'lucide-react';
+import { Home, School, Users, User, PlusCircle, MessageSquare, ShoppingBag, Map } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
@@ -102,6 +102,16 @@ export default function Layout() {
           </Link>
           
           <div className="flex items-center gap-2 flex-shrink-0">
+            {mostrarBotonHilo && (
+              <Link
+                to="/mapa"
+                className="flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors animate-fade-in"
+                aria-label="Mapa"
+              >
+                <Map className="w-5 h-5" />
+              </Link>
+            )}
+
             {mostrarBotonHilo && (
               <Link
                 to="/hilo"

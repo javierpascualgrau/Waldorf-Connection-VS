@@ -9,6 +9,7 @@ const ROLE_LABELS = {
   exalumno: 'Exalumno',
   colegio: 'Colegio',
   simpatizante: 'Simpatizante',
+  staff: 'Staff',
 };
 
 export default function ProfileSearch({ onSearch }) {
