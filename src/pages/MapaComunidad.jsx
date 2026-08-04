@@ -35,6 +35,46 @@ export default function MapaComunidad() {
   const [loading, setLoading] = useState(true);
   const { containerRef, map, error: mapError } = useMapboxMap({ center: { lat: 40.4168, lng: -3.7038 }, zoom: 5.5 });
   const markersRef = useRef([]);
+  const popupsRef = useRef([]);
+  const userMarkerRef = useRef(null);
+
+  // 💡 Dispara el permiso nativo del navegador ("permitir esta vez / siempre / no") al entrar
+  // al mapa; si el usuario lo concede, se le añade un marcador propio de "Tu ubicación".
+  useEffect(() => {
+    if (!map || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const el = document.createElement('div');
+        el.style.width = '18px';
+        el.style.height = '18px';
+        el.style.borderRadius = '9999px';
+        el.style.background = '#4285F4';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 0 0 5px rgba(66,133,244,0.25), 0 1px 4px rgba(0,0,0,0.4)';
+
+        const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, closeOnClick: false })
+          .setLngLat([coords.longitude, coords.latitude])
+          .setHTML('<span style="font-size:13px;font-weight:600;">Tu ubicación</span>');
+
+        el.addEventListener('mouseenter', () => popup.addTo(map));
+        el.addEventListener('mouseleave', () => popup.remove());
+
+        userMarkerRef.current = new mapboxgl.Marker({ element: el })
+          .setLngLat([coords.longitude, coords.latitude])
+          .addTo(map);
+      },
+      (geoError) => {
+        console.warn('Ubicación no disponible o rechazada:', geoError.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    return () => {
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+    };
+  }, [map]);
 
   useEffect(() => {
     if (!map) return;
@@ -44,6 +84,8 @@ export default function MapaComunidad() {
     const clearMarkers = () => {
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
+      popupsRef.current.forEach(p => p.remove());
+      popupsRef.current = [];
     };
 
     const loadAndPlot = async () => {
@@ -94,12 +136,20 @@ export default function MapaComunidad() {
 
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([item.location_lng, item.location_lat])
-          .setPopup(new mapboxgl.Popup({ offset: 16, closeButton: false }).setHTML(popupHtml))
           .addTo(map);
 
+        // 💡 El popup se controla a mano (mouseenter/mouseleave) en vez de con .setPopup(),
+        // que en Mapbox solo lo muestra al hacer clic — aquí el clic navega al perfil.
+        const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, closeOnClick: false })
+          .setLngLat([item.location_lng, item.location_lat])
+          .setHTML(popupHtml);
+
+        el.addEventListener('mouseenter', () => popup.addTo(map));
+        el.addEventListener('mouseleave', () => popup.remove());
         el.addEventListener('click', () => navigate(`${config.detailPath}/${item.id}`));
 
         markersRef.current.push(marker);
+        popupsRef.current.push(popup);
         bounds.extend([item.location_lng, item.location_lat]);
       });
 
