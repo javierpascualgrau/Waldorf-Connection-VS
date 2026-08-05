@@ -1,9 +1,8 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle, MessageSquare, ShoppingBag, Map } from 'lucide-react';
+import { Home, School, Users, User, Bell, MessageSquare, ShoppingBag, Map } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
-import CreatePostModal from './CreatePostModal';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Inicio' },
@@ -16,10 +15,10 @@ const navItems = [
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
   const [schoolId, setSchoolId] = useState(null); // 💡 NUEVO: Guardamos el ID del colegio si el usuario lo es
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isBellRinging, setIsBellRinging] = useState(false);
 
   const handleMiPerfilClick = async (e) => {
     if (e) e.preventDefault(); 
@@ -74,18 +73,32 @@ export default function Layout() {
           setSchoolId(authUser.id);
         }
 
-        if (identity) {
-          setUserProfile(identity);
-        }
       }
     };
 
     getSession();
   }, []);
 
-  // 💡 También se muestra en el perfil propio del colegio (misma cabecera, mismo botón)
-  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil' || (schoolId && location.pathname === `/colegios/${schoolId}`);
-  const mostrarBotonHilo = location.pathname === '/';
+  // Punto rojo de notificaciones no leídas — Layout no se remonta entre rutas, así que se
+  // refresca con un efecto atado al cambio de página en vez de necesitar estado global nuevo.
+  useEffect(() => {
+    if (!user) return;
+    const loadUnreadCount = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .is('read_at', null);
+      setUnreadCount(count || 0);
+    };
+    loadUnreadCount();
+  }, [user, location.pathname]);
+
+  const mostrarBotonMapa = location.pathname === '/';
+  // El icono de Hilo vive en la barra superior compartida (Layout), pero estaba condicionado
+  // solo a "/" — por eso no aparecía en Colegios/Comunidad/Servicios/Perfil pese a compartir
+  // el mismo Layout. Ahora se muestra en las 5 páginas principales de navegación.
+  const mostrarBotonHilo = ['/', '/colegios', '/comunidad', '/servicios', '/perfil'].includes(location.pathname);
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
   // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
   const isMessagesRoute = location.pathname.startsWith('/hilo');
@@ -102,7 +115,7 @@ export default function Layout() {
           </Link>
           
           <div className="flex items-center gap-2 flex-shrink-0">
-            {mostrarBotonHilo && (
+            {mostrarBotonMapa && (
               <Link
                 to="/mapa"
                 className="flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors animate-fade-in"
@@ -122,15 +135,20 @@ export default function Layout() {
               </Link>
             )}
 
-            {mostrarBotonPublicar && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors animate-fade-in"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Publicar</span>
-              </button>
-            )}
+            <Link
+              to="/notificaciones"
+              onClick={() => setIsBellRinging(true)}
+              className="relative flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Notificaciones"
+            >
+              <Bell
+                className={`w-5 h-5 ${isBellRinging ? 'bell-ring' : ''}`}
+                onAnimationEnd={() => setIsBellRinging(false)}
+              />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1.5 w-2 h-2 bg-destructive rounded-full border border-card" />
+              )}
+            </Link>
           </div>
         </div>
       </header>
@@ -181,15 +199,6 @@ export default function Layout() {
           </div>
         </div>
       </nav>
-
-      {showCreateModal && (
-        <CreatePostModal
-          user={user}
-          userProfile={userProfile}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={() => setShowCreateModal(false)}
-        />
-      )}
     </div>
   );
 }

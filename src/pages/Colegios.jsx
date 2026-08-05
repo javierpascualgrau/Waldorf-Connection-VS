@@ -20,7 +20,7 @@ export default function Colegios() {
   const [editingEvent, setEditingEvent] = useState(null);
 
   const fetchEvents = async () => {
-    const { data: eData } = await supabase.from('school_events').select('*').order('created_date', { ascending: false });
+    const { data: eData } = await supabase.from('events').select('*').order('created_date', { ascending: false });
     setEvents(eData || []);
   };
 
@@ -53,7 +53,7 @@ export default function Colegios() {
   const handleDeleteEvent = async (eventId) => {
     setOpenEventMenuId(null);
     if (!window.confirm("¿Seguro que quieres borrar este evento?")) return;
-    await supabase.from('school_events').delete().eq('id', eventId);
+    await supabase.from('events').delete().eq('id', eventId);
     fetchEvents();
   };
 

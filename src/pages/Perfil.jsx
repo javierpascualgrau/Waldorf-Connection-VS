@@ -3,10 +3,11 @@ import { useNavigate, Link } from 'react-router-dom'; // 💡 NUEVO: Para rediri
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 // 💡 NUEVO: Añadido el icono 'LogOut' de lucide-react
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut, ShoppingBag, Package, Car } from 'lucide-react';
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut, ShoppingBag, Package, Car, PlusCircle } from 'lucide-react';
 import PostCard from '@/components/PostCard';
-import ChangePasswordModal from '@/components/ChangePasswordModal'; 
-import SchoolProfile from './SchoolProfile'; 
+import ChangePasswordModal from '@/components/ChangePasswordModal';
+import CreatePostModal from '@/components/CreatePostModal';
+import SchoolProfile from './SchoolProfile';
 import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
 // 💡 CORREGIDO: Eliminada la opción 'colegio' para evitar usurpaciones de identidad corporativa
@@ -39,6 +40,7 @@ export default function Perfil() {
   const bannerFileRef = useRef();
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSchool, setIsSchool] = useState(false);
   const [isCompany, setIsCompany] = useState(false); // 💡 NUEVO: Estado para identificar empresas
 
@@ -306,6 +308,14 @@ export default function Perfil() {
             {/* BOTONERA ACCIONES DE AJUSTES */}
             <div className="flex gap-1 items-center self-start mt-2">
               <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors mr-1"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Publicar</span>
+              </button>
+
+              <button
                 onClick={() => setPasswordModalOpen(true)}
                 className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
                 title="Ajustes de cuenta"
@@ -467,9 +477,25 @@ export default function Perfil() {
 
       {/* MODAL DE CAMBIO DE CONTRASEÑA */}
       {passwordModalOpen && (
-        <ChangePasswordModal 
-          userEmail={user?.email} 
-          onClose={() => setPasswordModalOpen(false)} 
+        <ChangePasswordModal
+          userEmail={user?.email}
+          onClose={() => setPasswordModalOpen(false)}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreatePostModal
+          user={user}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={async () => {
+            setShowCreateModal(false);
+            const { data } = await supabase
+              .from('posts')
+              .select('*')
+              .eq('author_email', user.email)
+              .order('created_date', { ascending: false });
+            setMyPosts(data || []);
+          }}
         />
       )}
     </div>

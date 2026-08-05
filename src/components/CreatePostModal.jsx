@@ -48,6 +48,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   }, [user?.id]);
 
   const isSchool = identity?.role === 'colegio';
+  const isCompany = identity?.role === 'empresa';
   const isEvent = postType === 'event';
 
   const handleImageChange = async (e) => {
@@ -101,12 +102,18 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         image_url: imageUrl || null,
       };
 
+      // Colegio o empresa dueño del evento (excluyentes, ver events_owner_check en la
+      // base de datos). school_email/company_email se guardan aquí porque el trigger de
+      // notificación a seguidores (user_follows) los necesita para saber a quién avisar.
+      const ownerData = isCompany
+        ? { company_name: freshIdentity?.name, company_id: user?.id, company_email: freshIdentity?.email, company_logo: freshIdentity?.avatar }
+        : { school_name: freshIdentity?.name, school_id: user?.id, school_email: freshIdentity?.email, school_logo: freshIdentity?.avatar };
+
       const { error } = editEvent
-        ? await supabase.from('school_events').update(eventData).eq('id', editEvent.id)
-        : await supabase.from('school_events').insert([{
+        ? await supabase.from('events').update(eventData).eq('id', editEvent.id)
+        : await supabase.from('events').insert([{
             ...eventData,
-            school_name: freshIdentity?.name,
-            school_id: user?.id,
+            ...ownerData,
             created_date: new Date().toISOString(),
           }]);
 
@@ -183,14 +190,14 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
-            {editPost ? 'Editar publicación' : editEvent ? 'Editar evento' : isEvent ? 'Nuevo evento del colegio' : 'Nueva publicación'}
+            {editPost ? 'Editar publicación' : editEvent ? 'Editar evento' : isEvent ? 'Nuevo evento' : 'Nueva publicación'}
           </h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {isSchool && !editPost && !editEvent && (
+        {(isSchool || isCompany) && !editPost && !editEvent && (
           <div className="flex gap-1.5 mb-4 bg-muted/50 p-1 rounded-2xl">
             <button
               type="button"

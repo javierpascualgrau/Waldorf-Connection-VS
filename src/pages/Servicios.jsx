@@ -23,24 +23,11 @@ const CATEGORY_FILTERS = [
   { label: 'Otro', value: 'otro' },
 ];
 
-const TYPE_FILTERS = [
-  { label: 'Todos', value: 'Todos' },
-  { label: 'Vendo', value: 'vendo' },
-  { label: 'Busco', value: 'busco' },
-];
-
 const TRIP_TYPE_LABELS = {
   ida: 'Ida',
   vuelta: 'Vuelta',
   ambos: 'Ida y vuelta',
 };
-
-const TRIP_TYPE_FILTERS = [
-  { label: 'Todos', value: 'Todos' },
-  { label: 'Ida', value: 'ida' },
-  { label: 'Vuelta', value: 'vuelta' },
-  { label: 'Ida y vuelta', value: 'ambos' },
-];
 
 const EMPLOYABILITY_CATEGORY_FILTERS = [
   { label: 'Todas', value: 'Todas' },
@@ -63,14 +50,12 @@ export default function Servicios() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
-  const [selectedType, setSelectedType] = useState('Todos');
 
   const [routes, setRoutes] = useState([]);
   const [schools, setSchools] = useState([]);
   const [loadingRoutes, setLoadingRoutes] = useState(true);
   const [showCreateRouteModal, setShowCreateRouteModal] = useState(false);
   const [selectedSchoolFilter, setSelectedSchoolFilter] = useState('Todos');
-  const [selectedTripType, setSelectedTripType] = useState('Todos');
   const [routeMemberCounts, setRouteMemberCounts] = useState({});
 
   const [employabilityListings, setEmployabilityListings] = useState([]);
@@ -162,8 +147,7 @@ export default function Servicios() {
       l.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.location?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'Todas' || l.category === selectedCategory;
-    const matchesType = selectedType === 'Todos' || l.listing_type === selectedType;
-    return matchesSearch && matchesCategory && matchesType;
+    return matchesSearch && matchesCategory;
   });
 
   const filteredRoutes = routes.filter(r => {
@@ -171,8 +155,7 @@ export default function Servicios() {
       r.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.school_name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSchool = selectedSchoolFilter === 'Todos' || r.school_id === selectedSchoolFilter;
-    const matchesTripType = selectedTripType === 'Todos' || r.trip_type === selectedTripType;
-    return matchesSearch && matchesSchool && matchesTripType;
+    return matchesSearch && matchesSchool;
   });
 
   const filteredEmploymentListings = employabilityListings.filter(l => {
@@ -234,22 +217,6 @@ export default function Servicios() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {TYPE_FILTERS.map(f => (
-              <button
-                key={f.value}
-                onClick={() => setSelectedType(f.value)}
-                className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  selectedType === f.value
-                    ? 'bg-[#3A5F43] text-white border-[#3A5F43] shadow-sm'
-                    : 'bg-muted/40 text-muted-foreground border-border/40 hover:border-border'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
           <div className="flex flex-wrap gap-1.5 mb-6 overflow-x-auto pb-1">
             {CATEGORY_FILTERS.map(f => (
               <button
@@ -305,13 +272,6 @@ export default function Servicios() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
-                        listing.listing_type === 'vendo'
-                          ? 'bg-primary/5 text-primary border-primary/10'
-                          : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-                      }`}>
-                        {listing.listing_type}
-                      </span>
                       <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-muted text-muted-foreground rounded-md flex items-center gap-1">
                         <Tag className="w-2.5 h-2.5" /> {categoryLabel}
                       </span>
@@ -415,22 +375,6 @@ export default function Servicios() {
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 mb-6">
-            {TRIP_TYPE_FILTERS.map(f => (
-              <button
-                key={f.value}
-                onClick={() => setSelectedTripType(f.value)}
-                className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  selectedTripType === f.value
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-muted/40 text-muted-foreground border-border/40 hover:border-border'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
           </div>
 
           {loadingRoutes ? (

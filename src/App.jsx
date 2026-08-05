@@ -27,6 +27,7 @@ import GestionRuta from './pages/GestionRuta';
 import GrupoRutaCalendario from './pages/GrupoRutaCalendario';
 import MisRutas from './pages/MisRutas';
 import RouteOfferDetail from './pages/RouteOfferDetail';
+import Notificaciones from './pages/Notificaciones';
 
 // 💡 IMPORTAMOS EL COMPONENTE DE EMPRESAS
 import CompanyProfile from './pages/CompanyProfile';
@@ -79,6 +80,7 @@ const AuthenticatedApp = () => {
       <Route path="/empresas/:id" element={<CompanyProfile />} />
       
       <Route path="/mapa" element={<MapaComunidad />} />
+      <Route path="/notificaciones" element={<Notificaciones />} />
       <Route path="/hilo" element={<Hilo />} />
       <Route path="/hilo/:chatId" element={<Hilo />} />
       <Route path="/perfil" element={<Perfil />} />

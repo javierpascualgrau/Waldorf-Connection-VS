@@ -12,7 +12,7 @@ export default function EventDetail() {
   useEffect(() => {
     const fetchEventData = async () => {
       const { data, error } = await supabase
-        .from('school_events')
+        .from('events')
         .select('*')
         .eq('id', id)
         .single();
