@@ -193,11 +193,11 @@ export default function ListingDetail() {
                   Eliminar mi anuncio
                 </ActionButton>
               </div>
-            ) : listing.listing_type === 'vendo' && listing.sold_at ? (
+            ) : listing.sold_at ? (
               <div className="text-center text-sm font-semibold text-muted-foreground bg-muted rounded-xl py-2.5">
                 Este anuncio ya se ha vendido
               </div>
-            ) : listing.listing_type === 'vendo' ? (
+            ) : (
               <div className="space-y-2.5">
                 <ActionButton icon={MessageCircle} variant="muted" className="w-full" onClick={handleContactar}>
                   Contactar
@@ -209,10 +209,6 @@ export default function ListingDetail() {
                   Comprar
                 </ActionButton>
               </div>
-            ) : (
-              <ActionButton icon={MessageCircle} variant="primary" className="w-full" onClick={handleContactar}>
-                Contactar
-              </ActionButton>
             )}
           </div>
         </div>
