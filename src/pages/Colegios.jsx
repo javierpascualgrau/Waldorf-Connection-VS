@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Search, MapPin, Filter, Calendar, Clock, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Search, Filter, Calendar, Clock, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import CreatePostModal from '@/components/CreatePostModal';
 
@@ -131,13 +131,7 @@ export default function Colegios() {
                   <img src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=200&q=80'} className="w-24 h-24 rounded-2xl object-cover mx-auto bg-muted shadow-sm group-hover:scale-105 transition-transform" alt={school.name} />
                 </div>
                 <div className="text-center flex-1 flex flex-col">
-                  <h3 className="text-xl font-semibold mb-1 text-foreground">{school.name}</h3>
-                  <p className="text-primary text-sm flex items-center justify-center gap-1 mb-4">
-                    <MapPin className="w-3.5 h-3.5" /> {school.location}
-                  </p>
-                  <p className="text-muted-foreground text-sm line-clamp-2 mb-6 flex-1">
-                    {school.description || 'Sin descripción disponible.'}
-                  </p>
+                  <h3 className="text-xl font-semibold mb-6 text-foreground flex-1">{school.name}</h3>
                   <div className="text-xs font-bold text-primary uppercase tracking-widest bg-primary/10 py-2.5 rounded-xl border border-primary/20 group-hover:bg-primary group-hover:text-white transition-colors">
                     Ver Perfil
                   </div>
