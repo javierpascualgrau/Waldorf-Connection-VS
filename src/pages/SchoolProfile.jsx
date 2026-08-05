@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil, PlusCircle, Bell } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2 } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 
@@ -28,6 +28,8 @@ export default function SchoolProfile() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const avatarFileRef = useRef(null);
+  const coverFileRef = useRef(null);
 
   const [openEventMenuId, setOpenEventMenuId] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -308,55 +310,95 @@ export default function SchoolProfile() {
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
-      <div className="flex items-center justify-between mb-5">
-        {isManager ? <div /> : (
+      {!isManager && (
+        <div className="flex items-center justify-between mb-5">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm font-medium">
             <ArrowLeft className="w-4 h-4" /> Volver
           </button>
-        )}
-
-        {isManager && (
-          !isEditing ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Publicar</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
-                title="Cerrar sesión"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-                <Edit3 className="w-4 h-4" /> Gestionar Perfil
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => { setEditForm(school); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
-              <button onClick={handleSave} className="flex items-center gap-1.5 bg-primary text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-md"><Save className="w-4 h-4" /> Guardar</button>
-            </div>
-          )
-        )}
-      </div>
+        </div>
+      )}
 
       {/* CABECERA VISUAL */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8">
         <div className="h-44 bg-muted relative overflow-hidden group">
           <img src={isEditing ? editForm.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.cover_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-full h-full object-cover" alt="portada" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+          {isEditing && (
+            <button
+              type="button"
+              onClick={() => coverFileRef.current?.click()}
+              disabled={uploadingCover}
+              className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full transition-colors backdrop-blur-sm shadow-md border border-white/10 flex items-center justify-center z-10"
+            >
+              {uploadingCover ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-4 h-4" />}
+            </button>
+          )}
+          <input ref={coverFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'cover')} />
         </div>
 
         <div className="p-8 relative pt-20">
           <div className="absolute -top-16 left-8 w-32 h-32">
             <img src={isEditing ? editForm.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d' : school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'} className="w-32 h-32 rounded-3xl border-8 border-card object-cover bg-muted shadow-lg" alt="logo" />
+            {isEditing && (
+              <button
+                type="button"
+                onClick={() => avatarFileRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute bottom-1 right-1 bg-primary text-primary-foreground p-1.5 rounded-full shadow-md hover:bg-primary/90 transition-colors z-10 flex items-center justify-center border border-card"
+              >
+                {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadFile(e, 'avatar')} />
           </div>
-          
+
+          {isManager && (
+            <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+              {!isEditing ? (
+                <>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Publicar</span>
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
+                    title="Cerrar sesión"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Editar perfil"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setEditForm(school); setIsEditing(false); }}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Cancelar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    className="p-2 rounded-full hover:bg-primary/10 transition-colors text-primary"
+                    title="Guardar cambios"
+                  >
+                    <Save className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {!isEditing ? (
             <>
               {/* 💡 CORREGIDO: Contenedor flex con alineación a los extremos para albergar de forma limpia el botón exclusivo de seguir */}

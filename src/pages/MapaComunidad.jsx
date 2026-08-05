@@ -14,6 +14,7 @@ const FILTERS = {
     icon: School,
     table: 'school_profiles',
     avatarField: 'avatar_url',
+    coverField: 'cover_url',
     idParam: 'cache_on_school_id',
     detailPath: '/colegios',
     color: SCHOOL_COLOR,
@@ -23,11 +24,17 @@ const FILTERS = {
     icon: Building2,
     table: 'company_profiles',
     avatarField: 'logo_url',
+    coverField: 'banner_url',
     idParam: 'cache_on_company_id',
     detailPath: '/empresas',
     color: COMPANY_COLOR,
   },
 };
+
+// Evita que un nombre/descripción con < o > rompa el HTML del popup
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 export default function MapaComunidad() {
   const navigate = useNavigate();
@@ -35,6 +42,51 @@ export default function MapaComunidad() {
   const [loading, setLoading] = useState(true);
   const { containerRef, map, error: mapError } = useMapboxMap({ center: { lat: 40.4168, lng: -3.7038 }, zoom: 5.5 });
   const markersRef = useRef([]);
+  const popupsRef = useRef([]);
+  const userMarkerRef = useRef(null);
+  const hasUserLocationRef = useRef(false);
+
+  // 💡 Dispara el permiso nativo del navegador ("permitir esta vez / siempre / no") al entrar
+  // al mapa; si el usuario lo concede, centramos el mapa en su posición (en vez de encuadrar
+  // todos los colegios/empresas) y le añadimos un marcador propio de "Tu ubicación".
+  useEffect(() => {
+    if (!map || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        hasUserLocationRef.current = true;
+        map.flyTo({ center: [coords.longitude, coords.latitude], zoom: 12, duration: 800 });
+
+        const el = document.createElement('div');
+        el.style.width = '18px';
+        el.style.height = '18px';
+        el.style.borderRadius = '9999px';
+        el.style.background = '#4285F4';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 0 0 5px rgba(66,133,244,0.25), 0 1px 4px rgba(0,0,0,0.4)';
+
+        const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, closeOnClick: false })
+          .setLngLat([coords.longitude, coords.latitude])
+          .setHTML('<span style="font-size:13px;font-weight:600;">Tu ubicación</span>');
+
+        el.addEventListener('mouseenter', () => popup.addTo(map));
+        el.addEventListener('mouseleave', () => popup.remove());
+
+        userMarkerRef.current = new mapboxgl.Marker({ element: el })
+          .setLngLat([coords.longitude, coords.latitude])
+          .addTo(map);
+      },
+      (geoError) => {
+        console.warn('Ubicación no disponible o rechazada:', geoError.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    return () => {
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+    };
+  }, [map]);
 
   useEffect(() => {
     if (!map) return;
@@ -44,6 +96,8 @@ export default function MapaComunidad() {
     const clearMarkers = () => {
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
+      popupsRef.current.forEach(p => p.remove());
+      popupsRef.current = [];
     };
 
     const loadAndPlot = async () => {
@@ -52,7 +106,7 @@ export default function MapaComunidad() {
 
       const { data, error } = await supabase
         .from(config.table)
-        .select(`id, name, ${config.avatarField}, location, location_lat, location_lng`);
+        .select(`id, name, description, ${config.avatarField}, ${config.coverField}, location, location_lat, location_lng`);
 
       if (error) {
         console.error('Error cargando ubicaciones:', error);
@@ -85,25 +139,40 @@ export default function MapaComunidad() {
         el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.4)';
 
         const avatarUrl = item[config.avatarField];
+        const coverUrl = item[config.coverField];
         const popupHtml = `
-          <div style="display:flex;align-items:center;gap:8px;font-family:inherit;">
-            ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:9999px;object-fit:cover;flex-shrink:0;" />` : ''}
-            <span style="font-size:13px;font-weight:600;">${item.name || 'Sin nombre'}</span>
+          <div style="font-family:inherit;width:200px;">
+            ${coverUrl ? `<img src="${coverUrl}" style="width:100%;height:72px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;" />` : ''}
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:${item.description ? '4px' : '0'};">
+              ${avatarUrl ? `<img src="${avatarUrl}" style="width:22px;height:22px;border-radius:9999px;object-fit:cover;flex-shrink:0;" />` : ''}
+              <span style="font-size:13px;font-weight:700;line-height:1.2;">${escapeHtml(item.name) || 'Sin nombre'}</span>
+            </div>
+            ${item.description ? `<p style="font-size:11px;color:#6b7280;margin:0;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(item.description)}</p>` : ''}
           </div>
         `;
 
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([item.location_lng, item.location_lat])
-          .setPopup(new mapboxgl.Popup({ offset: 16, closeButton: false }).setHTML(popupHtml))
           .addTo(map);
 
+        // 💡 El popup se controla a mano (mouseenter/mouseleave) en vez de con .setPopup(),
+        // que en Mapbox solo lo muestra al hacer clic — aquí el clic navega al perfil.
+        const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, closeOnClick: false, maxWidth: '240px' })
+          .setLngLat([item.location_lng, item.location_lat])
+          .setHTML(popupHtml);
+
+        el.addEventListener('mouseenter', () => popup.addTo(map));
+        el.addEventListener('mouseleave', () => popup.remove());
         el.addEventListener('click', () => navigate(`${config.detailPath}/${item.id}`));
 
         markersRef.current.push(marker);
+        popupsRef.current.push(popup);
         bounds.extend([item.location_lng, item.location_lat]);
       });
 
-      if (!bounds.isEmpty()) {
+      // 💡 Si ya sabemos dónde está el usuario, no recentramos el mapa: se queda viendo su
+      // zona y descubre lo que tiene alrededor en vez de saltar a encuadrar todos los marcadores.
+      if (!bounds.isEmpty() && !hasUserLocationRef.current) {
         map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 500 });
       }
 

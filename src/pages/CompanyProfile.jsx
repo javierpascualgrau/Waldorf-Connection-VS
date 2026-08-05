@@ -428,43 +428,14 @@ export default function CompanyProfile() {
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
       
-      {/* HEADER: BOTÓN DE VOLVER + ACCIONES (SI ES DUEÑO) */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
-          <ArrowLeft className="w-4 h-4" /> Volver atrás
-        </button>
-
-        {isOwner && (
-          !isEditing ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowCreatePostModal(true)}
-                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Publicar</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 bg-destructive/10 text-destructive border border-destructive/20 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-destructive hover:text-white transition-all"
-                title="Cerrar sesión de empresa"
-              >
-                <LogOut className="w-4 h-4" /> Salir
-              </button>
-
-              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-primary hover:text-white transition-all">
-                <Edit3 className="w-4 h-4" /> Gestionar Empresa
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => { setEditForm(company); setIsEditing(false); }} className="flex items-center gap-1.5 bg-muted text-muted-foreground px-4 py-1.5 rounded-xl text-xs font-semibold">Cancelar</button>
-              <button onClick={handleSaveProfile} className="flex items-center gap-1.5 bg-primary text-white px-4 py-1.5 rounded-xl text-xs font-semibold shadow-md"><Save className="w-4 h-4" /> Guardar Perfil</button>
-            </div>
-          )
-        )}
-      </div>
+      {/* HEADER: BOTÓN DE VOLVER (SOLO VISITANTES) */}
+      {!isOwner && (
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" /> Volver atrás
+          </button>
+        </div>
+      )}
 
       {/* CABECERA VISUAL (BANNER Y LOGO) */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm mb-8 text-left">
@@ -489,7 +460,54 @@ export default function CompanyProfile() {
               </label>
             )}
           </div>
-          
+
+          {isOwner && (
+            <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+              {!isEditing ? (
+                <>
+                  <button
+                    onClick={() => setShowCreatePostModal(true)}
+                    className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Publicar</span>
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
+                    title="Cerrar sesión"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Editar perfil"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setEditForm(company); setIsEditing(false); }}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Cancelar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    className="p-2 rounded-full hover:bg-primary/10 transition-colors text-primary"
+                    title="Guardar cambios"
+                  >
+                    <Save className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {!isEditing ? (
             <>
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
