@@ -13,7 +13,6 @@ const CATEGORIES = [
 ];
 
 export default function CreateMarketplaceListingModal({ user, identity, onClose, onCreated, editListing = null }) {
-  const [listingType, setListingType] = useState(editListing?.listing_type || 'vendo');
   const [category, setCategory] = useState(editListing?.category || CATEGORIES[0].value);
   const [title, setTitle] = useState(editListing?.title || '');
   const [description, setDescription] = useState(editListing?.description || '');
@@ -59,11 +58,11 @@ export default function CreateMarketplaceListingModal({ user, identity, onClose,
     setLoading(true);
 
     const listingData = {
-      listing_type: listingType,
+      listing_type: 'vendo',
       category,
       title,
       description,
-      price: listingType === 'vendo' && price ? parseFloat(price) : null,
+      price: price ? parseFloat(price) : null,
       location,
       image_urls: imageUrls,
     };
@@ -111,31 +110,12 @@ export default function CreateMarketplaceListingModal({ user, identity, onClose,
         </div>
 
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setListingType('vendo')}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
-                listingType === 'vendo' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 text-muted-foreground border-transparent'
-              }`}
-            >
-              Vendo
-            </button>
-            <button
-              onClick={() => setListingType('busco')}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
-                listingType === 'busco' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 text-muted-foreground border-transparent'
-              }`}
-            >
-              Busco
-            </button>
-          </div>
-
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Título *</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder={listingType === 'vendo' ? 'Ej: Vendo flauta de madera' : 'Ej: Busco leotardos talla 6'}
+              placeholder="Ej: Vendo flauta de madera"
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -192,21 +172,19 @@ export default function CreateMarketplaceListingModal({ user, identity, onClose,
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {listingType === 'vendo' && (
-              <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
-                <span className="text-muted-foreground text-sm flex-shrink-0">€</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={price}
-                  onChange={e => setPrice(e.target.value)}
-                  placeholder="Precio (opcional)"
-                  className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-            )}
-            <div className={`flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2 ${listingType !== 'vendo' ? 'col-span-2' : ''}`}>
+            <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+              <span className="text-muted-foreground text-sm flex-shrink-0">€</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+                placeholder="Precio (opcional)"
+                className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
               <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
                 value={location}

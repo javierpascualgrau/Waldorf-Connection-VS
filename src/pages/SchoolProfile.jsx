@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2 } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 
@@ -33,10 +33,14 @@ export default function SchoolProfile() {
 
   const [openEventMenuId, setOpenEventMenuId] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [notifyEvents, setNotifyEvents] = useState(false);
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [bellRinging, setBellRinging] = useState(false);
 
   const currentSchoolId = id || user?.id;
 
@@ -59,7 +63,7 @@ export default function SchoolProfile() {
   const handleDeleteEvent = async (eventId) => {
     setOpenEventMenuId(null);
     if (!window.confirm("¿Seguro que quieres borrar este evento?")) return;
-    await supabase.from('school_events').delete().eq('id', eventId);
+    await supabase.from('events').delete().eq('id', eventId);
     loadEvents(currentSchoolId);
   };
 
@@ -89,7 +93,7 @@ export default function SchoolProfile() {
   const loadEvents = async (schoolId) => {
     if (!schoolId) return;
     const { data: evs } = await supabase
-      .from('school_events')
+      .from('events')
       .select('*')
       .eq('school_id', schoolId)
       .order('date', { ascending: true });
@@ -136,12 +140,15 @@ export default function SchoolProfile() {
 
           const { data: followRecord } = await supabase
             .from('user_follows')
-            .select('id')
+            .select('id, notify_events')
             .eq('follower_email', myEmailClean)
             .eq('following_email', schEmailClean)
             .maybeSingle();
 
-          if (followRecord) setFollowing(true);
+          if (followRecord) {
+            setFollowing(true);
+            setNotifyEvents(!!followRecord.notify_events);
+          }
         }
       }
       setLoading(false);
@@ -172,7 +179,9 @@ export default function SchoolProfile() {
     const schEmailClean = school.school_email.toLowerCase().trim();
 
     const previousFollowingState = following;
+    const previousNotifyEvents = notifyEvents;
     setFollowing(!previousFollowingState);
+    if (previousFollowingState) setNotifyEvents(false); // al dejar de seguir se borra la fila, así que las notificaciones también se apagan
 
     try {
       if (previousFollowingState) {
@@ -193,6 +202,34 @@ export default function SchoolProfile() {
     } catch (error) {
       console.error("Error operando seguimiento del centro educativo:", error);
       setFollowing(previousFollowingState); // Reversión de emergencia si falla la red
+      setNotifyEvents(previousNotifyEvents);
+    }
+  };
+
+  // 💡 Seguir y recibir notificaciones de eventos son cosas independientes: solo se puede
+  // activar si ya sigues, y actualiza la misma fila de user_follows en vez de crear una nueva.
+  const handleToggleNotifyEvents = async () => {
+    if (!user?.email || !school?.school_email || !following || notifyLoading) return;
+    setNotifyLoading(true);
+
+    const myEmailClean = user.email.toLowerCase().trim();
+    const schEmailClean = school.school_email.toLowerCase().trim();
+    const previousNotifyEvents = notifyEvents;
+    setNotifyEvents(!previousNotifyEvents);
+
+    try {
+      const { error } = await supabase
+        .from('user_follows')
+        .update({ notify_events: !previousNotifyEvents })
+        .eq('follower_email', myEmailClean)
+        .eq('following_email', schEmailClean);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error actualizando notificaciones de eventos:", error);
+      setNotifyEvents(previousNotifyEvents);
+    } finally {
+      setNotifyLoading(false);
     }
   };
 
@@ -320,6 +357,13 @@ export default function SchoolProfile() {
               {!isEditing ? (
                 <>
                   <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Publicar</span>
+                  </button>
+                  <button
                     onClick={handleLogout}
                     className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
                     title="Cerrar sesión"
@@ -366,16 +410,35 @@ export default function SchoolProfile() {
 
                 {/* 🚀 BOTÓN DE SEGUIR INSTITUCIONAL: Visible solo para miembros externos */}
                 {!isManager && user?.email && (
-                  <button 
-                    onClick={handleFollow}
-                    className={`flex items-center gap-1.5 text-xs px-5 py-2.5 rounded-full font-semibold transition-colors shadow-sm self-start sm:self-center ${
-                      following 
-                        ? 'bg-muted text-muted-foreground border border-border' 
-                        : 'bg-primary/5 text-primary border border-primary/10 hover:bg-primary hover:text-white'
-                    }`}
-                  >
-                    {following ? <><UserCheck className="w-3.5 h-3.5" /><span>Siguiendo</span></> : <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>}
-                  </button>
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <button
+                      onClick={handleFollow}
+                      className={`flex items-center gap-1.5 text-xs px-5 py-2.5 rounded-full font-semibold transition-colors shadow-sm ${
+                        following
+                          ? 'bg-muted text-muted-foreground border border-border'
+                          : 'bg-primary/5 text-primary border border-primary/10 hover:bg-primary hover:text-white'
+                      }`}
+                    >
+                      {following ? <><UserCheck className="w-3.5 h-3.5" /><span>Siguiendo</span></> : <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>}
+                    </button>
+
+                    {/* 🔔 Notificaciones de eventos: independiente de seguir, solo activable si ya sigues */}
+                    <button
+                      onClick={(e) => { setBellRinging(true); handleToggleNotifyEvents(e); }}
+                      disabled={!following || notifyLoading}
+                      title={!following ? 'Sigue primero para activar notificaciones' : notifyEvents ? 'Desactivar notificaciones de eventos' : 'Recibir notificaciones de eventos'}
+                      aria-label="Notificaciones de eventos"
+                      className={`flex items-center justify-center w-9 h-9 rounded-full border transition-colors shadow-sm ${
+                        !following
+                          ? 'bg-muted/50 text-muted-foreground/40 border-border cursor-not-allowed'
+                          : notifyEvents
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
+                      }`}
+                    >
+                      <Bell className={`w-3.5 h-3.5 ${bellRinging ? 'bell-ring' : ''}`} onAnimationEnd={() => setBellRinging(false)} />
+                    </button>
+                  </div>
                 )}
               </div>
               <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
@@ -629,6 +692,24 @@ export default function SchoolProfile() {
             )}
           </div>
         </div>
+      )}
+
+      {showCreateModal && (
+        <CreatePostModal
+          user={user}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={async () => {
+            setShowCreateModal(false);
+            await loadEvents(currentSchoolId);
+            const { data } = await supabase
+              .from('posts')
+              .select('*')
+              .eq('author_id', currentSchoolId)
+              .eq('type', 'daily')
+              .order('created_date', { ascending: false });
+            setDailyPosts(data || []);
+          }}
+        />
       )}
 
       {editingEvent && (

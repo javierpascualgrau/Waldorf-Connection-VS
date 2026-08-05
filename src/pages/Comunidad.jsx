@@ -371,10 +371,10 @@ export default function Comunidad() {
                       </div>
                       
                       <button
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          toggleFollow(empEmailClean || emp.id); 
-                        }} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFollow(empEmailClean);
+                        }}
                         className={`flex items-center gap-1 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all ${
                           isFollowingCompany 
                             ? 'bg-muted text-muted-foreground border-border' 

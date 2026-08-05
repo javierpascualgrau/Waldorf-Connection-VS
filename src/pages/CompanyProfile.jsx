@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Globe, Edit3, Save, Upload, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, LogOut, ArrowLeft, UserPlus, UserCheck } from 'lucide-react';
+import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, LogOut, ArrowLeft, UserPlus, UserCheck, Bell } from 'lucide-react';
 import PostCard from '@/components/PostCard';
+import CreatePostModal from '@/components/CreatePostModal';
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
@@ -21,10 +22,14 @@ export default function CompanyProfile() {
   const [profileTab, setProfileTab] = useState('actividad');
 
   const [companyPosts, setCompanyPosts] = useState([]);
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
 
   // 💡 NUEVOS ESTADOS: Control del seguimiento local corporativo
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [notifyEvents, setNotifyEvents] = useState(false);
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [bellRinging, setBellRinging] = useState(false);
 
   const loadOffers = async (companyId) => {
     if (!companyId) return;
@@ -78,15 +83,16 @@ export default function CompanyProfile() {
 
             const { data: follows } = await supabase
               .from('user_follows')
-              .select('following_email')
+              .select('following_email, notify_events')
               .eq('follower_email', myEmailClean);
 
             if (follows) {
-              const isFollowing = follows.some(f => {
+              const matched = follows.find(f => {
                 const fEmail = f.following_email?.toLowerCase().trim() || '';
                 return fEmail === compEmailClean || fEmail.split('@')[0] === compPrefix;
               });
-              setFollowing(isFollowing);
+              setFollowing(!!matched);
+              setNotifyEvents(!!matched?.notify_events);
             }
           }
         }
@@ -188,7 +194,10 @@ export default function CompanyProfile() {
           .eq('follower_email', myEmailClean)
           .eq('following_email', existingFollow.following_email);
 
-        if (!error) setFollowing(false);
+        if (!error) {
+          setFollowing(false);
+          setNotifyEvents(false); // al dejar de seguir se borra la fila, así que las notificaciones también se apagan
+        }
       } else {
         const { error } = await supabase
           .from('user_follows')
@@ -200,6 +209,46 @@ export default function CompanyProfile() {
       console.error("Error al procesar acción de seguimiento corporativo:", error);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  // 💡 Seguir y recibir notificaciones de eventos son cosas independientes: solo se puede
+  // activar si ya sigues, y actualiza la misma fila de user_follows en vez de crear una nueva.
+  const handleToggleNotifyEvents = async () => {
+    if (!user?.email || !company?.company_email || !following || notifyLoading) return;
+    setNotifyLoading(true);
+
+    const myEmailClean = user.email.toLowerCase().trim();
+    const compEmailClean = company.company_email.toLowerCase().trim();
+    const compPrefix = compEmailClean.split('@')[0];
+    const previousNotifyEvents = notifyEvents;
+    setNotifyEvents(!previousNotifyEvents);
+
+    try {
+      const { data: follows } = await supabase
+        .from('user_follows')
+        .select('following_email')
+        .eq('follower_email', myEmailClean);
+
+      const existingFollow = (follows || []).find(f => {
+        const fEmail = f.following_email?.toLowerCase().trim() || '';
+        return fEmail === compEmailClean || fEmail.split('@')[0] === compPrefix;
+      });
+
+      if (!existingFollow) throw new Error('No se encontró el seguimiento de esta empresa');
+
+      const { error } = await supabase
+        .from('user_follows')
+        .update({ notify_events: !previousNotifyEvents })
+        .eq('follower_email', myEmailClean)
+        .eq('following_email', existingFollow.following_email);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error actualizando notificaciones de eventos:", error);
+      setNotifyEvents(previousNotifyEvents);
+    } finally {
+      setNotifyLoading(false);
     }
   };
 
@@ -317,6 +366,13 @@ export default function CompanyProfile() {
               {!isEditing ? (
                 <>
                   <button
+                    onClick={() => setShowCreatePostModal(true)}
+                    className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span className="hidden sm:inline">Publicar</span>
+                  </button>
+                  <button
                     onClick={handleLogout}
                     className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
                     title="Cerrar sesión"
@@ -389,6 +445,23 @@ export default function CompanyProfile() {
                       ) : (
                         <><UserPlus className="w-3.5 h-3.5" /><span>Seguir</span></>
                       )}
+                    </button>
+
+                    {/* 🔔 Notificaciones de eventos: independiente de seguir, solo activable si ya sigues */}
+                    <button
+                      onClick={(e) => { setBellRinging(true); handleToggleNotifyEvents(e); }}
+                      disabled={!following || notifyLoading}
+                      title={!following ? 'Sigue primero para activar notificaciones' : notifyEvents ? 'Desactivar notificaciones de eventos' : 'Recibir notificaciones de eventos'}
+                      aria-label="Notificaciones de eventos"
+                      className={`flex items-center justify-center w-9 h-9 rounded-full border transition-colors shadow-sm ${
+                        !following
+                          ? 'bg-muted/50 text-muted-foreground/40 border-border cursor-not-allowed'
+                          : notifyEvents
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
+                      }`}
+                    >
+                      <Bell className={`w-3.5 h-3.5 ${bellRinging ? 'bell-ring' : ''}`} onAnimationEnd={() => setBellRinging(false)} />
                     </button>
                   </div>
                 )}
@@ -514,6 +587,17 @@ export default function CompanyProfile() {
         </div>
       </div>
 
+      {showCreatePostModal && isOwner && (
+        <CreatePostModal
+          user={user}
+          onClose={() => setShowCreatePostModal(false)}
+          onCreated={async () => {
+            setShowCreatePostModal(false);
+            await loadCompanyPosts(company.name);
+            await loadOffers(company.id);
+          }}
+        />
+      )}
     </div>
   );
 }

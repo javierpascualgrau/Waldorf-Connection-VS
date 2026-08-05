@@ -217,14 +217,16 @@ export default function RouteOfferDetail() {
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-            {route.notes && (
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Descripción</h3>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Descripción</h3>
+              {route.notes ? (
                 <p className="text-base text-foreground/80 leading-relaxed">{route.notes}</p>
-              </div>
-            )}
+              ) : (
+                <p className="text-base text-muted-foreground/60 italic">Sin descripción</p>
+              )}
+            </div>
 
-            <div className={route.notes ? 'pt-4 border-t border-border/60' : ''}>
+            <div className="pt-4 border-t border-border/60">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5">
                 <School className="w-4 h-4" /> Colegio
               </h3>

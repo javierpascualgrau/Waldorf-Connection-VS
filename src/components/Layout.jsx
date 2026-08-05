@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, School, Users, User, PlusCircle, MessageSquare, ShoppingBag, Map } from 'lucide-react';
+import { Home, School, Users, User, Bell, PlusCircle, MessageSquare, ShoppingBag, Map } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
@@ -21,12 +21,14 @@ export default function Layout() {
   const [userProfile, setUserProfile] = useState(null);
   const [schoolId, setSchoolId] = useState(null); // 💡 NUEVO: Guardamos el ID del colegio si el usuario lo es
   const [companyId, setCompanyId] = useState(null); // 💡 Igual que schoolId, pero para empresas
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isBellRinging, setIsBellRinging] = useState(false);
 
   const handleMiPerfilClick = async (e) => {
-    if (e) e.preventDefault(); 
+    if (e) e.preventDefault();
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         navigate('/login');
         return;
@@ -54,7 +56,7 @@ export default function Layout() {
         return;
       }
 
-      navigate('/perfil'); 
+      navigate('/perfil');
     } catch (error) {
       console.error("Error al redireccionar perfil:", error);
       navigate('/login');
@@ -64,7 +66,7 @@ export default function Layout() {
   useEffect(() => {
     const getSession = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      
+
       if (authUser) {
         setUser(authUser);
 
@@ -87,11 +89,30 @@ export default function Layout() {
     getSession();
   }, []);
 
+  // Punto rojo de notificaciones no leídas — Layout no se remonta entre rutas, así que se
+  // refresca con un efecto atado al cambio de página en vez de necesitar estado global nuevo.
+  useEffect(() => {
+    if (!user) return;
+    const loadUnreadCount = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .is('read_at', null);
+      setUnreadCount(count || 0);
+    };
+    loadUnreadCount();
+  }, [user, location.pathname]);
+
   // 💡 También se muestra en el perfil propio del colegio o de la empresa (misma cabecera, mismo botón)
   const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil'
     || (schoolId && location.pathname === `/colegios/${schoolId}`)
     || (companyId && location.pathname === `/empresas/${companyId}`);
-  const mostrarBotonHilo = location.pathname === '/';
+  const mostrarBotonMapa = location.pathname === '/';
+  // El icono de Hilo vive en la barra superior compartida (Layout), pero estaba condicionado
+  // solo a "/" — por eso no aparecía en Colegios/Comunidad/Servicios/Perfil pese a compartir
+  // el mismo Layout. Ahora se muestra en las 5 páginas principales de navegación.
+  const mostrarBotonHilo = ['/', '/colegios', '/comunidad', '/servicios', '/perfil'].includes(location.pathname);
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
   // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
   const isMessagesRoute = location.pathname.startsWith('/hilo');
@@ -106,9 +127,9 @@ export default function Layout() {
             </div>
             <span className="font-cormorant text-xl font-semibold text-foreground tracking-wide hidden sm:inline">Waldorf Live</span>
           </Link>
-          
+
           <div className="flex items-center gap-2 flex-shrink-0">
-            {mostrarBotonHilo && (
+            {mostrarBotonMapa && (
               <Link
                 to="/mapa"
                 className="flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors animate-fade-in"
@@ -127,6 +148,21 @@ export default function Layout() {
                 <MessageSquare className="w-5 h-5" />
               </Link>
             )}
+
+            <Link
+              to="/notificaciones"
+              onClick={() => setIsBellRinging(true)}
+              className="relative flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Notificaciones"
+            >
+              <Bell
+                className={`w-5 h-5 ${isBellRinging ? 'bell-ring' : ''}`}
+                onAnimationEnd={() => setIsBellRinging(false)}
+              />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1.5 w-2 h-2 bg-destructive rounded-full border border-card" />
+              )}
+            </Link>
 
             {mostrarBotonPublicar && (
               <button
@@ -151,7 +187,7 @@ export default function Layout() {
             {navItems.map(({ path, icon: Icon, label }) => {
               const isProfile = path === '/perfil';
               const isColegios = path === '/colegios';
-              
+
               // 💡 REGLAS DE ILUMINACIÓN INTELIGENTE:
               let isActive = location.pathname === path;
 
@@ -163,7 +199,7 @@ export default function Layout() {
                 const isOwnSchoolPage = schoolId && location.pathname === `/colegios/${schoolId}`;
                 isActive = location.pathname.startsWith('/colegios') && !isOwnSchoolPage;
               }
-              
+
               const itemStyles = `flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all ${
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`;
