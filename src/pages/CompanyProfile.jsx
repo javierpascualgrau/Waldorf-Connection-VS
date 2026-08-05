@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Building, Globe, Edit3, Save, Upload, Plus, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Send, Loader2, Image as ImageIcon, LogOut, ArrowLeft, UserPlus, UserCheck } from 'lucide-react'; 
-import PostCard from '@/components/PostCard'; 
-
-const TIPOS_OFERTA = ['Trabajo', 'Prácticas', 'Voluntariado'];
+import { MapPin, Globe, Edit3, Save, Upload, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, LogOut, ArrowLeft, UserPlus, UserCheck } from 'lucide-react';
+import PostCard from '@/components/PostCard';
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
@@ -20,23 +18,9 @@ export default function CompanyProfile() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  const [profileTab, setProfileTab] = useState('ofertas'); 
-  
+  const [profileTab, setProfileTab] = useState('actividad');
+
   const [companyPosts, setCompanyPosts] = useState([]);
-  const [postContent, setPostContent] = useState('');
-  const [postImage, setPostImage] = useState(''); 
-  const [uploadingPostImage, setUploadingPostImage] = useState(false); 
-  const [publishingPost, setPublishingPost] = useState(false);
-  
-  const [showOfferModal, setShowOfferModal] = useState(false);
-  const [publishingOffer, setPublishingOffer] = useState(false);
-  const [newOffer, setNewOffer] = useState({
-    title: '',
-    description: '',
-    type: 'Trabajo',
-    location: '',
-    link_apply: ''
-  });
 
   // 💡 NUEVOS ESTADOS: Control del seguimiento local corporativo
   const [following, setFollowing] = useState(false);
@@ -250,29 +234,6 @@ export default function CompanyProfile() {
     }
   };
 
-  const handleUploadPostImage = async (e) => {
-    if (!isOwner) return;
-    try {
-      setUploadingPostImage(true);
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const fileExt = file.name.split('.').pop();
-      const fileName = `company_posts/${user.id}-${Math.random()}.${fileExt}`;
-
-      let { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setPostImage(data.publicUrl);
-
-    } catch (error) {
-      alert('Error al subir la imagen: ' + error.message);
-    } finally {
-      setUploadingPostImage(false);
-    }
-  };
-
   const handleSaveProfile = async () => {
     if (!isOwner) return;
     const { error } = await supabase
@@ -298,73 +259,12 @@ export default function CompanyProfile() {
     }
   };
 
-  const handleCreateOffer = async (e) => {
-    e.preventDefault();
-    if (!isOwner) return;
-    if (!newOffer.title || !newOffer.description) {
-      alert("Por favor, rellena el título y la descripción.");
-      return;
-    }
-
-    setPublishingOffer(true);
-    const { error } = await supabase
-      .from('company_offers')
-      .insert({
-        company_id: company.id,
-        company_name: company.name,
-        title: newOffer.title,
-        description: newOffer.description,
-        type: newOffer.type,
-        location: newOffer.location || company.location,
-        link_apply: newOffer.link_apply
-      });
-
-    if (error) {
-      console.error("Error al crear oferta:", error);
-      alert("Hubo un error al publicar la vacante.");
-    } else {
-      alert("¡Oferta publicada con éxito!");
-      setShowOfferModal(false);
-      setNewOffer({ title: '', description: '', type: 'Trabajo', location: '', link_apply: '' });
-      await loadOffers(company.id);
-    }
-    setPublishingOffer(false);
-  };
-
   const handleDeleteOffer = async (offerId) => {
     if (!isOwner) return;
     if (window.confirm("¿Seguro que deseas eliminar esta oferta?")) {
       await supabase.from('company_offers').delete().eq('id', offerId);
       await loadOffers(company.id);
     }
-  };
-
-  const handleCreatePost = async (e) => {
-    e.preventDefault();
-    if (!isOwner || (!postContent.trim() && !postImage)) return;
-
-    setPublishingPost(true);
-    const { error } = await supabase
-      .from('posts')
-      .insert({
-        author_email: user.email, 
-        author_name: company.name,
-        author_avatar: company.logo_url,
-        author_role: 'empresa', 
-        content: postContent,
-        image_url: postImage, 
-        created_date: new Date().toISOString()
-      });
-
-    if (error) {
-      console.error("Error al publicar en el feed:", error);
-      alert("Hubo un error al crear la publicación.");
-    } else {
-      setPostContent(''); 
-      setPostImage(''); 
-      await loadCompanyPosts(company.name); 
-    }
-    setPublishingPost(false);
   };
 
   const getIconType = (type) => {
@@ -520,43 +420,14 @@ export default function CompanyProfile() {
         </div>
       </div>
 
-      {/* BLOQUE DE CONTENIDOS DIVIDIDO EN DOS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-        
-        {/* CONEXIÓN WALDORF */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
-            <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2 border-b border-border pb-2">
-              <Building className="w-4 h-4 text-primary" /> Unión Waldorf
-            </h2>
-            {!isEditing ? (
-              <p className="text-sm text-foreground/80 leading-relaxed italic">
-                "{company.waldorf_connection || 'No se ha detallado la conexión con el entorno educativo.'}"
-              </p>
-            ) : (
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">¿Por qué formáis parte del movimiento Waldorf?</label>
-                <textarea rows={4} value={editForm.waldorf_connection || ''} onChange={e => setEditForm({...editForm, waldorf_connection: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none resize-none" placeholder="Explica los valores o proyectos que os vinculan..." />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* CONTENEDOR CENTRAL: PESTAÑAS DINÁMICAS */}
-        <div className="md:col-span-2 space-y-6">
+      {/* CONTENEDOR DE PESTAÑAS DINÁMICAS */}
+      <div className="text-left">
+        <div className="space-y-6">
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm min-h-[400px]">
-            
+
             {/* Cabecera de Pestañas */}
             <div className="flex items-center justify-between mb-6 border-b border-border pb-0">
               <div className="flex gap-6">
-                <button
-                  onClick={() => setProfileTab('ofertas')}
-                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
-                    profileTab === 'ofertas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" /> Oportunidades
-                </button>
                 <button
                   onClick={() => setProfileTab('actividad')}
                   className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
@@ -565,16 +436,15 @@ export default function CompanyProfile() {
                 >
                   <MessageSquare className="w-4 h-4" /> Actividad
                 </button>
-              </div>
-
-              {profileTab === 'ofertas' && isOwner && (
-                <button 
-                  onClick={() => setShowOfferModal(true)} 
-                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:scale-105 transition-all mb-2"
+                <button
+                  onClick={() => setProfileTab('ofertas')}
+                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
+                    profileTab === 'ofertas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
                 >
-                  <Plus className="w-3.5 h-3.5" /> Publicar Vacante
+                  <FileText className="w-4 h-4" /> Oportunidades
                 </button>
-              )}
+              </div>
             </div>
             
             {/* --- CONTENIDO: PESTAÑA OFERTAS --- */}
@@ -625,49 +495,6 @@ export default function CompanyProfile() {
             {/* --- CONTENIDO: PESTAÑA ACTIVIDAD (POSTS CON FOTO) --- */}
             {profileTab === 'actividad' && (
               <div className="space-y-6">
-                
-                {isOwner && (
-                  <form onSubmit={handleCreatePost} className="p-4 bg-muted/30 border border-border rounded-2xl flex flex-col gap-3 shadow-sm">
-                    <textarea
-                      value={postContent}
-                      onChange={e => setPostContent(e.target.value)}
-                      placeholder="What happened at the company today? Share it with the community..."
-                      className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
-                    />
-
-                    {postImage && (
-                      <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-border mt-1">
-                        <img src={postImage} className="w-full h-full object-cover" alt="Preview" />
-                        <button 
-                          type="button" 
-                          onClick={() => setPostImage('')} 
-                          className="absolute top-1 right-1 bg-black/60 hover:bg-black text-white rounded-full p-1 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1">
-                      
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${uploadingPostImage ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                        {uploadingPostImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                        {uploadingPostImage ? 'Subiendo foto...' : 'Añadir foto'}
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadPostImage(e)} disabled={uploadingPostImage} />
-                      </label>
-
-                      <button
-                        type="submit"
-                        disabled={publishingPost || uploadingPostImage || (!postContent.trim() && !postImage)}
-                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-xl text-xs font-semibold shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
-                      >
-                        {publishingPost ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                        Publicar 
-                      </button>
-                    </div>
-                  </form>
-                )}
-
                 {/* Lista de PostCards generadas por la empresa */}
                 <div className="space-y-4">
                   {companyPosts.length > 0 ? (
@@ -687,55 +514,6 @@ export default function CompanyProfile() {
         </div>
       </div>
 
-      {/* MODAL INTEGRADO PARA CREAR NUEVA OFERTA */}
-      {showOfferModal && isOwner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card border border-border w-full max-w-lg rounded-3xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-border">
-              <h3 className="font-cormorant text-2xl font-semibold text-foreground">Publicar Nueva Oportunidad</h3>
-              <button onClick={() => setShowOfferModal(false)} className="text-muted-foreground hover:text-foreground p-1 bg-muted rounded-full"><X className="w-4 h-4" /></button>
-            </div>
-            
-            <form onSubmit={handleCreateOffer} className="p-6 space-y-4 text-left">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Título del Puesto</label>
-                <input value={newOffer.title} onChange={e => setNewOffer({...newOffer, title: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="Ej: Profesor de Carpintería de apoyo" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Tipo de Oportunidad</label>
-                  <select value={newOffer.type} onChange={e => setNewOffer({...newOffer, type: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none outline-none">
-                    {TIPOS_OFERTA.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Ubicación</label>
-                  <input value={newOffer.location} onChange={e => setNewOffer({...newOffer, location: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="Dejar en blanco para usar la habitual" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Descripción de la Oferta</label>
-                <textarea rows={4} value={newOffer.description} onChange={e => setNewOffer({...newOffer, description: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none resize-none" placeholder="Describe los requisitos, horarios, qué buscáis..." />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Enlace de Inscripción o Email de Contacto</label>
-                <input value={newOffer.link_apply} onChange={e => setNewOffer({...newOffer, link_apply: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="Ej: https://tuweb.com/empleo o cv@empresa.com" />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowOfferModal(false)} className="flex-1 py-3 bg-muted rounded-xl text-sm font-semibold text-muted-foreground hover:bg-muted/80 transition-colors">Cancelar</button>
-                <button type="submit" disabled={publishingOffer} className="flex-1 py-3 bg-primary text-white rounded-xl text-sm font-semibold shadow-md hover:bg-primary/90 transition-colors disabled:opacity-50">
-                  {publishingOffer ? 'Publicando...' : 'Publicar Oportunidad'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      
     </div>
   );
 }

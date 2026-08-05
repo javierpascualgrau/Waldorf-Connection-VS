@@ -20,6 +20,7 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [schoolId, setSchoolId] = useState(null); // 💡 NUEVO: Guardamos el ID del colegio si el usuario lo es
+  const [companyId, setCompanyId] = useState(null); // 💡 Igual que schoolId, pero para empresas
 
   const handleMiPerfilClick = async (e) => {
     if (e) e.preventDefault(); 
@@ -69,9 +70,12 @@ export default function Layout() {
 
         const identity = await getMemberIdentity(authUser.id);
 
-        // 💡 El id del colegio es el propio uid de la cuenta cuando la identidad resuelta es un colegio
+        // 💡 El id del colegio/empresa es el propio uid de la cuenta cuando la identidad resuelta coincide
         if (identity?.role === 'colegio') {
           setSchoolId(authUser.id);
+        }
+        if (identity?.role === 'empresa') {
+          setCompanyId(authUser.id);
         }
 
         if (identity) {
@@ -83,8 +87,10 @@ export default function Layout() {
     getSession();
   }, []);
 
-  // 💡 También se muestra en el perfil propio del colegio (misma cabecera, mismo botón)
-  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil' || (schoolId && location.pathname === `/colegios/${schoolId}`);
+  // 💡 También se muestra en el perfil propio del colegio o de la empresa (misma cabecera, mismo botón)
+  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil'
+    || (schoolId && location.pathname === `/colegios/${schoolId}`)
+    || (companyId && location.pathname === `/empresas/${companyId}`);
   const mostrarBotonHilo = location.pathname === '/';
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
   // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
