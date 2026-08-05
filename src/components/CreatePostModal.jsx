@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useRef, useEffect } from 'react';
-import { X, MapPin, Calendar, Clock, ImagePlus, Loader2, Link as LinkIcon } from 'lucide-react';
+import { X, MapPin, Calendar, Clock, ImagePlus, Loader2, Link as LinkIcon, Tag } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
 
@@ -21,30 +21,32 @@ const CATEGORIES = [
 const EVENT_CATEGORIES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo', 'Otro'];
 const OFFER_TYPES = ['Trabajo', 'Prácticas', 'Voluntariado'];
 
-export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, editEvent = null, initialType = 'daily' }) {
-  const [postType, setPostType] = useState(editPost ? 'daily' : editEvent ? 'event' : initialType);
+export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, editEvent = null, editOffer = null, editProduct = null, initialType = 'daily' }) {
+  const [postType, setPostType] = useState(editPost ? 'daily' : editEvent ? 'event' : editOffer ? 'offer' : editProduct ? 'product' : initialType);
   const [identity, setIdentity] = useState(null);
 
-  const [content, setContent] = useState(editPost?.content || editEvent?.description || '');
-  const [title, setTitle] = useState(editEvent?.title || '');
+  const [content, setContent] = useState(editPost?.content || editEvent?.description || editOffer?.description || editProduct?.description || '');
+  const [title, setTitle] = useState(editEvent?.title || editOffer?.title || editProduct?.title || '');
   const [category, setCategory] = useState(editPost?.category || 'otro');
   const [eventCategory, setEventCategory] = useState(
     editEvent ? (EVENT_CATEGORIES.find(c => c.toLowerCase() === editEvent.event_type) || 'Otro') : 'Taller'
   );
-  const [offerType, setOfferType] = useState('Trabajo');
-  const [linkApply, setLinkApply] = useState('');
-  const [location, setLocation] = useState(editPost?.location || editEvent?.location || '');
+  const [offerType, setOfferType] = useState(editOffer?.type || 'Trabajo');
+  const [linkApply, setLinkApply] = useState(editOffer?.link_apply || '');
+  const [price, setPrice] = useState(editProduct?.price ?? '');
+  const [linkBuy, setLinkBuy] = useState(editProduct?.link_buy || '');
+  const [location, setLocation] = useState(editPost?.location || editEvent?.location || editOffer?.location || '');
   const [eventDate, setEventDate] = useState(editPost?.event_date?.split('T')[0] || editEvent?.date || editEvent?.event_date || '');
   const [eventTime, setEventTime] = useState(editEvent?.time || editEvent?.event_time || '');
   const [isService, setIsService] = useState(editPost?.is_service_offer || false);
-  const [imageUrl, setImageUrl] = useState(editPost?.image_url || editEvent?.image_url || '');
-  const [imagePreview, setImagePreview] = useState(editPost?.image_url || editEvent?.image_url || '');
+  const [imageUrl, setImageUrl] = useState(editPost?.image_url || editEvent?.image_url || editProduct?.image_url || '');
+  const [imagePreview, setImagePreview] = useState(editPost?.image_url || editEvent?.image_url || editProduct?.image_url || '');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
 
   // 💡 Resolvemos la identidad real (colegio/empresa/perfil) al abrir el modal
-  // para saber si hay que ofrecer el selector Día a día/Actividad + Evento futuro/Oportunidad
+  // para saber si hay que ofrecer el selector Día a día/Actividad + Evento futuro/Oportunidad/Producto
   useEffect(() => {
     if (!user?.id) return;
     getMemberIdentity(user.id).then(setIdentity);
@@ -54,6 +56,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const isCompany = identity?.role === 'empresa';
   const isEvent = postType === 'event';
   const isOffer = postType === 'offer';
+  const isProduct = postType === 'product';
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -81,7 +84,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     setUploadingImage(false);
   };
 
-  const isValid = isEvent ? (title.trim() && eventDate) : isOffer ? (title.trim() && content.trim()) : content.trim();
+  const isValid = isEvent ? (title.trim() && eventDate) : isOffer ? (title.trim() && content.trim()) : isProduct ? title.trim() : content.trim();
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -134,20 +137,53 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     }
 
     if (isOffer) {
-      const { error } = await supabase.from('company_offers').insert([{
-        company_id: user?.id,
-        company_name: freshIdentity?.name,
+      const offerData = {
         title: title.trim(),
         description: content,
         type: offerType,
         location: location || null,
         link_apply: linkApply || null,
-      }]);
+      };
+
+      const { error } = editOffer
+        ? await supabase.from('company_offers').update(offerData).eq('id', editOffer.id)
+        : await supabase.from('company_offers').insert([{
+            ...offerData,
+            company_id: user?.id,
+            company_name: freshIdentity?.name,
+          }]);
 
       setLoading(false);
       if (error) {
         console.error("Error al publicar la oportunidad:", error);
         alert("Error al publicar la oportunidad: " + error.message);
+        return;
+      }
+      onCreated();
+      return;
+    }
+
+    if (isProduct) {
+      const productData = {
+        title: title.trim(),
+        description: content,
+        price: price === '' ? null : Number(price),
+        image_url: imageUrl || null,
+        link_buy: linkBuy || null,
+      };
+
+      const { error } = editProduct
+        ? await supabase.from('company_products').update(productData).eq('id', editProduct.id)
+        : await supabase.from('company_products').insert([{
+            ...productData,
+            company_id: user?.id,
+            company_name: freshIdentity?.name,
+          }]);
+
+      setLoading(false);
+      if (error) {
+        console.error("Error al publicar el producto:", error);
+        alert("Error al publicar el producto: " + error.message);
         return;
       }
       onCreated();
@@ -217,14 +253,14 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       <div className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-cormorant text-2xl font-semibold">
-            {editPost ? 'Editar publicación' : editEvent ? 'Editar evento' : isEvent ? 'Nuevo evento' : isOffer ? 'Nueva Oportunidad' : 'Nueva publicación'}
+            {editPost ? 'Editar publicación' : editEvent ? 'Editar evento' : editOffer ? 'Editar Oportunidad' : editProduct ? 'Editar Producto' : isEvent ? 'Nuevo evento' : isOffer ? 'Nueva Oportunidad' : isProduct ? 'Nuevo Producto' : 'Nueva publicación'}
           </h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {(isSchool || isCompany) && !editPost && !editEvent && (
+        {(isSchool || isCompany) && !editPost && !editEvent && !editOffer && !editProduct && (
           <div className="flex gap-1.5 mb-4 bg-muted/50 p-1 rounded-2xl">
             <button
               type="button"
@@ -233,23 +269,42 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
             >
               {isCompany ? 'Actividad' : 'Día a día'}
             </button>
-            <button
-              type="button"
-              onClick={() => setPostType(isCompany ? 'offer' : 'event')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${(isEvent || isOffer) ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
-            >
-              {isCompany ? 'Oportunidad' : 'Evento futuro'}
-            </button>
+            {isCompany ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPostType('product')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${isProduct ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                >
+                  Producto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPostType('offer')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${isOffer ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                >
+                  Oportunidad
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPostType('event')}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${isEvent ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+              >
+                Evento futuro
+              </button>
+            )}
           </div>
         )}
 
-        {(isEvent || isOffer) && (
+        {(isEvent || isOffer || isProduct) && (
           <div className="mb-3">
-            <label className="text-xs text-muted-foreground mb-1 block">{isEvent ? 'Título del evento' : 'Título del puesto'}</label>
+            <label className="text-xs text-muted-foreground mb-1 block">{isEvent ? 'Título del evento' : isOffer ? 'Título del puesto' : 'Nombre del producto'}</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder={isEvent ? 'Ej: Mercadillo de Primavera' : 'Ej: Profesor de Carpintería de apoyo'}
+              placeholder={isEvent ? 'Ej: Mercadillo de Primavera' : isOffer ? 'Ej: Profesor de Carpintería de apoyo' : 'Ej: Vela de soja artesanal'}
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -258,7 +313,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}
-          placeholder={isEvent ? 'Describe el evento...' : isOffer ? 'Describe el puesto, requisitos, horario...' : '¿Qué quieres compartir con la comunidad Waldorf?'}
+          placeholder={isEvent ? 'Describe el evento...' : isOffer ? 'Describe el puesto, requisitos, horario...' : isProduct ? 'Describe el producto...' : '¿Qué quieres compartir con la comunidad Waldorf?'}
           className="w-full bg-muted/50 rounded-2xl p-4 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground"
         />
 
@@ -292,20 +347,37 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </div>
         )}
 
-        <div className="mt-3">
-          <label className="text-xs text-muted-foreground mb-1 block">{isEvent ? 'Tipo de evento' : isOffer ? 'Tipo de oportunidad' : 'Categoría'}</label>
-          <select
-            value={isEvent ? eventCategory : isOffer ? offerType : category}
-            onChange={e => isEvent ? setEventCategory(e.target.value) : isOffer ? setOfferType(e.target.value) : setCategory(e.target.value)}
-            className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            {(isEvent ? EVENT_CATEGORIES.map(c => ({ value: c, label: c })) : isOffer ? OFFER_TYPES.map(c => ({ value: c, label: c })) : CATEGORIES).map(c => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-        </div>
+        {!isProduct && (
+          <div className="mt-3">
+            <label className="text-xs text-muted-foreground mb-1 block">{isEvent ? 'Tipo de evento' : isOffer ? 'Tipo de oportunidad' : 'Categoría'}</label>
+            <select
+              value={isEvent ? eventCategory : isOffer ? offerType : category}
+              onChange={e => isEvent ? setEventCategory(e.target.value) : isOffer ? setOfferType(e.target.value) : setCategory(e.target.value)}
+              className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {(isEvent ? EVENT_CATEGORIES.map(c => ({ value: c, label: c })) : isOffer ? OFFER_TYPES.map(c => ({ value: c, label: c })) : CATEGORIES).map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div className={`mt-3 grid gap-2 ${isOffer ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {isProduct && (
+          <div className="mt-3 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+            <Tag className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={e => setPrice(e.target.value)}
+              placeholder="Precio en € (opcional)"
+              className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        )}
+
+        <div className={`mt-3 grid gap-2 ${(isOffer || isProduct) ? 'grid-cols-1' : 'grid-cols-2'}`}>
           <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
             <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <input
@@ -315,7 +387,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
               className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
             />
           </div>
-          {!isOffer && (
+          {!isOffer && !isProduct && (
             <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
               <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
@@ -327,6 +399,18 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
             </div>
           )}
         </div>
+
+        {isProduct && (
+          <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
+            <LinkIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <input
+              value={linkBuy}
+              onChange={e => setLinkBuy(e.target.value)}
+              placeholder="Enlace de compra (opcional)"
+              className="bg-transparent text-sm flex-1 focus:outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        )}
 
         {isOffer && (
           <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-xl px-3 py-2">
@@ -352,7 +436,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           </div>
         )}
 
-        {!isEvent && !isOffer && (
+        {!isEvent && !isOffer && !isProduct && (
           <div className="mt-3 flex items-center gap-3">
             <button
               onClick={() => setIsService(!isService)}
@@ -369,7 +453,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
           disabled={loading || uploadingImage || !isValid}
           className="mt-5 w-full bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
-          {loading ? 'Guardando...' : (editPost || editEvent) ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : isOffer ? 'Publicar Oportunidad' : 'Publicar'}
+          {loading ? 'Guardando...' : (editPost || editEvent || editOffer || editProduct) ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : isOffer ? 'Publicar Oportunidad' : isProduct ? 'Publicar Producto' : 'Publicar'}
         </button>
       </div>
     </div>

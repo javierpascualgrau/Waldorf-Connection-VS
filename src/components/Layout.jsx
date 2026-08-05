@@ -20,7 +20,6 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [schoolId, setSchoolId] = useState(null); // 💡 NUEVO: Guardamos el ID del colegio si el usuario lo es
-  const [companyId, setCompanyId] = useState(null); // 💡 Igual que schoolId, pero para empresas
   const [unreadCount, setUnreadCount] = useState(0);
   const [isBellRinging, setIsBellRinging] = useState(false);
 
@@ -72,12 +71,9 @@ export default function Layout() {
 
         const identity = await getMemberIdentity(authUser.id);
 
-        // 💡 El id del colegio/empresa es el propio uid de la cuenta cuando la identidad resuelta coincide
+        // 💡 El id del colegio es el propio uid de la cuenta cuando la identidad resuelta es un colegio
         if (identity?.role === 'colegio') {
           setSchoolId(authUser.id);
-        }
-        if (identity?.role === 'empresa') {
-          setCompanyId(authUser.id);
         }
 
         if (identity) {
@@ -104,15 +100,16 @@ export default function Layout() {
     loadUnreadCount();
   }, [user, location.pathname]);
 
-  // 💡 También se muestra en el perfil propio del colegio o de la empresa (misma cabecera, mismo botón)
-  const mostrarBotonPublicar = location.pathname === '/' || location.pathname === '/perfil'
-    || (schoolId && location.pathname === `/colegios/${schoolId}`)
-    || (companyId && location.pathname === `/empresas/${companyId}`);
-  const mostrarBotonMapa = location.pathname === '/';
-  // El icono de Hilo vive en la barra superior compartida (Layout), pero estaba condicionado
-  // solo a "/" — por eso no aparecía en Colegios/Comunidad/Servicios/Perfil pese a compartir
-  // el mismo Layout. Ahora se muestra en las 5 páginas principales de navegación.
-  const mostrarBotonHilo = ['/', '/colegios', '/comunidad', '/servicios', '/perfil'].includes(location.pathname);
+  // 💡 Inicio y Mi Perfil ya no muestran este botón: los individuos (Perfil.jsx) y las
+  // empresas (CompanyProfile.jsx) tienen su propio botón "Publicar" local en la tarjeta de
+  // perfil. Los colegios no tienen uno propio, así que el de la cabecera se mantiene solo ahí.
+  const mostrarBotonPublicar = schoolId && location.pathname === `/colegios/${schoolId}`;
+  // El icono de Mapa y el de Hilo viven en la barra superior compartida (Layout), pero Mapa
+  // estaba condicionado solo a "/" — por eso no aparecía en Colegios/Comunidad/Servicios/Perfil
+  // pese a compartir el mismo Layout. Ahora ambos se muestran en las 5 páginas principales.
+  const mostrarBotonMapaOHilo = ['/', '/colegios', '/comunidad', '/servicios', '/perfil'].includes(location.pathname);
+  const mostrarBotonMapa = mostrarBotonMapaOHilo;
+  const mostrarBotonHilo = mostrarBotonMapaOHilo;
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas
   // en escritorio (lista de hilos + conversación) — excepción puntual al max-w-2xl del resto.
   const isMessagesRoute = location.pathname.startsWith('/hilo');

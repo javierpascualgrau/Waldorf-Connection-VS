@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, LogOut, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2 } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
+import AccountSettingsMenu from '@/components/AccountSettingsMenu';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -363,13 +364,7 @@ export default function SchoolProfile() {
                     <PlusCircle className="w-4 h-4" />
                     <span className="hidden sm:inline">Publicar</span>
                   </button>
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
-                    title="Cerrar sesión"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
+                  <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
                   <button
                     onClick={() => setIsEditing(true)}
                     className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"

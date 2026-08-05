@@ -2,11 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom'; // 💡 NUEVO: Para redirigir tras cerrar sesión
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-// 💡 NUEVO: Añadido el icono 'LogOut' de lucide-react
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, Settings, LogOut, ShoppingBag, Package, Car, PlusCircle } from 'lucide-react';
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, ShoppingBag, Package, Car, PlusCircle } from 'lucide-react';
 import PostCard from '@/components/PostCard';
-import ChangePasswordModal from '@/components/ChangePasswordModal';
 import CreatePostModal from '@/components/CreatePostModal';
+import AccountSettingsMenu from '@/components/AccountSettingsMenu';
 import SchoolProfile from './SchoolProfile';
 import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
@@ -39,7 +38,6 @@ export default function Perfil() {
   const fileRef = useRef();
   const bannerFileRef = useRef();
 
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSchool, setIsSchool] = useState(false);
   const [isCompany, setIsCompany] = useState(false); // 💡 NUEVO: Estado para identificar empresas
@@ -315,22 +313,7 @@ export default function Perfil() {
                 <span className="hidden sm:inline">Publicar</span>
               </button>
 
-              <button
-                onClick={() => setPasswordModalOpen(true)}
-                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
-                title="Ajustes de cuenta"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-              
-              {/* 💡 NUEVO: Botón de Cerrar Sesión integrado */}
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
-                title="Cerrar sesión"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
 
               <button
                 onClick={() => setEditing(!editing)}
@@ -473,14 +456,6 @@ export default function Perfil() {
             <PostCard key={post.id} post={post} userEmail={user?.email} likedIds={new Set()} />
           ))}
         </div>
-      )}
-
-      {/* MODAL DE CAMBIO DE CONTRASEÑA */}
-      {passwordModalOpen && (
-        <ChangePasswordModal
-          userEmail={user?.email}
-          onClose={() => setPasswordModalOpen(false)}
-        />
       )}
 
       {showCreateModal && (

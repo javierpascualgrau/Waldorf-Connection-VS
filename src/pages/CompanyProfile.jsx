@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, LogOut, ArrowLeft, UserPlus, UserCheck, Bell } from 'lucide-react';
+import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, ArrowLeft, UserPlus, UserCheck, Bell, MoreVertical, Pencil, ShoppingBag } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
+import AccountSettingsMenu from '@/components/AccountSettingsMenu';
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
@@ -23,6 +24,12 @@ export default function CompanyProfile() {
 
   const [companyPosts, setCompanyPosts] = useState([]);
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const [openOfferMenuId, setOpenOfferMenuId] = useState(null);
+  const [editingOffer, setEditingOffer] = useState(null);
+
+  const [products, setProducts] = useState([]);
+  const [openProductMenuId, setOpenProductMenuId] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   // 💡 NUEVOS ESTADOS: Control del seguimiento local corporativo
   const [following, setFollowing] = useState(false);
@@ -39,6 +46,16 @@ export default function CompanyProfile() {
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
     setOffers(offs || []);
+  };
+
+  const loadProducts = async (companyId) => {
+    if (!companyId) return;
+    const { data: prods } = await supabase
+      .from('company_products')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false });
+    setProducts(prods || []);
   };
 
   const loadCompanyPosts = async (companyName) => {
@@ -73,7 +90,8 @@ export default function CompanyProfile() {
           setCompany(data);
           setEditForm(data);
           await loadOffers(data.id);
-          await loadCompanyPosts(data.name); 
+          await loadProducts(data.id);
+          await loadCompanyPosts(data.name);
 
           // 💡 COMPROBACIÓN ANTIDUPLICADOS: Comprobamos de forma híbrida si el usuario ya sigue el prefijo de la empresa
           if (authUser?.email && data.company_email) {
@@ -103,6 +121,24 @@ export default function CompanyProfile() {
   }, [id]);
 
   const isOwner = user && (company?.id === user.id);
+
+  useEffect(() => {
+    if (openOfferMenuId === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.offer-actions-menu')) setOpenOfferMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openOfferMenuId]);
+
+  useEffect(() => {
+    if (openProductMenuId === null) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('.product-actions-menu')) setOpenProductMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openProductMenuId]);
 
   const handleLogout = async () => {
     try {
@@ -310,9 +346,19 @@ export default function CompanyProfile() {
 
   const handleDeleteOffer = async (offerId) => {
     if (!isOwner) return;
+    setOpenOfferMenuId(null);
     if (window.confirm("¿Seguro que deseas eliminar esta oferta?")) {
       await supabase.from('company_offers').delete().eq('id', offerId);
       await loadOffers(company.id);
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!isOwner) return;
+    setOpenProductMenuId(null);
+    if (window.confirm("¿Seguro que deseas eliminar este producto?")) {
+      await supabase.from('company_products').delete().eq('id', productId);
+      await loadProducts(company.id);
     }
   };
 
@@ -372,13 +418,7 @@ export default function CompanyProfile() {
                     <PlusCircle className="w-4 h-4" />
                     <span className="hidden sm:inline">Publicar</span>
                   </button>
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
-                    title="Cerrar sesión"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
+                  <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
                   <button
                     onClick={() => setIsEditing(true)}
                     className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
@@ -496,30 +536,36 @@ export default function CompanyProfile() {
       {/* CONTENEDOR DE PESTAÑAS DINÁMICAS */}
       <div className="text-left">
         <div className="space-y-6">
-          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm min-h-[400px]">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
 
             {/* Cabecera de Pestañas */}
-            <div className="flex items-center justify-between mb-6 border-b border-border pb-0">
-              <div className="flex gap-6">
-                <button
-                  onClick={() => setProfileTab('actividad')}
-                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
-                    profileTab === 'actividad' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4" /> Actividad
-                </button>
-                <button
-                  onClick={() => setProfileTab('ofertas')}
-                  className={`pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 ${
-                    profileTab === 'ofertas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" /> Oportunidades
-                </button>
-              </div>
+            <div className="flex items-center justify-around mb-6 border-b border-border pb-0">
+              <button
+                onClick={() => setProfileTab('actividad')}
+                className={`flex-1 pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  profileTab === 'actividad' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" /> Actividad
+              </button>
+              <button
+                onClick={() => setProfileTab('productos')}
+                className={`flex-1 pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  profileTab === 'productos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" /> Productos
+              </button>
+              <button
+                onClick={() => setProfileTab('ofertas')}
+                className={`flex-1 pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  profileTab === 'ofertas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText className="w-4 h-4" /> Oportunidades
+              </button>
             </div>
-            
+
             {/* --- CONTENIDO: PESTAÑA OFERTAS --- */}
             {profileTab === 'ofertas' && (
               <div className="space-y-4">
@@ -530,12 +576,12 @@ export default function CompanyProfile() {
                         <div className="p-2 bg-card border border-border rounded-xl shadow-sm">
                           {getIconType(off.type)}
                         </div>
-                        <div className="space-y-1 pr-6">
+                        <div className="space-y-1 pr-6 flex-1">
                           <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{off.type}</span>
                           <h3 className="text-lg font-semibold text-foreground pt-1">{off.title}</h3>
                           <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
                           <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
-                          
+
                           {off.link_apply && (
                             <div className="pt-3">
                               <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
@@ -547,19 +593,98 @@ export default function CompanyProfile() {
                       </div>
 
                       {isOwner && (
-                        <button 
-                          onClick={() => handleDeleteOffer(off.id)} 
-                          className="absolute top-4 right-4 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                          title="Eliminar vacante"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="absolute top-4 right-4 offer-actions-menu">
+                          <button
+                            onClick={() => setOpenOfferMenuId(openOfferMenuId === off.id ? null : off.id)}
+                            className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          {openOfferMenuId === off.id && (
+                            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
+                              <button
+                                onClick={() => { setOpenOfferMenuId(null); setEditingOffer(off); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" /> Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOffer(off.id)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))
                 ) : (
                   <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
                     Currently there is no active job, internship or volunteer opportunity.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* --- CONTENIDO: PESTAÑA PRODUCTOS --- */}
+            {profileTab === 'productos' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {products.length > 0 ? (
+                  products.map(prod => (
+                    <div key={prod.id} className="bg-muted/30 border border-border rounded-2xl overflow-hidden relative group hover:border-primary/30 transition-all">
+                      {prod.image_url && (
+                        <img src={prod.image_url} alt={prod.title} className="w-full h-36 object-cover" />
+                      )}
+                      <div className="p-4 space-y-1">
+                        <h3 className="text-base font-semibold text-foreground leading-tight pr-6">{prod.title}</h3>
+                        {prod.price != null && (
+                          <p className="text-sm font-bold text-primary">{Number(prod.price).toFixed(2)} €</p>
+                        )}
+                        {prod.description && (
+                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{prod.description}</p>
+                        )}
+                        {prod.link_buy && (
+                          <div className="pt-2">
+                            <a href={prod.link_buy} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                              <LinkIcon className="w-3 h-3" /> Comprar / Más detalles
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      {isOwner && (
+                        <div className="absolute top-2 right-2 product-actions-menu">
+                          <button
+                            onClick={() => setOpenProductMenuId(openProductMenuId === prod.id ? null : prod.id)}
+                            className="p-1 rounded-full bg-card/90 hover:bg-muted transition-colors text-muted-foreground shadow-sm"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          {openProductMenuId === prod.id && (
+                            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
+                              <button
+                                onClick={() => { setOpenProductMenuId(null); setEditingProduct(prod); }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" /> Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(prod.id)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center sm:col-span-2">
+                    Esta empresa aún no ha añadido productos a su tienda.
                   </p>
                 )}
               </div>
@@ -595,6 +720,31 @@ export default function CompanyProfile() {
             setShowCreatePostModal(false);
             await loadCompanyPosts(company.name);
             await loadOffers(company.id);
+            await loadProducts(company.id);
+          }}
+        />
+      )}
+
+      {editingOffer && (
+        <CreatePostModal
+          user={user}
+          editOffer={editingOffer}
+          onClose={() => setEditingOffer(null)}
+          onCreated={async () => {
+            setEditingOffer(null);
+            await loadOffers(company.id);
+          }}
+        />
+      )}
+
+      {editingProduct && (
+        <CreatePostModal
+          user={user}
+          editProduct={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onCreated={async () => {
+            setEditingProduct(null);
+            await loadProducts(company.id);
           }}
         />
       )}
