@@ -6,6 +6,7 @@ import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, ShoppingBag
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
+import FollowNetworkModal from '@/components/FollowNetworkModal';
 import SchoolProfile from './SchoolProfile';
 import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
@@ -39,6 +40,7 @@ export default function Perfil() {
   const bannerFileRef = useRef();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [isSchool, setIsSchool] = useState(false);
   const [isCompany, setIsCompany] = useState(false); // 💡 NUEVO: Estado para identificar empresas
 
@@ -335,6 +337,12 @@ export default function Perfil() {
                   <span className="text-xs">{profile.location}</span>
                 </div>
               )}
+              <button
+                onClick={() => setShowNetworkModal(true)}
+                className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
+              >
+                Red
+              </button>
             </div>
           </div>
 
@@ -472,6 +480,10 @@ export default function Perfil() {
             setMyPosts(data || []);
           }}
         />
+      )}
+
+      {showNetworkModal && (
+        <FollowNetworkModal email={user?.email} onClose={() => setShowNetworkModal(false)} />
       )}
     </div>
   );

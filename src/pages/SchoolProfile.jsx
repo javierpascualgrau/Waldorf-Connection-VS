@@ -5,6 +5,8 @@ import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
+import FollowNetwork from '@/components/FollowNetwork';
+import { linkify } from '@/lib/linkify';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -436,7 +438,7 @@ export default function SchoolProfile() {
                   </div>
                 )}
               </div>
-              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{school.description}</p>
+              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{linkify(school.description)}</p>
             </>
           ) : (
             <div className="space-y-4 mt-2 max-w-xl text-left">
@@ -595,10 +597,22 @@ export default function SchoolProfile() {
         >
           <Calendar className="w-3.5 h-3.5" /> Eventos del Colegio
         </button>
+        <button
+          onClick={() => setActiveTab('red')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${
+            activeTab === 'red' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" /> Red
+        </button>
       </div>
 
       {/* CONTENIDO DE PESTAÑA */}
-      {activeTab === 'aldia' ? (
+      {activeTab === 'red' ? (
+        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+          <FollowNetwork email={school.school_email} />
+        </div>
+      ) : activeTab === 'aldia' ? (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
           <div className="space-y-4">
             {dailyPosts.length > 0 ? (

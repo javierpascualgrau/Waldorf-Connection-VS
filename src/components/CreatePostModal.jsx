@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useRef, useEffect } from 'react';
-import { X, MapPin, Calendar, Clock, ImagePlus, Loader2, Link as LinkIcon, Tag } from 'lucide-react';
+import { X, MapPin, Calendar, Clock, ImagePlus, Loader2, Link as LinkIcon, Tag, Video } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { getMemberIdentity } from '@/lib/identity';
 
@@ -20,6 +20,29 @@ const CATEGORIES = [
 
 const EVENT_CATEGORIES = ['Puertas Abiertas', 'Taller', 'Charla', 'Fiesta', 'Mercadillo', 'Otro'];
 const OFFER_TYPES = ['Trabajo', 'Prácticas', 'Voluntariado'];
+
+const MAX_VIDEO_DURATION_SECONDS = 300; // 5 minutos
+const MAX_VIDEO_SIZE_BYTES = 300 * 1024 * 1024; // 300MB
+const ACCEPTED_VIDEO_TYPES = ['video/mp4'];
+
+// Lee la duración real del archivo de vídeo en el navegador (metadata) sin necesidad de
+// subirlo primero — así se puede rechazar un vídeo demasiado largo antes de gastar ancho
+// de banda subiéndolo al bucket.
+function readVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src);
+      reject(new Error('No se pudo leer el archivo de vídeo.'));
+    };
+    video.src = URL.createObjectURL(file);
+  });
+}
 
 export default function CreatePostModal({ user, userProfile, onClose, onCreated, editPost = null, editEvent = null, editOffer = null, editProduct = null, initialType = 'daily' }) {
   const [postType, setPostType] = useState(editPost ? 'daily' : editEvent ? 'event' : editOffer ? 'offer' : editProduct ? 'product' : initialType);
@@ -42,8 +65,12 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
   const [imageUrl, setImageUrl] = useState(editPost?.image_url || editEvent?.image_url || editProduct?.image_url || '');
   const [imagePreview, setImagePreview] = useState(editPost?.image_url || editEvent?.image_url || editProduct?.image_url || '');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(editPost?.video_url || '');
+  const [videoPreview, setVideoPreview] = useState(editPost?.video_url || '');
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
+  const videoFileRef = useRef();
 
   // 💡 Resolvemos la identidad real (colegio/empresa/perfil) al abrir el modal
   // para saber si hay que ofrecer el selector Día a día/Actividad + Evento futuro/Oportunidad/Producto
@@ -62,6 +89,8 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     const file = e.target.files[0];
     if (!file) return;
 
+    setVideoUrl('');
+    setVideoPreview('');
     setUploadingImage(true);
     setImagePreview(URL.createObjectURL(file));
 
@@ -82,6 +111,56 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
     const { data } = supabase.storage.from('posts').getPublicUrl(fileName);
     setImageUrl(data.publicUrl);
     setUploadingImage(false);
+  };
+
+  const handleVideoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+      alert('El vídeo debe estar en formato MP4 (H.264).');
+      return;
+    }
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      alert('El vídeo no puede superar los 300MB.');
+      return;
+    }
+
+    let duration;
+    try {
+      duration = await readVideoDuration(file);
+    } catch (err) {
+      console.error('Error al leer la duración del vídeo:', err);
+      alert('No se pudo leer el archivo de vídeo. Prueba con otro archivo.');
+      return;
+    }
+    if (duration > MAX_VIDEO_DURATION_SECONDS) {
+      alert('El vídeo no puede durar más de 5 minutos.');
+      return;
+    }
+
+    setImageUrl('');
+    setImagePreview('');
+    setUploadingVideo(true);
+    setVideoPreview(URL.createObjectURL(file));
+
+    const fileName = `${Math.random()}.mp4`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('posts')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error('Error al subir el vídeo:', uploadError);
+      alert('Hubo un error al subir el vídeo.');
+      setUploadingVideo(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from('posts').getPublicUrl(fileName);
+    setVideoUrl(data.publicUrl);
+    setUploadingVideo(false);
   };
 
   const isValid = isEvent ? (title.trim() && eventDate) : isOffer ? (title.trim() && content.trim()) : isProduct ? title.trim() : content.trim();
@@ -204,6 +283,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
       event_date: eventDate || null,
       is_service_offer: isService,
       image_url: imageUrl || null,
+      video_url: videoUrl || null,
       author_name: finalName,
       author_role: freshIdentity?.role || 'Comunidad',
       author_avatar: freshIdentity?.avatar || null, // Sincronización total del avatar
@@ -334,16 +414,43 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
                   <X className="w-4 h-4" />
                 </button>
               </div>
+            ) : videoPreview ? (
+              <div className="relative">
+                <video src={videoPreview} controls className="w-full rounded-xl max-h-48 bg-black" />
+                {uploadingVideo && (
+                  <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
+                <button
+                  onClick={() => { setVideoPreview(''); setVideoUrl(''); }}
+                  className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
-              <button
-                onClick={() => fileRef.current.click()}
-                className="w-full flex items-center gap-2 justify-center py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-              >
-                <ImagePlus className="w-4 h-4" />
-                Añadir imagen
-              </button>
+              <div className={`grid gap-2 ${!isEvent && !isProduct ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <button
+                  onClick={() => fileRef.current.click()}
+                  className="flex items-center gap-2 justify-center py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  Añadir imagen
+                </button>
+                {!isEvent && !isProduct && (
+                  <button
+                    onClick={() => videoFileRef.current.click()}
+                    className="flex items-center gap-2 justify-center py-3 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                  >
+                    <Video className="w-4 h-4" />
+                    Añadir vídeo
+                  </button>
+                )}
+              </div>
             )}
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            <input ref={videoFileRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoChange} />
           </div>
         )}
 
@@ -450,7 +557,7 @@ export default function CreatePostModal({ user, userProfile, onClose, onCreated,
 
         <button
           onClick={handleSubmit}
-          disabled={loading || uploadingImage || !isValid}
+          disabled={loading || uploadingImage || uploadingVideo || !isValid}
           className="mt-5 w-full bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
           {loading ? 'Guardando...' : (editPost || editEvent || editOffer || editProduct) ? 'Guardar cambios' : isEvent ? 'Publicar Evento' : isOffer ? 'Publicar Oportunidad' : isProduct ? 'Publicar Producto' : 'Publicar'}

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import PostCard from '@/components/PostCard';
+import FollowNetworkModal from '@/components/FollowNetworkModal';
 import { MapPin, ArrowLeft, Loader2, MessageSquare, UserPlus, UserCheck } from 'lucide-react';
 
 export default function PerfilPublico() {
@@ -17,6 +18,7 @@ export default function PerfilPublico() {
   const [likedIds, setLikedIds] = useState(new Set());
   const [followingIds, setFollowingIds] = useState(new Set());
   const [followLoading, setFollowLoading] = useState(false);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
 
   const ROLE_LABELS = {
     alumno: 'Alumno',
@@ -261,7 +263,15 @@ export default function PerfilPublico() {
               <h2 className="font-cormorant text-2xl font-bold text-foreground">{displayName}</h2>
               <p className="text-sm font-medium text-primary">{ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}</p>
             </div>
-            {profile.location && <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" /> <span>{profile.location}</span></div>}
+            <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
+              {profile.location && <div className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" /> <span>{profile.location}</span></div>}
+              <button
+                onClick={() => setShowNetworkModal(true)}
+                className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
+              >
+                Red
+              </button>
+            </div>
             {profile.bio ? <p className="text-sm text-muted-foreground pt-1 whitespace-pre-wrap">{profile.bio}</p> : <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>}
           </div>
         </div>
@@ -277,6 +287,10 @@ export default function PerfilPublico() {
           </div>
         )}
       </div>
+
+      {showNetworkModal && (
+        <FollowNetworkModal email={profile.user_email} onClose={() => setShowNetworkModal(false)} />
+      )}
     </div>
   );
 }

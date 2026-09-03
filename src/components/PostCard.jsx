@@ -17,6 +17,38 @@ const ROLE_LABELS = {
   staff: 'Staff',
 };
 
+// Solo monta el <video> (y por tanto solo empieza a cargar el archivo) cuando la tarjeta
+// entra en el viewport, para no disparar N descargas de vídeo a la vez al hacer scroll del
+// feed. Una vez visible se queda montado (no hace falta desmontarlo al salir de pantalla).
+function LazyVideo({ src }) {
+  const containerRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible || !containerRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setIsVisible(true);
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  return (
+    <div ref={containerRef} className="w-full rounded-xl overflow-hidden mb-3 bg-black">
+      {isVisible ? (
+        <video src={src} controls preload="metadata" className="w-full max-h-64 rounded-xl" />
+      ) : (
+        <div className="w-full h-64 flex items-center justify-center text-muted-foreground/60 text-xs">
+          Cargando vídeo...
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
   const navigate = useNavigate(); 
   const postId = String(post.id); 
@@ -588,6 +620,9 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
             className="w-full rounded-xl object-cover max-h-64 mb-3 cursor-pointer"
           />
         )}
+
+        {/* Video */}
+        {currentPost.video_url && <LazyVideo src={currentPost.video_url} />}
 
         {/* Meta */}
         {(currentPost.location || currentPost.event_date) && (

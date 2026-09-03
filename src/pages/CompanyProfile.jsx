@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, ArrowLeft, UserPlus, UserCheck, Bell, MoreVertical, Pencil, ShoppingBag } from 'lucide-react';
+import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, ArrowLeft, UserPlus, UserCheck, Bell, MoreVertical, Pencil, ShoppingBag, Users } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
+import FollowNetwork from '@/components/FollowNetwork';
+import { linkify } from '@/lib/linkify';
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
@@ -506,7 +508,7 @@ export default function CompanyProfile() {
                   </div>
                 )}
               </div>
-              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description || 'Sin descripción corporativa.'}</p>
+              <p className="mt-5 text-base text-foreground/80 leading-relaxed max-w-2xl">{company.description ? linkify(company.description) : 'Sin descripción corporativa.'}</p>
             </>
           ) : (
             <div className="space-y-4 mt-2 max-w-xl text-left">
@@ -563,6 +565,14 @@ export default function CompanyProfile() {
                 }`}
               >
                 <FileText className="w-4 h-4" /> Oportunidades
+              </button>
+              <button
+                onClick={() => setProfileTab('red')}
+                className={`flex-1 pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  profileTab === 'red' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Users className="w-4 h-4" /> Red
               </button>
             </div>
 
@@ -706,6 +716,11 @@ export default function CompanyProfile() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* --- CONTENIDO: PESTAÑA RED (SEGUIDORES/SIGUIENDO) --- */}
+            {profileTab === 'red' && (
+              <FollowNetwork email={company.company_email} />
             )}
 
           </div>
