@@ -25,7 +25,7 @@ export default function CreateGroupChatModal({ contacts, myEmail, onClose, onCre
 
     const { data: chat, error: chatError } = await supabase
       .from('chats')
-      .insert([{ is_group: true, group_name: groupName.trim(), last_message_at: new Date().toISOString() }])
+      .insert([{ is_group: true, group_name: groupName.trim(), created_by_email: myEmail, last_message_at: new Date().toISOString() }])
       .select()
       .single();
 
