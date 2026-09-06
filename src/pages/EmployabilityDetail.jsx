@@ -86,13 +86,6 @@ export default function EmployabilityDetail() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mt-4">
-            <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-xl border ${
-              listing.listing_type === 'oferta'
-                ? 'bg-primary/5 text-primary border-primary/10'
-                : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-            }`}>
-              {listing.listing_type === 'oferta' ? 'Ofrezco' : 'Busco'}
-            </span>
             <span className="text-[10px] font-medium uppercase tracking-widest px-2.5 py-1 bg-secondary text-secondary-foreground rounded-xl flex items-center gap-1">
               <Tag className="w-3 h-3" /> {categoryLabel}
             </span>

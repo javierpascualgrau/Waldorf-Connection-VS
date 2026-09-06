@@ -10,7 +10,7 @@ import CreateEmployabilityListingModal from '@/components/CreateEmployabilityLis
 const SERVICIOS_TABS = [
   { id: 'compraventa', label: 'Compraventa', icon: ShoppingBag },
   { id: 'rutas', label: 'Rutas Escolares', icon: Car },
-  { id: 'empleo', label: 'Empleabilidad', icon: Briefcase },
+  { id: 'empleo', label: 'Actividades', icon: Briefcase },
 ];
 
 const CATEGORY_FILTERS = [
@@ -61,7 +61,6 @@ export default function Servicios() {
   const [employabilityListings, setEmployabilityListings] = useState([]);
   const [loadingEmployability, setLoadingEmployability] = useState(true);
   const [showCreateEmploymentModal, setShowCreateEmploymentModal] = useState(false);
-  const [employmentType, setEmploymentType] = useState('oferta');
   const [selectedEmploymentCategory, setSelectedEmploymentCategory] = useState('Todas');
 
   useEffect(() => {
@@ -158,12 +157,12 @@ export default function Servicios() {
     return matchesSearch && matchesSchool;
   });
 
+  // 💡 Esta pestaña ya solo admite gente ofreciendo actividades (nada de "busco")
   const filteredEmploymentListings = employabilityListings.filter(l => {
     const matchesSearch = l.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = l.listing_type === employmentType;
     const matchesCategory = selectedEmploymentCategory === 'Todas' || l.category === selectedEmploymentCategory;
-    return matchesSearch && matchesType && matchesCategory;
+    return matchesSearch && l.listing_type === 'oferta' && matchesCategory;
   });
 
   const selectedEmploymentCategoryLabel = EMPLOYABILITY_CATEGORY_FILTERS.find(c => c.value === selectedEmploymentCategory)?.label;
@@ -174,7 +173,7 @@ export default function Servicios() {
       {/* ENCABEZADO */}
       <div className="text-center my-6 space-y-1">
         <h1 className="font-cormorant text-4xl font-semibold text-foreground tracking-wide">Servicios</h1>
-        <p className="text-sm text-muted-foreground">Compraventa, rutas y empleo entre familias Waldorf</p>
+        <p className="text-sm text-muted-foreground">Compraventa, rutas y actividades entre familias Waldorf</p>
       </div>
 
       {/* PESTAÑAS PRINCIPALES */}
@@ -481,25 +480,6 @@ export default function Servicios() {
             />
           </div>
 
-          <div className="flex gap-1.5 mb-3 bg-muted/50 p-1 rounded-2xl max-w-xs mx-auto">
-            <button
-              onClick={() => setEmploymentType('oferta')}
-              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
-                employmentType === 'oferta' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-              }`}
-            >
-              Ofrezco
-            </button>
-            <button
-              onClick={() => setEmploymentType('busqueda')}
-              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
-                employmentType === 'busqueda' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-              }`}
-            >
-              Busco
-            </button>
-          </div>
-
           <div className="flex flex-wrap gap-1.5 mb-6 overflow-x-auto pb-1">
             {EMPLOYABILITY_CATEGORY_FILTERS.map(f => (
               <button
@@ -528,8 +508,8 @@ export default function Servicios() {
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {selectedEmploymentCategory === 'Todas'
-                  ? 'Sé el primero en ofrecer o buscar algo entre familias Waldorf.'
-                  : `Sé el primero en publicar tu ${employmentType === 'oferta' ? 'oferta' : 'búsqueda'} en ${selectedEmploymentCategoryLabel.toLowerCase()}.`}
+                  ? 'Sé el primero en ofrecer una actividad entre familias Waldorf.'
+                  : `Sé el primero en ofrecer una actividad en ${selectedEmploymentCategoryLabel.toLowerCase()}.`}
               </p>
             </div>
           ) : (
@@ -561,13 +541,6 @@ export default function Servicios() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
-                        listing.listing_type === 'oferta'
-                          ? 'bg-primary/5 text-primary border-primary/10'
-                          : 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-                      }`}>
-                        {listing.listing_type === 'oferta' ? 'Ofrezco' : 'Busco'}
-                      </span>
                       <span className="text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md flex items-center gap-1">
                         <Tag className="w-2.5 h-2.5" /> {categoryLabel}
                       </span>

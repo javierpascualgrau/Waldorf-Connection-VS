@@ -12,7 +12,6 @@ const CATEGORIES = [
 ];
 
 export default function CreateEmployabilityListingModal({ user, identity, onClose, onCreated, editListing = null }) {
-  const [listingType, setListingType] = useState(editListing?.listing_type || 'oferta');
   const [category, setCategory] = useState(editListing?.category || CATEGORIES[0].value);
   const [title, setTitle] = useState(editListing?.title || '');
   const [description, setDescription] = useState(editListing?.description || '');
@@ -22,8 +21,9 @@ export default function CreateEmployabilityListingModal({ user, identity, onClos
     if (!title.trim()) return;
     setLoading(true);
 
+    // 💡 Esta sección solo admite gente ofreciendo actividades, nunca "busco"
     const listingData = {
-      listing_type: listingType,
+      listing_type: 'oferta',
       category,
       title,
       description,
@@ -71,31 +71,12 @@ export default function CreateEmployabilityListingModal({ user, identity, onClos
         </div>
 
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setListingType('oferta')}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
-                listingType === 'oferta' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 text-muted-foreground border-transparent'
-              }`}
-            >
-              Ofrezco
-            </button>
-            <button
-              onClick={() => setListingType('busqueda')}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
-                listingType === 'busqueda' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 text-muted-foreground border-transparent'
-              }`}
-            >
-              Busco
-            </button>
-          </div>
-
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Título *</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder={listingType === 'oferta' ? 'Ej: Clases de euritmia a domicilio' : 'Ej: Busco profesor de música'}
+              placeholder="Ej: Clases de euritmia a domicilio"
               className="w-full bg-muted/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
