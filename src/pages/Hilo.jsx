@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft, Tag, Check, X as XIcon, Users } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Trash2, Search, ArrowLeft, Tag, Check, X as XIcon, Users, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { goBack } from '@/lib/navigation';
 import { useMediaQuery } from '@/lib/useMediaQuery';
+import CreateGroupChatModal from '@/components/CreateGroupChatModal';
 
 const MESSAGES_PAGE_SIZE = 50;
 
@@ -103,27 +104,6 @@ function ConversationPanel({
         </button>
       )}
 
-      {contextListing && activeChat.context_type === 'marketplace_listing' && (
-        <button
-          onClick={() => navigate(`/anuncios/${contextListing.id}`)}
-          className="flex items-center gap-2.5 p-2.5 border-b border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left flex-shrink-0"
-        >
-          <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border border-border flex-shrink-0 flex items-center justify-center">
-            {contextListing.image_urls?.[0] ? (
-              <img src={contextListing.image_urls[0]} className="w-full h-full object-cover" alt="" />
-            ) : (
-              <Tag className="w-4 h-4 text-muted-foreground/40" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-foreground truncate">{contextListing.title}</p>
-            {contextListing.price != null && (
-              <p className="text-xs font-semibold text-primary">{contextListing.price} €</p>
-            )}
-          </div>
-        </button>
-      )}
-
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5 no-scrollbar">
         {loadingMessages ? (
           <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-primary w-5 h-5" /></div>
@@ -158,13 +138,18 @@ function ConversationPanel({
               // Mensajes de oferta antiguos (antes de guardar el producto en el propio
               // mensaje) recurren a la tarjeta fija de la conversación como mejor información
               // disponible; los nuevos ya llevan su propio producto denormalizado.
+              const offerListingId = msg.offer_listing_id || contextListing?.id;
               const offerListingTitle = msg.offer_listing_title || contextListing?.title;
               const offerListingImage = msg.offer_listing_image || contextListing?.image_urls?.[0];
               return (
                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-xs shadow-sm border ${statusStyles[msg.offer_status] || statusStyles.pendiente}`}>
                     {offerListingTitle && (
-                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/40">
+                      <button
+                        onClick={() => offerListingId && navigate(`/anuncios/${offerListingId}`)}
+                        disabled={!offerListingId}
+                        className="flex items-center gap-2 mb-2 pb-2 border-b border-border/40 w-full text-left hover:opacity-80 transition-opacity disabled:cursor-default disabled:hover:opacity-100"
+                      >
                         <div className="w-7 h-7 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
                           {offerListingImage ? (
                             <img src={offerListingImage} className="w-full h-full object-cover" alt="" />
@@ -173,7 +158,7 @@ function ConversationPanel({
                           )}
                         </div>
                         <span className="text-[11px] font-medium text-foreground truncate">{offerListingTitle}</span>
-                      </div>
+                      </button>
                     )}
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Oferta</p>
                     <p className="text-lg font-bold text-foreground">{Number(msg.offer_amount).toFixed(2)} €</p>
@@ -212,6 +197,24 @@ function ConversationPanel({
                 <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-xs shadow-sm ${
                   isMe ? 'bg-primary text-primary-foreground rounded-tr-none' : 'bg-muted/70 text-foreground rounded-tl-none border border-border/40'
                 }`}>
+                  {msg.offer_listing_title && (
+                    <button
+                      onClick={() => msg.offer_listing_id && navigate(`/anuncios/${msg.offer_listing_id}`)}
+                      disabled={!msg.offer_listing_id}
+                      className={`flex items-center gap-2 mb-1.5 pb-1.5 border-b w-full text-left hover:opacity-80 transition-opacity disabled:cursor-default disabled:hover:opacity-100 ${
+                        isMe ? 'border-white/20' : 'border-border/40'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-lg overflow-hidden bg-black/10 flex-shrink-0 flex items-center justify-center">
+                        {msg.offer_listing_image ? (
+                          <img src={msg.offer_listing_image} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <Tag className="w-3 h-3 opacity-60" />
+                        )}
+                      </div>
+                      <span className="text-[10px] font-medium truncate">{msg.offer_listing_title}</span>
+                    </button>
+                  )}
                   {senderName && (
                     <p className="text-[9px] font-semibold text-primary mb-0.5">{senderName}</p>
                   )}
@@ -264,6 +267,7 @@ export default function Hilo() {
   // compra, con navigate('/hilo', {state:{activeChatId}})) o por click en la lista interna
   // de chats — solo en el primer caso "volver atrás" (móvil) debe navegar fuera de /hilo.
   const [chatOpenedFromNav, setChatOpenedFromNav] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
 
   const myEmail = user?.email?.toLowerCase().trim() || '';
   // Decide en cuál de los dos huecos (móvil o escritorio) se monta ConversationPanel — solo
@@ -281,10 +285,11 @@ export default function Hilo() {
 
   // 1. CARGA MASIVA Y CRUCE RELACIONAL DE PERFILES (una sola vez por sesión de usuario;
   // cambiar de hilo activo no repite esta carga, ver efecto 1.5 más abajo).
-  useEffect(() => {
+  // Extraída con useCallback (en vez de vivir solo dentro del efecto) para poder volver a
+  // llamarla justo después de crear un grupo nuevo, sin duplicar toda esta lógica de cruce.
+  const loadChats = useCallback(async () => {
     if (!myEmail) return;
-    const loadChats = async () => {
-      setLoadingChats(true);
+    setLoadingChats(true);
       try {
         // A. Traemos todos los hilos de conversación del usuario: los 1 a 1 (como siempre,
         // sin tocar esta query) y, aparte, los de grupo (vía chat_participants, ya que un
@@ -560,9 +565,9 @@ export default function Hilo() {
       } finally {
         setLoadingChats(false);
       }
-    };
-    loadChats();
   }, [myEmail]);
+
+  useEffect(() => { loadChats(); }, [loadChats]);
 
   // 1.5 Resuelve cuál es el chat activo a partir del parámetro de ruta /hilo/:chatId
   // (columna de escritorio, o enlaces con id explícito) o del state de navegación
@@ -778,6 +783,11 @@ export default function Hilo() {
     chat.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Candidatos para meter en un grupo nuevo: tus hilos 1 a 1 ya existentes.
+  const groupContactCandidates = chats
+    .filter(chat => !chat.is_group)
+    .map(chat => ({ email: chat.otherUser.user_email, name: chat.displayName, avatar: chat.displayAvatarUrl }));
+
   if (!user) {
     return (
       <div className="text-center py-20 bg-card rounded-2xl border border-border max-w-md mx-auto mt-10">
@@ -826,6 +836,13 @@ export default function Hilo() {
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+              <button
+                onClick={() => setShowCreateGroupModal(true)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Crear grupo"
+              >
+                <UserPlus className="w-4 h-4" />
+              </button>
             </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground/70" />
@@ -895,7 +912,16 @@ export default function Hilo() {
       <div className="hidden md:flex w-full h-[calc(100vh-145px)] bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
         <div className="w-80 flex-shrink-0 border-r border-border flex flex-col">
           <div className="p-4 border-b border-border space-y-3 flex-shrink-0">
-            <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
+              <button
+                onClick={() => setShowCreateGroupModal(true)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Crear grupo"
+              >
+                <UserPlus className="w-4 h-4" />
+              </button>
+            </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground/70" />
               <input
@@ -982,6 +1008,19 @@ export default function Hilo() {
           )}
         </div>
       </div>
+
+      {showCreateGroupModal && (
+        <CreateGroupChatModal
+          contacts={groupContactCandidates}
+          myEmail={myEmail}
+          onClose={() => setShowCreateGroupModal(false)}
+          onCreated={async (newChatId) => {
+            setShowCreateGroupModal(false);
+            await loadChats();
+            navigate(`/hilo/${newChatId}`, { replace: true });
+          }}
+        />
+      )}
     </>
   );
 }

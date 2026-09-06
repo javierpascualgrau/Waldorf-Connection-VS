@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, Tag, Trash2, Pencil, MessageCircle, Image as ImageIc
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import MakeOfferModal from '@/components/MakeOfferModal';
+import ContactSellerModal from '@/components/ContactSellerModal';
 import ActionButton from '@/components/ActionButton';
 import { goBack } from '@/lib/navigation';
 import { openMarketplaceListingChat } from '@/lib/marketplaceChat';
@@ -27,6 +28,7 @@ export default function ListingDetail() {
   const [zoomOpen, setZoomOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   const [carouselApi, setCarouselApi] = useState();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -199,7 +201,7 @@ export default function ListingDetail() {
               </div>
             ) : (
               <div className="space-y-2.5">
-                <ActionButton icon={MessageCircle} variant="muted" className="w-full" onClick={handleContactar}>
+                <ActionButton icon={MessageCircle} variant="muted" className="w-full" onClick={() => setShowContactModal(true)}>
                   Contactar
                 </ActionButton>
                 <ActionButton variant="muted" className="w-full" onClick={() => setShowOfferModal(true)}>
@@ -284,6 +286,18 @@ export default function ListingDetail() {
           onClose={() => setShowOfferModal(false)}
           onSent={(chatId) => {
             setShowOfferModal(false);
+            navigate('/hilo', { state: { activeChatId: chatId } });
+          }}
+        />
+      )}
+
+      {showContactModal && (
+        <ContactSellerModal
+          listing={listing}
+          userEmail={user?.email}
+          onClose={() => setShowContactModal(false)}
+          onSent={(chatId) => {
+            setShowContactModal(false);
             navigate('/hilo', { state: { activeChatId: chatId } });
           }}
         />
