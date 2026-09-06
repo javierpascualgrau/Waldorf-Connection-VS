@@ -309,6 +309,7 @@ export default function Hilo() {
   // de chats — solo en el primer caso "volver atrás" (móvil) debe navegar fuera de /hilo.
   const [chatOpenedFromNav, setChatOpenedFromNav] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showGroupDisclaimer, setShowGroupDisclaimer] = useState(false);
 
   const myEmail = user?.email?.toLowerCase().trim() || '';
   // Decide en cuál de los dos huecos (móvil o escritorio) se monta ConversationPanel — solo
@@ -884,7 +885,7 @@ export default function Hilo() {
               </button>
               <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
               <button
-                onClick={() => setShowCreateGroupModal(true)}
+                onClick={() => setShowGroupDisclaimer(true)}
                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Crear grupo"
               >
@@ -962,7 +963,7 @@ export default function Hilo() {
             <div className="flex items-center gap-2">
               <h1 className="font-cormorant text-2xl font-bold text-foreground">Hilos</h1>
               <button
-                onClick={() => setShowCreateGroupModal(true)}
+                onClick={() => setShowGroupDisclaimer(true)}
                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Crear grupo"
               >
@@ -1067,6 +1068,33 @@ export default function Hilo() {
             navigate(`/hilo/${newChatId}`, { replace: true });
           }}
         />
+      )}
+
+      {showGroupDisclaimer && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGroupDisclaimer(false)} />
+          <div className="relative w-full max-w-sm bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up">
+            <h2 className="font-cormorant text-2xl font-semibold mb-3">Antes de crear un grupo</h2>
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
+              Waldorf Live permite la creación de grupos concebidos exclusivamente para compartir, no para generar ingresos.
+              El uso de estos espacios con fines de lucro o beneficio económico propio conllevará la suspensión temporal de tu perfil.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowGroupDisclaimer(false)}
+                className="flex-1 bg-muted text-foreground py-3 rounded-2xl font-medium text-sm hover:bg-muted/70 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { setShowGroupDisclaimer(false); setShowCreateGroupModal(true); }}
+                className="flex-1 bg-primary text-primary-foreground py-3 rounded-2xl font-medium text-sm hover:bg-primary/90 transition-colors"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
