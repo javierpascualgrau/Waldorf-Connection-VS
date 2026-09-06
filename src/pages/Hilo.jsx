@@ -559,6 +559,12 @@ export default function Hilo() {
           counterpartIndex.set(key, keep);
         });
 
+        // 💡 Los 1 a 1 y los de grupo se traen en dos consultas separadas y se concatenan
+        // arriba, así que sin este reordenado final los grupos siempre acababan al final de
+        // la lista sin importar lo reciente que fuese su último mensaje.
+        const lastActivity = (chat) => new Date(chat.last_message?.created_at || chat.last_message_at || chat.created_at || 0).getTime();
+        mergedByCounterpart.sort((a, b) => lastActivity(b) - lastActivity(a));
+
         setChats(mergedByCounterpart);
       } catch (err) {
         console.error("Error crítico cargando el feed de hilos:", err);
