@@ -6,6 +6,8 @@ import { Search, MapPin, ShoppingBag, Car, Briefcase, Plus, Trash2, MessageCircl
 import CreateMarketplaceListingModal from '@/components/CreateMarketplaceListingModal';
 import CreateSchoolRouteModal from '@/components/CreateSchoolRouteModal';
 import CreateEmployabilityListingModal from '@/components/CreateEmployabilityListingModal';
+import MakeOfferModal from '@/components/MakeOfferModal';
+import { openMarketplaceListingChat } from '@/lib/marketplaceChat';
 
 const SERVICIOS_TABS = [
   { id: 'compraventa', label: 'Compraventa', icon: ShoppingBag },
@@ -50,6 +52,7 @@ export default function Servicios() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [offerListing, setOfferListing] = useState(null);
 
   const [routes, setRoutes] = useState([]);
   const [schools, setSchools] = useState([]);
@@ -125,6 +128,15 @@ export default function Servicios() {
       return;
     }
     navigate('/hilo', { state: { activeChatId: data.id } });
+  };
+
+  // 💡 A diferencia de handleContactar (genérico, usado también en Actividades), este
+  // etiqueta el chat con el anuncio (mismo mecanismo que ListingDetail.jsx) para que la otra
+  // persona vea de qué anuncio le hablan directamente en Hilo, sin tener que preguntarlo.
+  const handleContactarListing = async (listing) => {
+    if (!user?.email) return;
+    const chat = await openMarketplaceListingChat(user.email, listing);
+    if (chat) navigate('/hilo', { state: { activeChatId: chat.id } });
   };
 
   const handleDelete = async (listing) => {
@@ -301,18 +313,38 @@ export default function Servicios() {
                           <Trash2 className="w-3.5 h-3.5" /> Eliminar mi anuncio
                         </button>
                       ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleContactar(listing); }}
-                          className="w-full flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" /> Contactar
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleContactarListing(listing); }}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-primary/5 text-primary border border-primary/10 rounded-xl text-xs font-semibold py-1.5 hover:bg-primary hover:text-white transition-all"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Contactar
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setOfferListing(listing); }}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground rounded-xl text-xs font-semibold py-1.5 hover:bg-primary/90 transition-all"
+                          >
+                            Hacer oferta
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
                 );
               })}
             </div>
+          )}
+
+          {offerListing && (
+            <MakeOfferModal
+              listing={offerListing}
+              userEmail={user?.email}
+              onClose={() => setOfferListing(null)}
+              onSent={(chatId) => {
+                setOfferListing(null);
+                navigate('/hilo', { state: { activeChatId: chatId } });
+              }}
+            />
           )}
 
           {showCreateModal && (
