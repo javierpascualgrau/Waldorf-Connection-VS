@@ -36,6 +36,8 @@ function ConversationPanel({
   showExternalBack,
   onExternalBack,
 }) {
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
+
   return (
     <>
       <div className="h-16 border-b border-border flex items-center gap-2 bg-muted/5 z-10 px-3 flex-shrink-0 select-none">
@@ -55,12 +57,12 @@ function ConversationPanel({
         )}
 
         {activeChat.is_group ? (
-          <div className="min-w-0 flex-1 text-left">
+          <button onClick={() => setShowGroupInfo(true)} className="min-w-0 flex-1 text-left">
             <h3 className="text-sm font-bold text-foreground truncate">{activeChat.group_name || 'Grupo'}</h3>
             <p className="text-[10px] text-muted-foreground truncate">
-              {(activeChat.participants?.length || 0) + 1} participantes
+              {(activeChat.participants?.length || 0) + 1} participantes · Ver quién está ↗
             </p>
-          </div>
+          </button>
         ) : (
           <div
             onClick={() => {
@@ -243,6 +245,45 @@ function ConversationPanel({
           <Send className="w-4 h-4" />
         </button>
       </form>
+
+      {activeChat.is_group && showGroupInfo && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGroupInfo(false)} />
+          <div className="relative w-full max-w-sm bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 animate-fade-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-cormorant text-2xl font-semibold truncate">{activeChat.group_name || 'Grupo'}</h2>
+              <button onClick={() => setShowGroupInfo(false)} className="p-2 rounded-full hover:bg-muted transition-colors flex-shrink-0">
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground mb-3">
+              {(activeChat.participants?.length || 0) + 1} participantes
+            </p>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5 p-2 rounded-xl">
+                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
+                  <span className="text-primary font-semibold text-xs">{myEmail.slice(0, 2).toUpperCase()}</span>
+                </div>
+                <span className="text-sm text-foreground truncate">{myEmail} (Tú)</span>
+              </div>
+              {activeChat.participants?.map(p => (
+                <div key={p.email} className="flex items-center gap-2.5 p-2 rounded-xl">
+                  <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden border border-border flex-shrink-0">
+                    {p.avatar_url ? (
+                      <img src={p.avatar_url} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      <span className="text-primary font-semibold text-xs">{p.display_name?.slice(0, 2).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <span className="text-sm text-foreground truncate">{p.display_name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
