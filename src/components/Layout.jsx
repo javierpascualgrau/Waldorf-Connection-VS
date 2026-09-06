@@ -104,10 +104,16 @@ export default function Layout() {
   // empresas (CompanyProfile.jsx) tienen su propio botón "Publicar" local en la tarjeta de
   // perfil. Los colegios no tienen uno propio, así que el de la cabecera se mantiene solo ahí.
   const mostrarBotonPublicar = schoolId && location.pathname === `/colegios/${schoolId}`;
-  // El icono de Mapa y el de Hilo viven en la barra superior compartida (Layout), pero Mapa
-  // estaba condicionado solo a "/" — por eso no aparecía en Colegios/Comunidad/Servicios/Perfil
-  // pese a compartir el mismo Layout. Ahora ambos se muestran en las 5 páginas principales.
-  const mostrarBotonMapaOHilo = ['/', '/colegios', '/comunidad', '/servicios', '/perfil'].includes(location.pathname);
+  // El icono de Mapa y el de Hilo viven en la barra superior compartida (Layout). Se muestran
+  // en las 5 páginas principales y también al entrar en el perfil de un colegio, empresa o
+  // persona concreta (antes desaparecían ahí porque solo se comprobaba la ruta exacta).
+  const mostrarBotonMapaOHilo = location.pathname === '/'
+    || location.pathname === '/perfil'
+    || location.pathname.startsWith('/colegios')
+    || location.pathname.startsWith('/comunidad')
+    || location.pathname.startsWith('/servicios')
+    || location.pathname.startsWith('/empresas')
+    || location.pathname.startsWith('/usuario');
   const mostrarBotonMapa = mostrarBotonMapaOHilo;
   const mostrarBotonHilo = mostrarBotonMapaOHilo;
   // Mensajes necesita más ancho que el resto de páginas para el layout de dos columnas

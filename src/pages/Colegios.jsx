@@ -15,6 +15,7 @@ export default function Colegios() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [followingEmails, setFollowingEmails] = useState(new Set());
 
   const [openEventMenuId, setOpenEventMenuId] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -34,6 +35,16 @@ export default function Colegios() {
 
       setSchools(sData || []);
       setCurrentUser(authUser);
+
+      if (authUser?.email) {
+        const myEmailClean = authUser.email.toLowerCase().trim();
+        const { data: follows } = await supabase
+          .from('user_follows')
+          .select('following_email')
+          .eq('follower_email', myEmailClean);
+        setFollowingEmails(new Set((follows || []).map(f => f.following_email?.toLowerCase().trim())));
+      }
+
       await fetchEvents();
 
       setLoading(false);
@@ -57,10 +68,19 @@ export default function Colegios() {
     fetchEvents();
   };
 
-  const filteredSchools = schools.filter(s => 
-    (s.name?.toLowerCase().includes(search.toLowerCase()) || false) || 
-    (s.location?.toLowerCase().includes(search.toLowerCase()) || false)
-  );
+  // 💡 ORDEN CON SENTIDO: primero los colegios que sigues, y dentro de cada grupo,
+  // los que tienen más alumnos primero.
+  const filteredSchools = schools
+    .filter(s =>
+      (s.name?.toLowerCase().includes(search.toLowerCase()) || false) ||
+      (s.location?.toLowerCase().includes(search.toLowerCase()) || false)
+    )
+    .sort((a, b) => {
+      const aFollowed = followingEmails.has(a.school_email?.toLowerCase().trim());
+      const bFollowed = followingEmails.has(b.school_email?.toLowerCase().trim());
+      if (aFollowed !== bFollowed) return aFollowed ? -1 : 1;
+      return (b.num_students || 0) - (a.num_students || 0);
+    });
 
   const filteredEvents = events.filter(e => {
     const coincideTexto = e.title.toLowerCase().includes(search.toLowerCase()) || e.school_name?.toLowerCase().includes(search.toLowerCase());
