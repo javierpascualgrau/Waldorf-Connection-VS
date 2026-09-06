@@ -465,7 +465,7 @@ export default function Servicios() {
               onClick={() => setShowCreateEmploymentModal(true)}
               className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-medium hover:bg-primary/90 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" /> Publicar
+              <Plus className="w-3.5 h-3.5" /> Publicar Actividad
             </button>
           </div>
 
