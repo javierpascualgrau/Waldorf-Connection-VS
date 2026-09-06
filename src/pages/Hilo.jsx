@@ -155,9 +155,26 @@ function ConversationPanel({
                 rechazada: 'bg-muted border-border opacity-60',
               };
               const statusLabels = { pendiente: 'Pendiente', aceptada: 'Aceptada', rechazada: 'Rechazada' };
+              // Mensajes de oferta antiguos (antes de guardar el producto en el propio
+              // mensaje) recurren a la tarjeta fija de la conversación como mejor información
+              // disponible; los nuevos ya llevan su propio producto denormalizado.
+              const offerListingTitle = msg.offer_listing_title || contextListing?.title;
+              const offerListingImage = msg.offer_listing_image || contextListing?.image_urls?.[0];
               return (
                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-xs shadow-sm border ${statusStyles[msg.offer_status] || statusStyles.pendiente}`}>
+                    {offerListingTitle && (
+                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/40">
+                        <div className="w-7 h-7 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                          {offerListingImage ? (
+                            <img src={offerListingImage} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Tag className="w-3 h-3 text-muted-foreground/40" />
+                          )}
+                        </div>
+                        <span className="text-[11px] font-medium text-foreground truncate">{offerListingTitle}</span>
+                      </div>
+                    )}
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Oferta</p>
                     <p className="text-lg font-bold text-foreground">{Number(msg.offer_amount).toFixed(2)} €</p>
                     <p className="text-[10px] mt-1 font-medium text-muted-foreground">{statusLabels[msg.offer_status] || msg.offer_status}</p>
@@ -304,7 +321,17 @@ export default function Hilo() {
           participantsByChatId[p.chat_id].push(p.user_email);
         });
 
-        const chatsData = [...(oneToOneRes.data || []), ...groupChatsData];
+        // 💡 Un chat 1 a 1 puede tener también filas en chat_participants (datos antiguos,
+        // de antes de que existieran los grupos), así que groupChatIds a veces incluye ids
+        // de chats normales — sin este filtro, esos chats se traen dos veces (una por cada
+        // consulta) y aparecen duplicados en la bandeja.
+        const rawChatsData = [...(oneToOneRes.data || []), ...groupChatsData];
+        const seenChatIds = new Set();
+        const chatsData = rawChatsData.filter(c => {
+          if (seenChatIds.has(c.id)) return false;
+          seenChatIds.add(c.id);
+          return true;
+        });
 
         if (chatsData.length === 0) {
           setChats([]);
@@ -503,7 +530,31 @@ export default function Hilo() {
             };
           });
 
-        setChats(chatsWithProfiles);
+        // 💡 UN HILO POR PERSONA/EMPRESA/COLEGIO: datos antiguos pueden tener más de una fila
+        // real en `chats` para el mismo interlocutor (p.ej. el email guardado con distinta
+        // mayúscula/minúscula antes de normalizar), lo que rompe el "un solo chat por pareja"
+        // de la app. Nos quedamos con el hilo más reciente de cada interlocutor y le sumamos
+        // los no leídos de los demás, para que en la lista solo salga uno por persona.
+        const mergedByCounterpart = [];
+        const counterpartIndex = new Map();
+        chatsWithProfiles.forEach(chat => {
+          const key = chat.is_group ? `group-${chat.id}` : `dm-${chat.otherUser.id ?? chat.otherUser.user_email}`;
+          const existing = counterpartIndex.get(key);
+          if (!existing) {
+            counterpartIndex.set(key, chat);
+            mergedByCounterpart.push(chat);
+            return;
+          }
+          const existingTime = new Date(existing.last_message?.created_at || existing.last_message_at || existing.created_at || 0);
+          const chatTime = new Date(chat.last_message?.created_at || chat.last_message_at || chat.created_at || 0);
+          const keep = chatTime > existingTime ? chat : existing;
+          const drop = keep === chat ? existing : chat;
+          keep.unread_count = (keep.unread_count || 0) + (drop.unread_count || 0);
+          mergedByCounterpart[mergedByCounterpart.indexOf(existing)] = keep;
+          counterpartIndex.set(key, keep);
+        });
+
+        setChats(mergedByCounterpart);
       } catch (err) {
         console.error("Error crítico cargando el feed de hilos:", err);
       } finally {

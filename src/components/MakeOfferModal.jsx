@@ -27,6 +27,9 @@ export default function MakeOfferModal({ listing, userEmail, onClose, onSent }) 
       message_type: 'offer',
       offer_amount: parsedAmount,
       offer_status: 'pendiente',
+      offer_listing_id: listing.id,
+      offer_listing_title: listing.title,
+      offer_listing_image: listing.image_urls?.[0] || null,
     }]);
 
     if (!error) {
