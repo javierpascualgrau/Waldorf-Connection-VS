@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
 import { supabase } from '@/api/supabaseClient';
-import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, ArrowLeft, UserPlus, UserCheck, Bell, MoreVertical, Pencil, ShoppingBag, Users } from 'lucide-react';
+import { MapPin, Globe, Edit3, Save, Upload, PlusCircle, X, Trash2, Briefcase, GraduationCap, Heart, Link as LinkIcon, FileText, MessageSquare, Loader2, ArrowLeft, UserPlus, UserCheck, Bell, MoreVertical, Pencil, ShoppingBag, Users, Star } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
-import FollowNetwork from '@/components/FollowNetwork';
+import FollowNetworkModal from '@/components/FollowNetworkModal';
 import { linkify } from '@/lib/linkify';
+import { toggleFeatured } from '@/lib/featured';
+import { countWords, MAX_BIO_WORDS } from '@/lib/wordCount';
 
 export default function CompanyProfile() {
   const { id } = useParams(); 
@@ -23,6 +25,7 @@ export default function CompanyProfile() {
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
   const [profileTab, setProfileTab] = useState('actividad');
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
 
   const [companyPosts, setCompanyPosts] = useState([]);
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
@@ -323,6 +326,10 @@ export default function CompanyProfile() {
 
   const handleSaveProfile = async () => {
     if (!isOwner) return;
+    if (countWords(editForm.description) > MAX_BIO_WORDS) {
+      alert(`La descripción no puede superar las ${MAX_BIO_WORDS} palabras.`);
+      return;
+    }
     const { error } = await supabase
       .from('company_profiles')
       .update({
@@ -344,6 +351,23 @@ export default function CompanyProfile() {
       alert("¡Perfil de empresa actualizado con éxito!");
       setIsEditing(false);
     }
+  };
+
+  const handleToggleFeature = async (itemType, itemId) => {
+    const { error, featured } = await toggleFeatured({
+      table: 'company_profiles',
+      ownerId: company.id,
+      itemType,
+      itemId,
+      currentFeaturedId: company.featured_post_id,
+      currentFeaturedType: company.featured_post_type,
+    });
+    if (error) {
+      console.error('Error al destacar:', error);
+      alert('No se pudo actualizar la publicación destacada.');
+      return;
+    }
+    setCompany(c => ({ ...c, featured_post_id: featured?.featured_post_id ?? null, featured_post_type: featured?.featured_post_type ?? null }));
   };
 
   const handleDeleteOffer = async (offerId) => {
@@ -372,6 +396,127 @@ export default function CompanyProfile() {
 
   if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando ecosistema corporativo...</div>;
   if (!company) return <div className="p-10 text-center text-muted-foreground">Empresa no localizada en el sistema.</div>;
+
+  const featuredPost = company.featured_post_type === 'post' ? companyPosts.find(p => String(p.id) === String(company.featured_post_id)) : null;
+  const featuredProduct = company.featured_post_type === 'product' ? products.find(p => String(p.id) === String(company.featured_post_id)) : null;
+  const featuredOffer = company.featured_post_type === 'offer' ? offers.find(o => String(o.id) === String(company.featured_post_id)) : null;
+  const visibleCompanyPosts = featuredPost ? companyPosts.filter(p => p.id !== featuredPost.id) : companyPosts;
+  const visibleProducts = featuredProduct ? products.filter(p => p.id !== featuredProduct.id) : products;
+  const visibleOffers = featuredOffer ? offers.filter(o => o.id !== featuredOffer.id) : offers;
+
+  const renderProductCard = (prod, isFeaturedCard = false) => (
+    <div key={prod.id} className={`bg-muted/30 border rounded-2xl overflow-hidden relative group hover:border-primary/30 transition-all ${isFeaturedCard ? 'border-primary/30 ring-2 ring-primary/20' : 'border-border'}`}>
+      {prod.image_url && (
+        <img src={prod.image_url} alt={prod.title} className="w-full h-36 object-cover" />
+      )}
+      <div className="p-4 space-y-1">
+        <h3 className="text-base font-semibold text-foreground leading-tight pr-6">{prod.title}</h3>
+        {prod.price != null && (
+          <p className="text-sm font-bold text-primary">{Number(prod.price).toFixed(2)} €</p>
+        )}
+        {prod.description && (
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{prod.description}</p>
+        )}
+        {prod.link_buy && (
+          <div className="pt-2">
+            <a href={prod.link_buy} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+              <LinkIcon className="w-3 h-3" /> Comprar / Más detalles
+            </a>
+          </div>
+        )}
+      </div>
+
+      {isOwner && (
+        <div className="absolute top-2 right-2 product-actions-menu">
+          <button
+            onClick={() => setOpenProductMenuId(openProductMenuId === prod.id ? null : prod.id)}
+            className="p-1 rounded-full bg-card/90 hover:bg-muted transition-colors text-muted-foreground shadow-sm"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+          {openProductMenuId === prod.id && (
+            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[150px]">
+              <button
+                onClick={() => { setOpenProductMenuId(null); setEditingProduct(prod); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </button>
+              <button
+                onClick={() => { setOpenProductMenuId(null); handleToggleFeature('product', prod.id); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                <Star className="w-3.5 h-3.5" /> {isFeaturedCard ? 'Quitar de destacada' : 'Destacar'}
+              </button>
+              <button
+                onClick={() => handleDeleteProduct(prod.id)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderOfferCard = (off, isFeaturedCard = false) => (
+    <div key={off.id} className={`p-5 bg-muted/30 border rounded-2xl relative group hover:border-primary/30 transition-all ${isFeaturedCard ? 'border-primary/30 ring-2 ring-primary/20' : 'border-border'}`}>
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-card border border-border rounded-xl shadow-sm">
+          {getIconType(off.type)}
+        </div>
+        <div className="space-y-1 pr-6 flex-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{off.type}</span>
+          <h3 className="text-lg font-semibold text-foreground pt-1">{off.title}</h3>
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
+          <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
+
+          {off.link_apply && (
+            <div className="pt-3">
+              <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                <LinkIcon className="w-3 h-3" /> Cómo inscribirse / Más detalles
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isOwner && (
+        <div className="absolute top-4 right-4 offer-actions-menu">
+          <button
+            onClick={() => setOpenOfferMenuId(openOfferMenuId === off.id ? null : off.id)}
+            className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+          {openOfferMenuId === off.id && (
+            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[150px]">
+              <button
+                onClick={() => { setOpenOfferMenuId(null); setEditingOffer(off); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </button>
+              <button
+                onClick={() => { setOpenOfferMenuId(null); handleToggleFeature('offer', off.id); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                <Star className="w-3.5 h-3.5" /> {isFeaturedCard ? 'Quitar de destacada' : 'Destacar'}
+              </button>
+              <button
+                onClick={() => handleDeleteOffer(off.id)}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-2 px-4 animate-in fade-in duration-300">
@@ -420,6 +565,13 @@ export default function CompanyProfile() {
                     <PlusCircle className="w-4 h-4" />
                     <span className="hidden sm:inline">Publicar</span>
                   </button>
+                  <button
+                    onClick={() => setShowNetworkModal(true)}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Red"
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
                   <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
                   <button
                     onClick={() => setIsEditing(true)}
@@ -466,7 +618,14 @@ export default function CompanyProfile() {
                 {/* 🚀 GRUPO DE BOTONES DE ACCIÓN: Contactar y Seguir alineados simétricamente */}
                 {!isOwner && (
                   <div className="flex items-center gap-2 self-start sm:self-center">
-                    <button 
+                    <button
+                      onClick={() => setShowNetworkModal(true)}
+                      className="flex items-center justify-center w-9 h-9 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
+                      title="Red"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={handleContactar}
                       className="flex items-center gap-2 bg-[#3A5F43] text-white px-5 py-2.5 rounded-full text-xs font-semibold hover:opacity-90 transition-opacity shadow-sm"
                     >
@@ -527,13 +686,41 @@ export default function CompanyProfile() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Sobre Nosotros</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Sobre Nosotros</label>
+                  <span className={`text-[11px] font-medium ${countWords(editForm.description) > MAX_BIO_WORDS ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {countWords(editForm.description)}/{MAX_BIO_WORDS} palabras
+                  </span>
+                </div>
                 <textarea rows={3} value={editForm.description || ''} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none resize-none" />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* PUBLICACIÓN/PRODUCTO/OFERTA DESTACADA */}
+      {(featuredPost || featuredProduct || featuredOffer) && (
+        <div className="mb-8">
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Destacado</span>
+          </div>
+          {featuredPost && (
+            <div className="rounded-2xl ring-2 ring-primary/30">
+              <PostCard
+                post={featuredPost}
+                userEmail={user?.email}
+                likedIds={new Set()}
+                isFeatured
+                onToggleFeature={isOwner ? (p) => handleToggleFeature('post', p.id) : undefined}
+              />
+            </div>
+          )}
+          {featuredProduct && renderProductCard(featuredProduct, true)}
+          {featuredOffer && renderOfferCard(featuredOffer, true)}
+        </div>
+      )}
 
       {/* CONTENEDOR DE PESTAÑAS DINÁMICAS */}
       <div className="text-left">
@@ -566,70 +753,13 @@ export default function CompanyProfile() {
               >
                 <FileText className="w-4 h-4" /> Oportunidades
               </button>
-              <button
-                onClick={() => setProfileTab('red')}
-                className={`flex-1 pb-3 text-sm font-semibold uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
-                  profileTab === 'red' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Users className="w-4 h-4" /> Red
-              </button>
             </div>
 
             {/* --- CONTENIDO: PESTAÑA OFERTAS --- */}
             {profileTab === 'ofertas' && (
               <div className="space-y-4">
-                {offers.length > 0 ? (
-                  offers.map(off => (
-                    <div key={off.id} className="p-5 bg-muted/30 border border-border rounded-2xl relative group hover:border-primary/30 transition-all">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-card border border-border rounded-xl shadow-sm">
-                          {getIconType(off.type)}
-                        </div>
-                        <div className="space-y-1 pr-6 flex-1">
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-card border border-border rounded-md text-muted-foreground">{off.type}</span>
-                          <h3 className="text-lg font-semibold text-foreground pt-1">{off.title}</h3>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {off.location}</p>
-                          <p className="text-sm text-foreground/70 pt-2 leading-relaxed">{off.description}</p>
-
-                          {off.link_apply && (
-                            <div className="pt-3">
-                              <a href={off.link_apply} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-                                <LinkIcon className="w-3 h-3" /> Cómo inscribirse / Más detalles
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {isOwner && (
-                        <div className="absolute top-4 right-4 offer-actions-menu">
-                          <button
-                            onClick={() => setOpenOfferMenuId(openOfferMenuId === off.id ? null : off.id)}
-                            className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                          {openOfferMenuId === off.id && (
-                            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
-                              <button
-                                onClick={() => { setOpenOfferMenuId(null); setEditingOffer(off); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
-                              >
-                                <Pencil className="w-3.5 h-3.5" /> Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteOffer(off.id)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
+                {visibleOffers.length > 0 ? (
+                  visibleOffers.map(off => renderOfferCard(off))
                 ) : (
                   <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
                     Currently there is no active job, internship or volunteer opportunity.
@@ -641,57 +771,8 @@ export default function CompanyProfile() {
             {/* --- CONTENIDO: PESTAÑA PRODUCTOS --- */}
             {profileTab === 'productos' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {products.length > 0 ? (
-                  products.map(prod => (
-                    <div key={prod.id} className="bg-muted/30 border border-border rounded-2xl overflow-hidden relative group hover:border-primary/30 transition-all">
-                      {prod.image_url && (
-                        <img src={prod.image_url} alt={prod.title} className="w-full h-36 object-cover" />
-                      )}
-                      <div className="p-4 space-y-1">
-                        <h3 className="text-base font-semibold text-foreground leading-tight pr-6">{prod.title}</h3>
-                        {prod.price != null && (
-                          <p className="text-sm font-bold text-primary">{Number(prod.price).toFixed(2)} €</p>
-                        )}
-                        {prod.description && (
-                          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{prod.description}</p>
-                        )}
-                        {prod.link_buy && (
-                          <div className="pt-2">
-                            <a href={prod.link_buy} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-                              <LinkIcon className="w-3 h-3" /> Comprar / Más detalles
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {isOwner && (
-                        <div className="absolute top-2 right-2 product-actions-menu">
-                          <button
-                            onClick={() => setOpenProductMenuId(openProductMenuId === prod.id ? null : prod.id)}
-                            className="p-1 rounded-full bg-card/90 hover:bg-muted transition-colors text-muted-foreground shadow-sm"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                          {openProductMenuId === prod.id && (
-                            <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
-                              <button
-                                onClick={() => { setOpenProductMenuId(null); setEditingProduct(prod); }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
-                              >
-                                <Pencil className="w-3.5 h-3.5" /> Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(prod.id)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
+                {visibleProducts.length > 0 ? (
+                  visibleProducts.map(prod => renderProductCard(prod))
                 ) : (
                   <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center sm:col-span-2">
                     Esta empresa aún no ha añadido productos a su tienda.
@@ -705,9 +786,15 @@ export default function CompanyProfile() {
               <div className="space-y-6">
                 {/* Lista de PostCards generadas por la empresa */}
                 <div className="space-y-4">
-                  {companyPosts.length > 0 ? (
-                    companyPosts.map(post => (
-                      <PostCard key={post.id} post={post} userEmail={user?.email} likedIds={new Set()} />
+                  {visibleCompanyPosts.length > 0 ? (
+                    visibleCompanyPosts.map(post => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        userEmail={user?.email}
+                        likedIds={new Set()}
+                        onToggleFeature={isOwner ? (p) => handleToggleFeature('post', p.id) : undefined}
+                      />
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
@@ -716,11 +803,6 @@ export default function CompanyProfile() {
                   )}
                 </div>
               </div>
-            )}
-
-            {/* --- CONTENIDO: PESTAÑA RED (SEGUIDORES/SIGUIENDO) --- */}
-            {profileTab === 'red' && (
-              <FollowNetwork email={company.company_email} />
             )}
 
           </div>
@@ -762,6 +844,10 @@ export default function CompanyProfile() {
             await loadProducts(company.id);
           }}
         />
+      )}
+
+      {showNetworkModal && (
+        <FollowNetworkModal email={company.company_email} onClose={() => setShowNetworkModal(false)} />
       )}
     </div>
   );

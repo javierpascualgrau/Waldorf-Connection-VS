@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom'; // 💡 NUEVO: Para redirigir tras cerrar sesión
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, ShoppingBag, Package, Car, PlusCircle } from 'lucide-react';
+import { User as UserIcon, MapPin, Edit3, Check, X, Camera, Loader2, ShoppingBag, Package, Car, PlusCircle, Users, Star } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
 import FollowNetworkModal from '@/components/FollowNetworkModal';
+import { toggleFeatured } from '@/lib/featured';
+import { countWords, MAX_BIO_WORDS } from '@/lib/wordCount';
 import SchoolProfile from './SchoolProfile';
 import CompanyProfile from './CompanyProfile'; // 💡 NUEVO: Importamos el panel de empresas
 
@@ -185,6 +187,10 @@ export default function Perfil() {
   };
 
   const handleSave = async () => {
+    if (countWords(form.bio) > MAX_BIO_WORDS) {
+      alert(`La biografía no puede superar las ${MAX_BIO_WORDS} palabras.`);
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('profiles')
@@ -202,6 +208,23 @@ export default function Perfil() {
       alert("Error al guardar los cambios del perfil.");
     }
     setSaving(false);
+  };
+
+  const handleToggleFeaturePost = async (post) => {
+    const { error, featured } = await toggleFeatured({
+      table: 'profiles',
+      ownerId: user.id,
+      itemType: 'post',
+      itemId: post.id,
+      currentFeaturedId: profile?.featured_post_id,
+      currentFeaturedType: profile?.featured_post_type,
+    });
+    if (error) {
+      console.error('Error al destacar la publicación:', error);
+      alert('No se pudo actualizar la publicación destacada.');
+      return;
+    }
+    setProfile(p => ({ ...p, featured_post_id: featured?.featured_post_id ?? null, featured_post_type: featured?.featured_post_type ?? null }));
   };
 
   const toggleInterest = (interest) => {
@@ -252,6 +275,10 @@ export default function Perfil() {
   const initials = displayName.slice(0, 2).toUpperCase();
   const currentAvatarUrl = editing ? form.avatar_url : profile?.avatar_url;
   const currentBannerUrl = editing ? form.banner_url : profile?.banner_url;
+  const featuredPost = profile?.featured_post_type === 'post'
+    ? myPosts.find(p => String(p.id) === String(profile?.featured_post_id))
+    : null;
+  const otherPosts = featuredPost ? myPosts.filter(p => p.id !== featuredPost.id) : myPosts;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -315,6 +342,14 @@ export default function Perfil() {
                 <span className="hidden sm:inline">Publicar</span>
               </button>
 
+              <button
+                onClick={() => setShowNetworkModal(true)}
+                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                title="Red"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+
               <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
 
               <button
@@ -337,12 +372,6 @@ export default function Perfil() {
                   <span className="text-xs">{profile.location}</span>
                 </div>
               )}
-              <button
-                onClick={() => setShowNetworkModal(true)}
-                className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
-              >
-                Red
-              </button>
             </div>
           </div>
 
@@ -368,7 +397,12 @@ export default function Perfil() {
                   className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Biografía</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground block">Biografía</label>
+                  <span className={`text-[11px] font-medium ${countWords(form.bio) > MAX_BIO_WORDS ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {countWords(form.bio)}/{MAX_BIO_WORDS} palabras
+                  </span>
+                </div>
                 <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                   placeholder="Cuéntanos un poco sobre ti..."
                   className="w-full bg-muted/50 rounded-xl px-4 py-2.5 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
@@ -448,20 +482,47 @@ export default function Perfil() {
         </Link>
       </div>
 
+      {/* Publicación destacada */}
+      {featuredPost && (
+        <div className="mb-5">
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Destacado</span>
+          </div>
+          <div className="rounded-2xl ring-2 ring-primary/30">
+            <PostCard
+              post={featuredPost}
+              userEmail={user?.email}
+              likedIds={new Set()}
+              isFeatured
+              onToggleFeature={handleToggleFeaturePost}
+              onDeleted={(id) => setMyPosts(prev => prev.filter(p => p.id !== id))}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Mis publicaciones */}
       <div className="flex items-center justify-between mb-4 px-1">
         <h3 className="font-cormorant text-xl font-semibold">Mis publicaciones</h3>
-        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{myPosts.length}</span>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{otherPosts.length}</span>
       </div>
-      
-      {myPosts.length === 0 ? (
+
+      {otherPosts.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-2xl border border-dashed border-border">
           <p className="text-sm text-muted-foreground">Aún no has compartido nada</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {myPosts.map(post => (
-            <PostCard key={post.id} post={post} userEmail={user?.email} likedIds={new Set()} />
+          {otherPosts.map(post => (
+            <PostCard
+              key={post.id}
+              post={post}
+              userEmail={user?.email}
+              likedIds={new Set()}
+              onToggleFeature={handleToggleFeaturePost}
+              onDeleted={(id) => setMyPosts(prev => prev.filter(p => p.id !== id))}
+            />
           ))}
         </div>
       )}

@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Activity, Image as ImageIcon, Calendar, Clock, Users, GraduationCap, Edit3, Save, Upload, X, Trash2, UserPlus, UserCheck, ChevronLeft, ChevronRight, MoreVertical, Pencil, PlusCircle, Bell, Camera, Loader2, Star } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
 import AccountSettingsMenu from '@/components/AccountSettingsMenu';
-import FollowNetwork from '@/components/FollowNetwork';
+import FollowNetworkModal from '@/components/FollowNetworkModal';
 import { linkify } from '@/lib/linkify';
+import { toggleFeatured } from '@/lib/featured';
+import { countWords, MAX_BIO_WORDS } from '@/lib/wordCount';
 
 const ETAPAS_DISPONIBLES = ['Infantil', 'Primaria', 'ESO', 'Bachillerato', 'Educación Especial'];
 
@@ -37,6 +39,7 @@ export default function SchoolProfile() {
   const [openEventMenuId, setOpenEventMenuId] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
 
   // 💡 NUEVOS ESTADOS: Control de reactividad inmediata para el seguimiento escolar
   const [following, setFollowing] = useState(false);
@@ -273,7 +276,11 @@ export default function SchoolProfile() {
 
   const handleSave = async () => {
     if (!currentSchoolId) return;
-    
+    if (countWords(editForm.description) > MAX_BIO_WORDS) {
+      alert(`La descripción no puede superar las ${MAX_BIO_WORDS} palabras.`);
+      return;
+    }
+
     const { error } = await supabase
       .from('school_profiles')
       .update({
@@ -299,6 +306,23 @@ export default function SchoolProfile() {
     }
   };
 
+  const handleToggleFeature = async (itemType, itemId) => {
+    const { error, featured } = await toggleFeatured({
+      table: 'school_profiles',
+      ownerId: school.id,
+      itemType,
+      itemId,
+      currentFeaturedId: school.featured_post_id,
+      currentFeaturedType: school.featured_post_type,
+    });
+    if (error) {
+      console.error('Error al destacar:', error);
+      alert('No se pudo actualizar la publicación destacada.');
+      return;
+    }
+    setSchool(s => ({ ...s, featured_post_id: featured?.featured_post_id ?? null, featured_post_type: featured?.featured_post_type ?? null }));
+  };
+
   const toggleStage = (stage) => {
     const currentStages = editForm.stages || [];
     if (currentStages.includes(stage)) {
@@ -310,6 +334,75 @@ export default function SchoolProfile() {
 
   if (loading) return <div className="p-10 text-center animate-pulse text-muted-foreground">Cargando perfil educativo...</div>;
   if (!school) return <div className="p-10 text-center text-muted-foreground">Centro no encontrado en el sistema.</div>;
+
+  const featuredPost = school.featured_post_type === 'post' ? dailyPosts.find(p => String(p.id) === String(school.featured_post_id)) : null;
+  const featuredEvent = school.featured_post_type === 'event' ? schoolEvents.find(e => String(e.id) === String(school.featured_post_id)) : null;
+  const visibleDailyPosts = featuredPost ? dailyPosts.filter(p => p.id !== featuredPost.id) : dailyPosts;
+  const visibleSchoolEvents = featuredEvent ? schoolEvents.filter(e => e.id !== featuredEvent.id) : schoolEvents;
+
+  const renderEventCard = (e, isFeaturedCard = false) => (
+    <div key={e.id} className={`p-5 bg-muted/40 border rounded-2xl relative text-left ${isFeaturedCard ? 'border-primary/30 ring-2 ring-primary/20' : 'border-border'}`}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
+            <img
+              src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'}
+              className="w-full h-full object-cover"
+              alt={school.name}
+            />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground text-sm leading-tight truncate">{school.name}</h3>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
+              {e.event_type || 'Evento'}
+            </span>
+          </div>
+        </div>
+
+        {isManager && (
+          <div className="relative event-actions-menu flex-shrink-0">
+            <button
+              onClick={() => setOpenEventMenuId(openEventMenuId === e.id ? null : e.id)}
+              className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            {openEventMenuId === e.id && (
+              <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[150px]">
+                <button
+                  onClick={() => { setOpenEventMenuId(null); setEditingEvent(e); }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Editar
+                </button>
+                <button
+                  onClick={() => { setOpenEventMenuId(null); handleToggleFeature('event', e.id); }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  <Star className="w-3.5 h-3.5" /> {isFeaturedCard ? 'Quitar de destacada' : 'Destacar'}
+                </button>
+                <button
+                  onClick={() => handleDeleteEvent(e.id)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold text-foreground">{e.title}</h3>
+        <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
+        <div className="flex gap-4 text-xs text-muted-foreground pt-3">
+          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
+          <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto pb-20 mt-4 px-4 animate-in fade-in duration-300 text-left">
@@ -366,6 +459,13 @@ export default function SchoolProfile() {
                     <PlusCircle className="w-4 h-4" />
                     <span className="hidden sm:inline">Publicar</span>
                   </button>
+                  <button
+                    onClick={() => setShowNetworkModal(true)}
+                    className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                    title="Red"
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
                   <AccountSettingsMenu userEmail={user?.email} onLogout={handleLogout} />
                   <button
                     onClick={() => setIsEditing(true)}
@@ -409,6 +509,13 @@ export default function SchoolProfile() {
                 {!isManager && user?.email && (
                   <div className="flex items-center gap-2 self-start sm:self-center">
                     <button
+                      onClick={() => setShowNetworkModal(true)}
+                      className="flex items-center justify-center w-9 h-9 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
+                      title="Red"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={handleFollow}
                       className={`flex items-center gap-1.5 text-xs px-5 py-2.5 rounded-full font-semibold transition-colors shadow-sm ${
                         following
@@ -451,13 +558,41 @@ export default function SchoolProfile() {
                 <input value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Descripción del Centro</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Descripción del Centro</label>
+                  <span className={`text-[11px] font-medium ${countWords(editForm.description) > MAX_BIO_WORDS ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {countWords(editForm.description)}/{MAX_BIO_WORDS} palabras
+                  </span>
+                </div>
                 <textarea rows={3} value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full mt-1 bg-muted border border-border rounded-xl px-4 py-2 text-sm focus:outline-none resize-none" />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* PUBLICACIÓN/EVENTO DESTACADO */}
+      {(featuredPost || featuredEvent) && (
+        <div className="mb-8">
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Destacado</span>
+          </div>
+          {featuredPost && (
+            <div className="rounded-2xl ring-2 ring-primary/30">
+              <PostCard
+                post={featuredPost}
+                userEmail={user?.email}
+                likedIds={likedPostIds}
+                followingIds={myFollowingIds}
+                isFeatured
+                onToggleFeature={isManager ? (p) => handleToggleFeature('post', p.id) : undefined}
+              />
+            </div>
+          )}
+          {featuredEvent && renderEventCard(featuredEvent, true)}
+        </div>
+      )}
 
       {/* REJILLA FIJA: DATOS DEL CENTRO Y GALERÍA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -597,32 +732,21 @@ export default function SchoolProfile() {
         >
           <Calendar className="w-3.5 h-3.5" /> Eventos del Colegio
         </button>
-        <button
-          onClick={() => setActiveTab('red')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${
-            activeTab === 'red' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" /> Red
-        </button>
       </div>
 
       {/* CONTENIDO DE PESTAÑA */}
-      {activeTab === 'red' ? (
-        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-          <FollowNetwork email={school.school_email} />
-        </div>
-      ) : activeTab === 'aldia' ? (
+      {activeTab === 'aldia' ? (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
           <div className="space-y-4">
-            {dailyPosts.length > 0 ? (
-              dailyPosts.map(post => (
+            {visibleDailyPosts.length > 0 ? (
+              visibleDailyPosts.map(post => (
                 <PostCard
                   key={post.id}
                   post={post}
                   userEmail={user?.email}
                   likedIds={likedPostIds}
                   followingIds={myFollowingIds}
+                  onToggleFeature={isManager ? (p) => handleToggleFeature('post', p.id) : undefined}
                   onDeleted={(postId) => setDailyPosts(prev => prev.filter(p => p.id !== postId))}
                 />
               ))
@@ -636,64 +760,8 @@ export default function SchoolProfile() {
       ) : (
         <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
           <div className="space-y-4">
-            {schoolEvents.length > 0 ? (
-              schoolEvents.map(e => (
-                <div key={e.id} className="p-5 bg-muted/40 border border-border rounded-2xl relative text-left">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border border-border flex-shrink-0">
-                        <img
-                          src={school.avatar_url || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d'}
-                          className="w-full h-full object-cover"
-                          alt={school.name}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-foreground text-sm leading-tight truncate">{school.name}</h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 border border-primary/10 px-2 py-0.5 rounded-md mt-1 inline-block">
-                          {e.event_type || 'Evento'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {isManager && (
-                      <div className="relative event-actions-menu flex-shrink-0">
-                        <button
-                          onClick={() => setOpenEventMenuId(openEventMenuId === e.id ? null : e.id)}
-                          className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                        {openEventMenuId === e.id && (
-                          <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[130px]">
-                            <button
-                              onClick={() => { setOpenEventMenuId(null); setEditingEvent(e); }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
-                            >
-                              <Pencil className="w-3.5 h-3.5" /> Editar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteEvent(e.id)}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-foreground">{e.title}</h3>
-                    <p className="text-sm text-foreground/70 leading-relaxed pt-1">{e.description}</p>
-                    <div className="flex gap-4 text-xs text-muted-foreground pt-3">
-                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" /> {e.date}</span>
-                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary" /> {e.time}</span>
-                    </div>
-                  </div>
-                </div>
-              ))
+            {visibleSchoolEvents.length > 0 ? (
+              visibleSchoolEvents.map(e => renderEventCard(e))
             ) : (
               <p className="text-xs text-muted-foreground italic bg-muted/20 p-6 rounded-xl border border-dashed border-border text-center">
                 Este centro educativo no tiene eventos activos en cartelera.
@@ -731,6 +799,10 @@ export default function SchoolProfile() {
             loadEvents(currentSchoolId);
           }}
         />
+      )}
+
+      {showNetworkModal && (
+        <FollowNetworkModal email={school.school_email} onClose={() => setShowNetworkModal(false)} />
       )}
     </div>
   );

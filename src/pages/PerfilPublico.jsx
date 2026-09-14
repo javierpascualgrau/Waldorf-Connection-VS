@@ -4,7 +4,7 @@ import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import PostCard from '@/components/PostCard';
 import FollowNetworkModal from '@/components/FollowNetworkModal';
-import { MapPin, ArrowLeft, Loader2, MessageSquare, UserPlus, UserCheck } from 'lucide-react';
+import { MapPin, ArrowLeft, Loader2, MessageSquare, UserPlus, UserCheck, Users, Star } from 'lucide-react';
 
 export default function PerfilPublico() {
   const { id } = useParams(); 
@@ -211,6 +211,10 @@ export default function PerfilPublico() {
   const initials = displayName.slice(0, 2).toUpperCase();
   const targetEmailClean = profile.user_email?.toLowerCase().trim() || '';
   const isFollowing = followingIds.has(targetEmailClean);
+  const featuredPost = profile.featured_post_type === 'post'
+    ? userPosts.find(p => String(p.id) === String(profile.featured_post_id))
+    : null;
+  const otherPosts = featuredPost ? userPosts.filter(p => p.id !== featuredPost.id) : userPosts;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -234,6 +238,14 @@ export default function PerfilPublico() {
             
             {/* 💡 BLOQUE DE ACCIONES CORREGIDO: Contenedor flex con soporte simétrico para Contactar y Seguir */}
             <div className="pt-2 sm:pt-0 flex items-center justify-center sm:justify-start gap-2">
+              <button
+                onClick={() => setShowNetworkModal(true)}
+                className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground bg-card border border-border"
+                title="Red"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+
               <button onClick={handleContactar} className="flex items-center gap-2 text-xs bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity shadow-sm">
                 <MessageSquare className="w-3.5 h-3.5" /> Contactar
               </button>
@@ -263,27 +275,35 @@ export default function PerfilPublico() {
               <h2 className="font-cormorant text-2xl font-bold text-foreground">{displayName}</h2>
               <p className="text-sm font-medium text-primary">{ROLE_LABELS[profile.role] || profile.role || 'Simpatizante'}</p>
             </div>
-            <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
-              {profile.location && <div className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-4 h-4" /> <span>{profile.location}</span></div>}
-              <button
-                onClick={() => setShowNetworkModal(true)}
-                className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
-              >
-                Red
-              </button>
-            </div>
+            {profile.location && (
+              <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted-foreground">
+                <MapPin className="w-4 h-4" /> <span>{profile.location}</span>
+              </div>
+            )}
             {profile.bio ? <p className="text-sm text-muted-foreground pt-1 whitespace-pre-wrap">{profile.bio}</p> : <p className="text-sm text-muted-foreground/60 italic pt-1">Sin biografía disponible.</p>}
           </div>
         </div>
       </div>
 
+      {featuredPost && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Destacado</span>
+          </div>
+          <div className="rounded-2xl ring-2 ring-primary/30">
+            <PostCard post={featuredPost} userEmail={user?.email} likedIds={likedIds} followingIds={followingIds} isFeatured onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))} />
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         <h3 className="font-cormorant text-xl font-bold text-foreground px-1">Publicaciones antiguas</h3>
-        {userPosts.length === 0 ? (
+        {otherPosts.length === 0 ? (
           <div className="bg-muted/30 border border-dashed border-border rounded-2xl p-8 text-center text-muted-foreground">Este usuario aún no ha publicado nada en el feed.</div>
         ) : (
           <div className="space-y-4">
-            {userPosts.map(post => <PostCard key={`post-${post.id}`} post={post} userEmail={user?.email} likedIds={likedIds} followingIds={followingIds} onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))} />)}
+            {otherPosts.map(post => <PostCard key={`post-${post.id}`} post={post} userEmail={user?.email} likedIds={likedIds} followingIds={followingIds} onDeleted={(id) => setUserPosts(prev => prev.filter(p => p.id !== id))} />)}
           </div>
         )}
       </div>

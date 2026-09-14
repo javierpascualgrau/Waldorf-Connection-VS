@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2, Send, Loader2, X } from 'lucide-react';
+import { Heart, MessageCircle, MapPin, Calendar, Briefcase, UserPlus, UserCheck, MoreVertical, Pencil, Trash2, Send, Loader2, X, Star } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -49,7 +49,7 @@ function LazyVideo({ src }) {
   );
 }
 
-export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted }) {
+export default function PostCard({ post, userEmail, likedIds = new Set(), followingIds = new Set(), onDeleted, isFeatured = false, onToggleFeature }) {
   const navigate = useNavigate(); 
   const postId = String(post.id); 
   const isLiked = likedIds?.has(postId);
@@ -595,6 +595,14 @@ export default function PostCard({ post, userEmail, likedIds = new Set(), follow
                     >
                       <Pencil className="w-3.5 h-3.5" /> Editar
                     </button>
+                    {onToggleFeature && (
+                      <button
+                        onClick={() => { setMenuOpen(false); onToggleFeature(currentPost); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                      >
+                        <Star className="w-3.5 h-3.5" /> {isFeatured ? 'Quitar de destacada' : 'Destacar'}
+                      </button>
+                    )}
                     <button
                       onClick={handleDelete}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
